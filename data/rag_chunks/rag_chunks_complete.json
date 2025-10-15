@@ -1,0 +1,61 @@
+{
+  "document_info": {
+    "source_document": "SI1-002-001-1",
+    "title": "Risk Management Handbook", 
+    "version": "1",
+    "organization": "L3Harris Technologies, Inc.",
+    "total_chunks": 40,
+    "processed_sections": [
+      "1.2 - Terms and Definitions",
+      "1.4 - Definitions (Figures and Tables)",
+      "2.1.1 - Risk Management Roles and Responsibilities", 
+      "2.2 - Assessment",
+      "2.2.1 - Identification",
+      "2.2.2 - Analysis",
+      "2.3.1 - Risk Avoidance",
+      "2.3.2 - Risk Acceptance", 
+      "2.3.3 - Risk Transfer",
+      "2.3.4 - Risk Control",
+      "2.3.5 - Risk Watch",
+      "2.4.1 - Program Risk Review Board"
+    ]
+  },
+  "chunk_categories": {
+    "definitions": "rag_chunks_definitions.json",
+    "handling_strategies": "rag_chunks_handling.json", 
+    "assessment_procedures": "rag_chunks_assessment.json",
+    "roles_responsibilities": "rag_chunks_roles.json"
+  },
+  "usage_instructions": {
+    "vector_embedding": "Each chunk should be embedded separately with metadata preserved",
+    "retrieval_strategy": "Use hybrid search combining semantic similarity and metadata filtering",
+    "common_queries": [
+      "What are the risk handling strategies?",
+      "How do I identify risks?",
+      "What are the program manager's responsibilities?", 
+      "What is the difference between risk and opportunity?",
+      "How does the PRRB work?",
+      "What is the risk statement format?"
+    ],
+    "metadata_filtering": [
+      "content_type: concept|procedure|reference|template",
+      "process_phase: planning|assessment|identification|analysis|handling|monitoring",
+      "roles_applicable: specific role names",
+      "handling_strategy: avoidance|acceptance|transfer|control|watch"
+    ]
+  },
+  "implementation_notes": {
+    "chunk_size": "Most chunks are 200-800 tokens, optimized for semantic retrieval",
+    "cross_references": "Related documents and sections are preserved in metadata",
+    "template_extraction": "Risk statement format and examples extracted as templates",
+    "figure_processing": "Complex tables and figures converted to natural language descriptions",
+    "role_based_access": "Chunks tagged with applicable roles for targeted retrieval"
+  },
+  "next_steps": [
+    "Load chunks into vector database",
+    "Create embeddings for each chunk",
+    "Implement metadata filtering capabilities", 
+    "Test retrieval with common risk management queries",
+    "Add remaining document sections (Planning, Monitoring, Documentation, Appendices)"
+  ]
+}

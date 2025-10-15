@@ -1,0 +1,119 @@
+[
+  {
+    "chunk_id": "SI1-002-001-1_def_001",
+    "content": "Risk: An uncertain event that has an unfavorable or negative consequence should it occur. Risks include those events that potentially decrease value to the project stakeholders, such as constraints from external dependencies, ineffective processes, immature technology, changing requirements, or unclear roles and reporting relationships.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "1.2",
+      "section_title": "Terms and Definitions",
+      "content_type": "concept",
+      "keywords": ["risk", "definition", "uncertainty", "negative impact", "stakeholders", "dependencies", "technology"],
+      "process_phase": ["assessment", "identification"],
+      "page_reference": "1"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_def_002",
+    "content": "Opportunity: An uncertain event that has a favorable or positive consequence should it occur. Opportunities include those situations that potentially provide value to project stakeholders such as development of a product or method that could reduce cost or schedule, or enhance performance at no additional cost.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "1.2",
+      "section_title": "Terms and Definitions",
+      "content_type": "concept",
+      "keywords": ["opportunity", "definition", "positive impact", "value creation", "cost reduction", "performance enhancement"],
+      "process_phase": ["assessment", "identification"],
+      "page_reference": "1"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_def_003",
+    "content": "Issue: An event that has occurred and requires action. The impact of an issue is known and already reflected in the project's estimate to complete. Issues are different from risks and opportunities because they are current situations requiring immediate action, while risks and opportunities are future situations that may or may not occur.",
+    "metadata": {
+      "document_id": "SI1-002-001-1", 
+      "document_title": "Risk Management Handbook",
+      "section": "1.2",
+      "section_title": "Terms and Definitions",
+      "content_type": "concept",
+      "keywords": ["issue", "definition", "current situation", "immediate action", "occurred event"],
+      "process_phase": ["monitoring"],
+      "page_reference": "1"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_1-4-1_001",
+    "content": "Risk and Opportunity Comparison Framework: Risk Impact represents Potential Loss to stakeholders - the negative consequences that could occur if a risk event happens. Risk Exposure is calculated as Potential Loss × Probability of occurrence, representing the expected loss value. Risk Reduction Cost is the cost required to minimize exposure through mitigation activities.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook", 
+      "section": "1.4",
+      "figure_id": "Figure 1.4-1",
+      "figure_title": "Risk and Opportunity Comparisons",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["risk", "impact", "exposure", "potential loss", "probability", "reduction cost"],
+      "page_reference": "2"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_1-4-1_002", 
+    "content": "Opportunity Characteristics: Opportunity Impact represents Potential Gain for stakeholders - the positive benefits that could be realized. Opportunity Exposure is calculated as Potential Gain × Probability of occurrence, representing the expected gain value. Investment is the cost required to maximize exposure and realize the opportunity benefits.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "1.4", 
+      "figure_id": "Figure 1.4-1",
+      "figure_title": "Risk and Opportunity Comparisons",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["opportunity", "impact", "exposure", "potential gain", "probability", "investment"],
+      "page_reference": "2"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_1-4-1_003",
+    "content": "Risk and Opportunity Management Goals: For risks, the goal is to 'Minimize the Negative - Make it NOT Happen' through risk reduction activities and mitigation strategies. For opportunities, the goal is to 'Maximize the Positive - Make it Happen' through investment and realization strategies. Both require proactive management and planned actions.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "1.4",
+      "figure_id": "Figure 1.4-1", 
+      "figure_title": "Risk and Opportunity Comparisons",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["risk management", "opportunity management", "goals", "minimize negative", "maximize positive", "proactive"],
+      "page_reference": "2"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_table_1-4-2_001",
+    "content": "Risk/Opportunity vs Issue Comparison: Risks and opportunities are future situations where the potential event has not been realized and immediate resolution is not required. This allows for proactive mode where actions can be taken to reduce uncertainty or mitigate/improve consequences before they occur.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "1.4",
+      "table_id": "Table 1.4-2",
+      "table_title": "Risk/Opportunity Issues", 
+      "content_type": "concept",
+      "source_type": "table",
+      "keywords": ["risk", "opportunity", "future situation", "proactive", "uncertainty", "mitigation"],
+      "page_reference": "2"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_table_1-4-2_002",
+    "content": "Issue Characteristics: Issues are current situations where the risk has been realized or the opportunity has been missed. Issues require immediate action and put the project in reactive mode where actions can only be taken to mitigate and recover from what has already occurred.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook", 
+      "section": "1.4",
+      "table_id": "Table 1.4-2",
+      "table_title": "Risk/Opportunity Issues",
+      "content_type": "concept",
+      "source_type": "table",
+      "keywords": ["issue", "current situation", "realized risk", "missed opportunity", "immediate action", "reactive"],
+      "page_reference": "2"
+    }
+  }
+]

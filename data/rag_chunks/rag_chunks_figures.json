@@ -1,0 +1,146 @@
+[
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-2-2-1_001",
+    "content": "Risk Severity Diagram: A probability vs impact matrix used to prioritize risks and opportunities. The diagram uses a 5x5 grid where the x-axis represents Impact (ranging from -5 to +5) and the y-axis represents Probability (1 to 5). For risks (positive impact values 1-5), colors indicate priority levels: Red areas (high probability, high impact) require urgent handling, Yellow areas need attention, and Green areas are lower priority.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.2.2",
+      "figure_id": "Figure 2.2.2-1",
+      "figure_title": "Risk Severity Diagram",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["risk severity", "probability", "impact", "matrix", "prioritization", "color coding"],
+      "process_phase": ["analysis", "prioritization"],
+      "page_reference": "7"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-2-2-1_002",
+    "content": "Opportunity Severity Assessment: The left side of the Risk Severity Diagram shows opportunities with negative impact values (-5 to -1), representing potential gains. Blue areas indicate high-value opportunities that should be actively pursued, while lighter blue areas represent moderate opportunities. The diagram helps teams visualize which opportunities warrant investment for realization.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.2.2",
+      "figure_id": "Figure 2.2.2-1", 
+      "figure_title": "Risk Severity Diagram",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["opportunity severity", "potential gains", "investment priority", "blue coding", "opportunity pursuit"],
+      "process_phase": ["analysis", "opportunity assessment"],
+      "page_reference": "7"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-2-2-1_003",
+    "content": "Risk Severity Color Interpretation: Red or dark areas indicate high severity risks (large negative exposure) or high significance opportunities (large positive exposure) requiring urgent and rigorous handling approaches. Yellow areas indicate moderate risks/opportunities needing structured handling. Green areas represent lower priority items that may require minimal handling or monitoring.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.2.2",
+      "figure_id": "Figure 2.2.2-1",
+      "figure_title": "Risk Severity Diagram", 
+      "content_type": "procedure",
+      "source_type": "figure",
+      "keywords": ["color interpretation", "severity levels", "handling priority", "red", "yellow", "green", "urgent handling"],
+      "process_phase": ["analysis", "handling"],
+      "page_reference": "7"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-1_001",
+    "content": "Risk Management Process Flow: The risk management process follows a continuous cycle consisting of four main phases: Planning (establish risk management approach), Assessment (identify and analyze risks), Handling (select and implement response strategies), and Monitoring (track progress and effectiveness). The process is iterative and continues throughout the project lifecycle, with feedback loops between all phases.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.0",
+      "figure_id": "Figure 2-1",
+      "figure_title": "Risk Management Process",
+      "content_type": "concept",
+      "source_type": "figure",
+      "keywords": ["process flow", "continuous cycle", "planning", "assessment", "handling", "monitoring", "iterative"],
+      "process_phase": ["planning", "assessment", "handling", "monitoring"],
+      "page_reference": "3"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-3-4-1_001",
+    "content": "Typical Risk Handling/Control Plan Structure: A risk control plan includes Risk ID and description, handling strategy selection, specific mitigation actions with assigned owners, target completion dates aligned with the Integrated Master Schedule, success criteria for measuring effectiveness, and contingency plans if primary mitigation fails. The plan should be tracked and updated regularly through the PRRB process.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.4",
+      "figure_id": "Figure 2.3.4-1",
+      "figure_title": "Typical Risk Handling/Control Plan",
+      "content_type": "template",
+      "source_type": "figure", 
+      "keywords": ["handling plan", "control plan", "mitigation actions", "success criteria", "contingency", "IMS alignment"],
+      "process_phase": ["handling", "monitoring"],
+      "page_reference": "9"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_2-4-1_001",
+    "content": "Project Risk Database Structure: Example spreadsheet database contains columns for Risk ID, Risk Statement (If-Then format), Category (using risk taxonomy), Probability (percentage), Impact (dollars), Exposure (calculated), Handling Strategy, Owner, Status, and Target Date. The database supports sorting and filtering by any column and provides summary statistics for reporting to management and PRRB reviews.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.4",
+      "figure_id": "Figure 2.4-1",
+      "figure_title": "Example Spreadsheet Project Risk Database",
+      "content_type": "template",
+      "source_type": "figure",
+      "keywords": ["risk database", "spreadsheet", "risk tracking", "columns", "sorting", "filtering", "reporting"],
+      "process_phase": ["documentation", "monitoring"],
+      "page_reference": "11"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_fig_B-1_001",
+    "content": "Risk Taxonomy Hierarchical Structure: The risk taxonomy organizes potential risk sources into a three-level hierarchy: Risk Classes (top level categories such as Technical, Programmatic, External), Risk Elements (second level subcategories), and Risk Attributes (detailed specific risk areas). All projects must categorize risks to at least the Risk Element level to enable consistent reporting and process improvement across the organization.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "Appendix B",
+      "figure_id": "Figure B-1",
+      "figure_title": "Risk Taxonomy",
+      "content_type": "reference",
+      "source_type": "figure",
+      "keywords": ["risk taxonomy", "hierarchical structure", "risk classes", "risk elements", "risk attributes", "categorization"],
+      "process_phase": ["identification", "categorization"],
+      "page_reference": "13"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_severity_matrix_usage_001",
+    "content": "Using the Risk Severity Matrix for Decision Making: Plot each identified risk or opportunity on the matrix using its probability (1-5) and impact (-5 to +5) values. Risks plotting in red zones require immediate handling plans and management attention. Opportunities in dark blue zones should be actively pursued with investment plans. Items in green zones may be accepted or watched. The matrix distribution should guide resource allocation for risk management activities.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.2.2",
+      "figure_id": "Figure 2.2.2-1",
+      "figure_title": "Risk Severity Diagram",
+      "content_type": "procedure",
+      "source_type": "figure",
+      "keywords": ["matrix usage", "plotting", "decision making", "resource allocation", "zones", "management attention"],
+      "process_phase": ["analysis", "handling", "prioritization"],
+      "page_reference": "7"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_severity_matrix_totals_001",
+    "content": "Risk Severity Matrix Summary Totals: The matrix includes summary boxes showing total counts by severity level - for risks: L (Low/Green), M (Medium/Yellow), H (High/Red), and for opportunities similar categorization. These totals provide quick insights into the overall risk profile of the project and help track changes in risk distribution over time as mitigation efforts progress.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.2.2",
+      "figure_id": "Figure 2.2.2-1",
+      "figure_title": "Risk Severity Diagram",
+      "content_type": "concept", 
+      "source_type": "figure",
+      "keywords": ["summary totals", "severity levels", "risk profile", "distribution tracking", "low medium high", "progress tracking"],
+      "process_phase": ["analysis", "monitoring", "reporting"],
+      "page_reference": "7"
+    }
+  }
+]

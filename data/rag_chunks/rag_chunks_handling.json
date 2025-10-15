@@ -1,0 +1,153 @@
+[
+  {
+    "chunk_id": "SI1-002-001-1_handling_001",
+    "content": "Risk Avoidance: A change in the concept, requirements, specifications, and/or practices that identifies a path to the final product that goes around (avoids) the risk. This method may be utilized in parallel with upfront requirements analysis, when supported by cost/requirement trade studies. This process modifies or eliminates operational requirements, processes, and/or activities that cause the identified risk.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.1",
+      "section_title": "Risk Avoidance",
+      "content_type": "procedure",
+      "keywords": ["risk avoidance", "requirements", "trade studies", "elimination", "concept change"],
+      "process_phase": ["handling"],
+      "handling_strategy": "avoidance",
+      "page_reference": "7"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_002",
+    "content": "Risk Acceptance: The method for handling risks where no action will be taken to mitigate the possible consequences or reduce the likelihood of occurrence. Risk acceptance can be the primary response to a new risk if the stakeholders believe it to be appropriate. Typically occurs when the likelihood or consequence is exceedingly small, but the mitigation/prevention effort would be large compared to the overall project cost.",
+    "metadata": {
+      "document_id": "SI1-002-001-1", 
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.2",
+      "section_title": "Risk Acceptance",
+      "content_type": "procedure",
+      "keywords": ["risk acceptance", "no action", "small likelihood", "small consequence", "cost comparison"],
+      "process_phase": ["handling"],
+      "handling_strategy": "acceptance",
+      "page_reference": "8"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_003",
+    "content": "Risk Acceptance Considerations: Risk acceptance does not imply that no further work is required on a risk, or that the risk is going to be ignored. The project must be prepared for the possibility that the consequences could occur. For risks accepted due to small consequences or small recovery costs, no further action may be appropriate, but the project team must plan for larger consequence and recovery efforts.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.2", 
+      "section_title": "Risk Acceptance",
+      "content_type": "procedure",
+      "keywords": ["risk acceptance", "preparedness", "consequences", "recovery planning", "monitoring"],
+      "process_phase": ["handling", "monitoring"],
+      "handling_strategy": "acceptance",
+      "page_reference": "8"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_004",
+    "content": "Risk Transfer: Reassigns the risk responsibility to another entity. This requires that the receiving entity acknowledges ownership of the risk. The classic example of risk 'transfer' is buying insurance. Several options are available to implement risk transfer from the customer to L3Harris including warranties, cost incentives, product performance incentives, and various types of fixed price contracts.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.3",
+      "section_title": "Risk Transfer", 
+      "content_type": "procedure",
+      "keywords": ["risk transfer", "insurance", "warranties", "incentives", "fixed price contracts", "ownership"],
+      "process_phase": ["handling"],
+      "handling_strategy": "transfer",
+      "page_reference": "8"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_005",
+    "content": "Risk Control (Mitigation): Risk control focuses on managing risks and opportunities in a manner that maximizes the benefit to the project. Risk control involves taking planned and scheduled actions to reduce the likelihood that a risk will occur or to increase the likelihood that an opportunity will be realized. Root Cause and Corrective Action processes such as '5 Whys' should be utilized to validate the underlying cause of an identified R/O.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.4",
+      "section_title": "Risk Control",
+      "content_type": "procedure",
+      "keywords": ["risk control", "mitigation", "planned actions", "root cause", "5 whys", "scheduled actions"],
+      "process_phase": ["handling"],
+      "handling_strategy": "control",
+      "page_reference": "8"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_006", 
+    "content": "Risk Control Strategy: A risk control strategy doesn't eliminate the risk but reduces the risk to a level that is acceptable to the project. Risk control involves development of a risk/opportunity handling plan, with actions and resources required to achieve a favorable outcome. The risk/opportunity handling plan is included in the integrated master schedule.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.4",
+      "section_title": "Risk Control",
+      "content_type": "procedure", 
+      "keywords": ["risk control", "acceptable level", "handling plan", "integrated master schedule", "resources"],
+      "process_phase": ["handling", "planning"],
+      "handling_strategy": "control",
+      "page_reference": "8-9"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_007",
+    "content": "Risk Control Techniques: Examples of techniques useful as risk control steps include trade studies, early prototyping, incremental development and demonstration events, use of mock-ups and 3D printed form-fit models, modeling/simulation, multiple development paths or suppliers for the same product with down-select, detailed supply chain planning and monitoring for long lead or critical path parts.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook", 
+      "section": "2.3.4",
+      "section_title": "Risk Control",
+      "content_type": "procedure",
+      "keywords": ["trade studies", "prototyping", "simulation", "multiple suppliers", "supply chain", "demonstration"],
+      "process_phase": ["handling"],
+      "handling_strategy": "control",
+      "techniques": ["prototyping", "modeling", "simulation", "trade studies"],
+      "page_reference": "9"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_008",
+    "content": "Management Reserve for Risk Control: Prior to the completion of the risk control plan, management reserve should be established for recovery activities needed in response to the consequences of a realized risk. If there are multiple risks with similarly sized consequences, the reserve should be at least enough to cover the total exposure. If the management reserve does not meet these guidelines, management must be made aware of the situation.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.4", 
+      "section_title": "Risk Control",
+      "content_type": "procedure",
+      "keywords": ["management reserve", "recovery activities", "total exposure", "realized risk", "consequences"],
+      "process_phase": ["handling", "planning"],
+      "handling_strategy": "control",
+      "page_reference": "9"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_009",
+    "content": "Risk Watch: An interim handling strategy used when the effects of an event cannot occur for a significant period and the project requires additional data before determining which of the other handling strategies to use. A trigger is identified that will cause the risk or opportunity to be reevaluated. Trigger events are commonly specific dates or project milestones (e.g., design reviews, testing events, product deliveries).",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.3.5",
+      "section_title": "Risk Watch",
+      "content_type": "procedure",
+      "keywords": ["risk watch", "interim strategy", "triggers", "milestones", "reevaluation", "additional data"],
+      "process_phase": ["handling", "monitoring"],
+      "handling_strategy": "watch",
+      "page_reference": "10"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_handling_010",
+    "content": "Risk Watch Appropriateness: Risk watch may be appropriate when the consequence cannot occur for a significant amount of time, additional information is needed, or the success of completed mitigation efforts is being evaluated. While awaiting an alternate strategy, risks that are being handled through the watch strategy continue to be evaluated as part of the routine monitoring process.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook", 
+      "section": "2.3.5",
+      "section_title": "Risk Watch",
+      "content_type": "procedure",
+      "keywords": ["risk watch", "appropriate conditions", "additional information", "mitigation evaluation", "monitoring"],
+      "process_phase": ["handling", "monitoring"],
+      "handling_strategy": "watch",
+      "page_reference": "10"
+    }
+  }
+]

@@ -1,0 +1,327 @@
+/**
+ * Type definitions for the Risk Management RAG plugin
+ * Updated for Phase 5: Agent System
+ */
+
+import { LLMProvider, SearchStrategy } from '../constants';
+
+// ============================================================================
+// Settings Types
+// ============================================================================
+
+export interface LLMConfig {
+    id: string;
+    name: string;
+    provider: LLMProvider;
+    encryptedApiKey: string;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    enabled: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface RetrievalSettings {
+    topK: number;
+    scoreThreshold: number;
+    searchStrategy: SearchStrategy;
+}
+
+// Phase 5: Agent Configuration
+export interface AgentConfig {
+    id: string;
+    name: string;
+    description: string;
+    llmId: string;
+    systemPrompt: string;
+    retrievalSettings: RetrievalSettings;
+    metadataFilters?: MetadataFilters;
+    enabled: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface PluginSettings {
+    // Security
+    isEncryptionEnabled: boolean;
+    lastPasswordChangeDate?: number;
+
+    // LLM Configurations
+    llmConfigs: LLMConfig[];
+
+    // Phase 5: Agent Configurations
+    agents: AgentConfig[];
+
+    // Phase 5: Default Agent
+    defaultAgentId?: string;
+
+    // RAG Configuration
+    vectorDbPath: string;
+    embeddingModel: string;
+    chunkSize: number;
+    chunkOverlap: number;
+
+    // Feature flags
+    enableLogging: boolean;
+    enableCaching: boolean;
+}
+
+// ============================================================================
+// RAG Types
+// ============================================================================
+
+export interface ChunkMetadata {
+    document_id: string;
+    document_title: string;
+    section: string;
+    section_title?: string;
+    content_type: string;
+    keywords: string[];
+    process_phase?: string[];
+    handling_strategy?: string;
+    roles_applicable?: string[];
+    related_documents?: string[];
+    related_sections?: string[];
+    page_reference: string;
+    [key: string]: any; // Allow additional metadata fields
+}
+
+export interface RAGChunk {
+    chunk_id: string;
+    content: string;
+    metadata: ChunkMetadata;
+}
+
+export interface RetrievedChunk extends RAGChunk {
+    score: number;
+    embedding?: number[];
+}
+
+export interface MetadataFilters {
+    content_type?: string[];
+    process_phase?: string[];
+    handling_strategy?: string[];
+    roles_applicable?: string[];
+    document_id?: string[];
+    section?: string[];
+    [key: string]: string[] | undefined;
+}
+
+export interface VectorStoreEntry {
+    id: string;
+    embedding: number[];
+    metadata: ChunkMetadata;
+    content: string;
+}
+
+// ============================================================================
+// LLM Types
+// ============================================================================
+
+export interface Message {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
+
+export interface ChatOptions {
+    temperature?: number;
+    maxTokens?: number;
+    stopSequences?: string[];
+    stream?: boolean;
+}
+
+export interface ChatResponse {
+    content: string;
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+    };
+    model?: string;
+    finishReason?: string;
+}
+
+export interface StreamChunk {
+    content: string;
+    done: boolean;
+}
+
+// ============================================================================
+// Phase 5: Agent Types
+// ============================================================================
+
+export interface AgentExecutionContext {
+    query: string;
+    conversationHistory?: Message[];
+    additionalContext?: Record<string, any>;
+    noteContext?: {
+        notePath: string;
+        noteContent: string;
+        frontmatter?: Record<string, any>;
+    };
+}
+
+export interface AgentResponse {
+    answer: string;
+    sources: ChunkMetadata[];
+    agentUsed: string;
+    llmProvider: string;
+    model: string;
+    retrievedChunks: RetrievedChunk[];
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+    };
+    executionTime: number;
+}
+
+export interface AgentTemplate {
+    name: string;
+    description: string;
+    systemPrompt: string;
+    retrievalSettings: RetrievalSettings;
+    metadataFilters?: MetadataFilters;
+    icon?: string;
+}
+
+export interface AgentInfo {
+    id: string;
+    name: string;
+    description: string;
+    enabled: boolean;
+}
+
+// ============================================================================
+// Phase 5: Public API Types
+// ============================================================================
+
+export interface PublicAPI {
+    // Agent operations
+    getAgent: (agentId: string) => AgentExecutor | null;
+    listAgents: () => AgentInfo[];
+    executeAgent: (
+        agentId: string,
+        query: string,
+        context?: AgentExecutionContext
+    ) => Promise<AgentResponse>;
+
+    // Direct RAG operations
+    query: (
+        text: string,
+        filters?: MetadataFilters,
+        topK?: number
+    ) => Promise<RetrievedChunk[]>;
+
+    // Utility
+    getVersion: () => string;
+    isReady: () => boolean;
+    getStats: () => SystemStats;
+
+    // Default agent
+    ask: (query: string, context?: AgentExecutionContext) => Promise<AgentResponse>;
+}
+
+export interface AgentExecutor {
+    execute: (query: string, context?: AgentExecutionContext) => Promise<AgentResponse>;
+    // REMOVED: config: AgentConfig; - this property is private in the implementation
+    getConfig: () => AgentConfig;
+    getInfo: () => AgentExecutorInfo;
+}
+
+export interface AgentExecutorInfo {
+    name: string;
+    description: string;
+    llmProvider: string;
+    llmModel: string;
+    retrievalSettings: RetrievalSettings;
+    enabled: boolean;
+}
+
+export interface SystemStats {
+    rag: any;
+    llm: any;
+    agents: any;
+    ready: boolean;
+}
+
+// ============================================================================
+// Encryption Types
+// ============================================================================
+
+export interface EncryptionResult {
+    encrypted: string;
+    salt: string;
+    iv: string;
+}
+
+export interface DecryptionOptions {
+    encrypted: string;
+    salt: string;
+    iv: string;
+    password: string;
+}
+
+// ============================================================================
+// UI Types
+// ============================================================================
+
+export interface ModalResult<T> {
+    confirmed: boolean;
+    data?: T;
+}
+
+export interface FormField {
+    name: string;
+    label: string;
+    type: 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'password';
+    value: any;
+    options?: { label: string; value: string }[];
+    placeholder?: string;
+    required?: boolean;
+    description?: string;
+}
+
+// ============================================================================
+// Error Types
+// ============================================================================
+
+export class PluginError extends Error {
+    constructor(
+        message: string,
+        public code: string,
+        public details?: any
+    ) {
+        super(message);
+        this.name = 'PluginError';
+    }
+}
+
+export class EncryptionError extends PluginError {
+    constructor(message: string, details?: any) {
+        super(message, 'ENCRYPTION_ERROR', details);
+        this.name = 'EncryptionError';
+    }
+}
+
+export class LLMError extends PluginError {
+    constructor(message: string, details?: any) {
+        super(message, 'LLM_ERROR', details);
+        this.name = 'LLMError';
+    }
+}
+
+export class RAGError extends PluginError {
+    constructor(message: string, details?: any) {
+        super(message, 'RAG_ERROR', details);
+        this.name = 'RAGError';
+    }
+}
+
+export class AgentError extends PluginError {
+    constructor(message: string, details?: any) {
+        super(message, 'AGENT_ERROR', details);
+        this.name = 'AgentError';
+    }
+}

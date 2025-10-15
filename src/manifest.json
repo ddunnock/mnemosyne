@@ -1,0 +1,10 @@
+{
+  "id": "rag-agent-manager",
+  "name": "RAG Agent Manager",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "RAG-enhanced AI Agent for use in DataviewJS queries/forms with multi-LLM support and encrypted API keys",
+  "author": "David Dunnock",
+  "authorUrl": "https://github.com/ddunnock",
+  "isDesktopOnly": false
+}

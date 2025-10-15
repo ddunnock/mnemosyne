@@ -1,0 +1,153 @@
+[
+  {
+    "chunk_id": "SI1-002-001-1_roles_001",
+    "content": "Program Manager / R/O Manager Responsibilities: Defined in PM-07 Risk and Opportunity Management. Ensure stakeholder participation per SI1-002-001 Integrated Process Manual. The Program Manager serves as the primary risk and opportunity manager for the project, responsible for overall risk management process execution and stakeholder coordination.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["program manager", "R/O manager", "stakeholder participation", "responsibilities"],
+      "roles_applicable": ["Program Manager"],
+      "related_documents": ["PM-07", "SI1-002-001"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_002",
+    "content": "Chief Systems Engineer Technical Risk Responsibilities: Leads technical R/O activities ensuring technical program risks and opportunities are recognized, stated, and minimized. Conducts Technical Readiness Assessments (TRAs) and Reuse Assessment as part of the overall program risk assessment. Applies Decision Analysis and Resolution process for decisions with significant risk or impact upon the program/project.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["chief systems engineer", "technical risks", "TRA", "decision analysis", "technical readiness"],
+      "roles_applicable": ["Chief Systems Engineer"],
+      "activities": ["TRA", "decision analysis", "technical risk assessment"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_003",
+    "content": "Chief Systems Engineer Engineering Review Board Responsibilities: Present R/O associated with engineering changes to Program Risk Review Board (PRRB). Identify and resolve any requirements issues and significant risks to cost, schedule, or technical performance. Identify potential alternative architectural concepts, elements, and risks during system architecting and design activities.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities", 
+      "content_type": "reference",
+      "keywords": ["engineering review board", "PRRB", "requirements issues", "architectural concepts", "engineering changes"],
+      "roles_applicable": ["Chief Systems Engineer"],
+      "activities": ["ERB", "PRRB", "requirements management", "system architecture"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_004",
+    "content": "Chief Systems Engineer Verification Responsibilities: Balance the impact of performing lower-level verification activities with the technical risk of verifying only at higher levels. Define system architecture and partitioning to sufficient detail necessary to complete the system design with acceptable risk, as defined by the System Architect.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["verification", "technical risk", "system architecture", "acceptable risk", "system design"],
+      "roles_applicable": ["Chief Systems Engineer", "System Architect"],
+      "activities": ["verification planning", "architecture definition"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_005",
+    "content": "Project Engineer Risk Management Responsibilities: Ensure Risk Register and Integrated Master Schedule handling plan dates are in alignment. Ensure Schedule Risk Assessment and Risk Register are correlated. Support team with cost and schedule impact estimates to ensure consistency in estimates across the project.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference", 
+      "keywords": ["project engineer", "risk register", "integrated master schedule", "schedule risk assessment", "cost estimates"],
+      "roles_applicable": ["Project Engineer"],
+      "activities": ["schedule alignment", "cost estimation", "risk register management"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_006",
+    "content": "Quality/Mission Assurance Risk Management Role: Independently evaluate and analyze program risks per QFM 4.14 or SI1-750-001. This role provides independent assessment and validation of the program's risk management activities to ensure compliance with quality and mission assurance requirements.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["quality assurance", "mission assurance", "independent evaluation", "program risks"],
+      "roles_applicable": ["Quality/Mission Assurance"],
+      "related_documents": ["QFM 4.14", "SI1-750-001"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_007",
+    "content": "Engineering and Operations Personnel Risk Management Responsibilities: Utilize the Risk Taxonomy to assist in risk identification. Use Root Cause and Corrective Action processes to develop handling plans that address the cause of the risk. Perform analysis, simulation, prototyping, and testing. Support program risk management activities across all engineering disciplines.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1",
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["engineering personnel", "risk taxonomy", "root cause", "corrective action", "prototyping", "testing"],
+      "roles_applicable": ["Engineering Personnel", "Operations Personnel"],
+      "activities": ["risk identification", "root cause analysis", "prototyping", "testing"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_roles_008",
+    "content": "Proposal BOE Approver Risk Management Responsibilities: Ensure that all R/O impacting the proposal cost estimate are identified and mitigation plans are in place and assumptions documented. This role is critical during the proposal phase to ensure all risks affecting cost estimates are properly captured and addressed.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.1.1", 
+      "section_title": "Risk Management Roles and Responsibilities",
+      "content_type": "reference",
+      "keywords": ["proposal BOE approver", "cost estimate", "mitigation plans", "assumptions", "proposal phase"],
+      "roles_applicable": ["Proposal BOE Approver"],
+      "activities": ["cost estimation", "mitigation planning", "assumption documentation"],
+      "page_reference": "4"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_prrb_001",
+    "content": "Program Risk Review Board (PRRB) Overview: PM-07 and the Integrated Process Manual (SI1-002-001) Risk Management process section define the requirements, roles and responsibilities for the project's PRRB. The PRRB is chaired by the Program Manager (or assigned alternate) as the R/O manager, and executes the program's documented R/O management process and maintains accurate documentation for the R/O activities.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.4.1",
+      "section_title": "Program Risk Review Board",
+      "content_type": "concept",
+      "keywords": ["PRRB", "program risk review board", "program manager", "R/O management", "documentation"],
+      "roles_applicable": ["Program Manager", "PRRB Members"],
+      "related_documents": ["PM-07", "SI1-002-001"],
+      "page_reference": "10"
+    }
+  },
+  {
+    "chunk_id": "SI1-002-001-1_prrb_002",
+    "content": "PRRB Monthly Activities: At least monthly, the PRRB must review progress against the established R/O handling plan and determine the effectiveness of completed handling tasks; reassess R/O probability and impact values, and update the program plan as required; provide a summary of the current R/O status at program reviews; repeat R/O identification and analysis steps periodically, as defined by the PRRB.",
+    "metadata": {
+      "document_id": "SI1-002-001-1",
+      "document_title": "Risk Management Handbook",
+      "section": "2.4.1",
+      "section_title": "Program Risk Review Board",
+      "content_type": "procedure", 
+      "keywords": ["monthly activities", "handling plan", "effectiveness", "probability reassessment", "program reviews"],
+      "roles_applicable": ["PRRB Members"],
+      "frequency": "monthly",
+      "activities": ["progress review", "reassessment", "status reporting"],
+      "page_reference": "10"
+    }
+  }
+]

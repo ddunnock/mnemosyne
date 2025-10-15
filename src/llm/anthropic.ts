@@ -1,0 +1,227 @@
+/**
+ * Anthropic Claude Provider - Native HTTPS Implementation
+ *
+ * Uses Node.js https module directly instead of SDK to avoid CORS/fetch issues
+ */
+
+import { BaseLLMProvider } from './base';
+import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
+import { LLMError } from '../types';
+
+// @ts-ignore - Node.js module
+const https = require('https');
+
+export class AnthropicProvider extends BaseLLMProvider {
+    readonly name = 'Anthropic Claude';
+
+    constructor(apiKey: string, model: string, temperature: number = 0.7, maxTokens: number = 4096) {
+        super(apiKey, model, temperature, maxTokens);
+    }
+
+    /**
+     * Non-streaming chat completion
+     */
+    async chat(messages: Message[], options?: ChatOptions): Promise<ChatResponse> {
+        const mergedOptions = this.mergeOptions(options);
+
+        try {
+            const { systemMessage, userMessages } = this.formatMessagesForClaude(messages);
+
+            const body: any = {
+                model: this.model,
+                max_tokens: mergedOptions.maxTokens,
+                temperature: mergedOptions.temperature,
+                messages: userMessages
+            };
+
+            if (systemMessage) {
+                body.system = systemMessage;
+            }
+
+            if (mergedOptions.stopSequences.length > 0) {
+                body.stop_sequences = mergedOptions.stopSequences;
+            }
+
+            const responseText = await this.makeHttpsRequest(
+                'https://api.anthropic.com/v1/messages',
+                'POST',
+                {
+                    'x-api-key': this.apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                JSON.stringify(body)
+            );
+
+            const json = JSON.parse(responseText);
+
+            // Extract text content
+            const content = json.content
+                ?.filter((block: any) => block.type === 'text')
+                .map((block: any) => block.text)
+                .join('') || '';
+
+            return {
+                content,
+                usage: {
+                    promptTokens: json.usage?.input_tokens || 0,
+                    completionTokens: json.usage?.output_tokens || 0,
+                    totalTokens: (json.usage?.input_tokens || 0) + (json.usage?.output_tokens || 0)
+                },
+                model: json.model,
+                finishReason: json.stop_reason || 'complete'
+            };
+        } catch (error: any) {
+            throw new LLMError(`Anthropic chat failed: ${error.message}`, {
+                originalError: error,
+                provider: 'anthropic',
+                model: this.model
+            });
+        }
+    }
+
+    /**
+     * Streaming chat completion (not implemented in native version)
+     */
+    async stream(
+        messages: Message[],
+        onToken: (chunk: StreamChunk) => void,
+        options?: ChatOptions
+    ): Promise<void> {
+        // For now, fallback to non-streaming
+        const response = await this.chat(messages, options);
+
+        // Simulate streaming by sending full response
+        onToken({ content: response.content, done: false });
+        onToken({ content: '', done: true });
+    }
+
+    /**
+     * Make HTTPS request using Node.js https module
+     */
+    private makeHttpsRequest(
+        url: string,
+        method: string,
+        headers: Record<string, string>,
+        body?: string
+    ): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const urlObj = new URL(url);
+
+            const requestOptions = {
+                hostname: urlObj.hostname,
+                port: urlObj.port || 443,
+                path: urlObj.pathname + urlObj.search,
+                method: method,
+                headers: headers,
+                rejectUnauthorized: false // Handle SSL certificate issues
+            };
+
+            const req = https.request(requestOptions, (res: any) => {
+                let data = '';
+
+                res.on('data', (chunk: any) => {
+                    data += chunk;
+                });
+
+                res.on('end', () => {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        resolve(data);
+                    } else {
+                        reject(new Error(`Anthropic API error ${res.statusCode}: ${data}`));
+                    }
+                });
+            });
+
+            req.on('error', (err: any) => {
+                console.error('HTTPS request error:', err.message);
+                if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
+                    reject(new Error('SSL certificate verification failed. This may be due to corporate firewall or certificate issues.'));
+                } else {
+                    reject(err);
+                }
+            });
+
+            if (body) {
+                req.write(body);
+            }
+
+            req.end();
+        });
+    }
+
+    /**
+     * Format messages for Claude API
+     */
+    private formatMessagesForClaude(messages: Message[]): {
+        systemMessage: string | null;
+        userMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    } {
+        let systemMessage: string | null = null;
+        const userMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+        for (const msg of messages) {
+            if (msg.role === 'system') {
+                if (systemMessage) {
+                    systemMessage += '\n\n' + msg.content;
+                } else {
+                    systemMessage = msg.content;
+                }
+            } else {
+                userMessages.push({
+                    role: msg.role,
+                    content: msg.content
+                });
+            }
+        }
+
+        // Ensure first message is from user
+        if (userMessages.length > 0 && userMessages[0].role === 'assistant') {
+            userMessages.unshift({
+                role: 'user',
+                content: '[Previous conversation context]'
+            });
+        }
+
+        return { systemMessage, userMessages };
+    }
+
+    /**
+     * Test connection
+     */
+    async test(): Promise<boolean> {
+        try {
+            console.log('Testing Anthropic connection...');
+
+            const response = await this.chat([
+                { role: 'user', content: 'Respond with just "OK"' }
+            ], { maxTokens: 10 });
+
+            const isOk = response.content.toLowerCase().includes('ok');
+
+            if (isOk) {
+                console.log('✓ Anthropic connection test passed');
+            } else {
+                console.warn('⚠ Anthropic test returned unexpected response:', response.content);
+            }
+
+            return isOk;
+        } catch (error: any) {
+            console.error('✗ Anthropic test failed:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Get recommended models
+     */
+    static getRecommendedModels(): Array<{ value: string; label: string }> {
+        return [
+            { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Newest)' },
+            { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Recommended)' },
+            { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (Fast)' },
+            { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus (Most Capable)' },
+            { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' }
+        ];
+    }
+}
