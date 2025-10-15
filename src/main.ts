@@ -1,24 +1,23 @@
 /**
  * Risk Management RAG Assistant - Main Plugin File
  *
- * Complete implementation including Phase 5: Agent System
+ * Updated with Initialization Manager for better UI control
  */
 
 import { Plugin, Notice, Modal } from 'obsidian';
-import { PluginSettings, AgentConfig, AgentResponse, Message } from './types';
+import { PluginSettings, AgentConfig, AgentResponse } from './types';
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings } from './settings';
-import { PLUGIN_NAME, SUCCESS } from './constants';
+import { PLUGIN_NAME } from './constants';
 
 // Import modules
 import { KeyManager } from './encryption/keyManager';
 import { RiskManagementSettingTab } from './ui/settingsTab';
 import { RAGRetriever } from './rag/retriever';
 import { LLMManager } from './llm/llmManager';
-
-// Phase 5: Agent System imports
 import { AgentManager } from './agents/agentManager';
 import { AgentBuilderModal } from './ui/agentBuilderModal';
 import { exposePublicAPI } from './integration/publicAPI';
+import { InitializationManager } from './utils/initializationManager'; // NEW
 
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
@@ -27,7 +26,8 @@ export default class RiskManagementPlugin extends Plugin {
     keyManager: KeyManager;
     retriever: RAGRetriever;
     llmManager: LLMManager;
-    agentManager: AgentManager; // Phase 5
+    agentManager: AgentManager;
+    initManager: InitializationManager; // NEW
 
     /**
      * Plugin initialization - called when plugin is loaded
@@ -38,8 +38,11 @@ export default class RiskManagementPlugin extends Plugin {
         // Load settings
         await this.loadSettings();
 
-        // Initialize core managers
-        await this.initializeManagers();
+        // Initialize core managers (without full initialization)
+        await this.createManagers();
+
+        // Create initialization manager
+        this.initManager = new InitializationManager(this);
 
         // Add ribbon icon
         this.addRibbonIcon('bot', 'RAG Agent Manager', () => {
@@ -52,20 +55,11 @@ export default class RiskManagementPlugin extends Plugin {
         // Register commands
         this.registerCommands();
 
-        // Phase 5: Expose public API
+        // Expose public API
         exposePublicAPI(this);
 
-        // Show welcome notice on first load
-        if (!this.settings.agents || this.settings.agents.length === 0) {
-            new Notice(
-                `${PLUGIN_NAME} loaded! Open settings to configure your first agent.`,
-                5000
-            );
-        } else {
-            new Notice(`${PLUGIN_NAME} loaded successfully!`);
-        }
-
         console.log(`${PLUGIN_NAME} loaded successfully`);
+        new Notice(`${PLUGIN_NAME} loaded! Check settings for initialization status.`, 4000);
     }
 
     /**
@@ -74,22 +68,19 @@ export default class RiskManagementPlugin extends Plugin {
     async onunload() {
         console.log(`Unloading ${PLUGIN_NAME}`);
 
-        // Phase 5: Cleanup agent manager
+        // Cleanup managers
         if (this.agentManager) {
             this.agentManager.cleanup();
         }
 
-        // Cleanup LLM system
         if (this.llmManager) {
             this.llmManager.cleanup();
         }
 
-        // Cleanup RAG system
         if (this.retriever) {
             await this.retriever.cleanup();
         }
 
-        // Clear master password from memory
         if (this.keyManager) {
             this.keyManager.clearMasterPassword();
         }
@@ -104,7 +95,7 @@ export default class RiskManagementPlugin extends Plugin {
         const loadedData = await this.loadData();
         this.settings = mergeSettings(loadedData || {});
 
-        // Ensure agents array exists (Phase 5)
+        // Ensure agents array exists
         if (!this.settings.agents) {
             this.settings.agents = [];
         }
@@ -125,53 +116,115 @@ export default class RiskManagementPlugin extends Plugin {
     }
 
     /**
-     * Initialize core managers and systems
+     * Create managers without full initialization
+     * Actual initialization happens via InitializationManager
      */
-    async initializeManagers() {
+    async createManagers() {
         try {
-            // Phase 2: Initialize encryption manager
+            // Create KeyManager (always available)
             this.keyManager = new KeyManager(this.app);
-            console.log('✓ KeyManager initialized');
+            console.log('✓ KeyManager created');
 
-            // Phase 3: Initialize RAG system
+            // Create RAGRetriever (not initialized yet)
             this.retriever = new RAGRetriever(this);
-            await this.retriever.initialize();
-            console.log('✓ RAGRetriever initialized');
+            console.log('✓ RAGRetriever created');
 
-            // Phase 4: Initialize LLM system
+            // Create LLMManager (not initialized yet)
             this.llmManager = new LLMManager(this);
+            console.log('✓ LLMManager created');
 
-            // Only initialize LLM providers if master password is set
-            if (this.keyManager.hasMasterPassword()) {
-                try {
-                    await this.llmManager.initialize();
-                    console.log('✓ LLMManager initialized');
-                } catch (error) {
-                    console.warn('LLM Manager initialization skipped (master password may be needed)');
-                }
-            } else {
-                console.log('⚠ LLM Manager initialization skipped (no master password)');
-            }
-
-            // Phase 5: Initialize Agent Manager
+            // Create AgentManager (not initialized yet)
             this.agentManager = new AgentManager(this, this.retriever, this.llmManager);
+            console.log('✓ AgentManager created');
 
-            if (this.llmManager.isReady() && this.retriever.isReady()) {
-                try {
-                    await this.agentManager.initialize();
-                    console.log('✓ Agent Manager initialized');
-                } catch (error) {
-                    console.warn('Agent Manager initialization incomplete:', error);
-                }
+            console.log('All managers created (use initialization buttons in settings to initialize)');
+        } catch (error) {
+            console.error('Error creating managers:', error);
+            new Notice('Error creating plugin components. Check console for details.');
+        }
+    }
+
+    /**
+     * Ensure system is initialized before operation
+     */
+    private async ensureInitialized(): Promise<boolean> {
+        if (this.initManager.isFullyInitialized()) {
+            return true;
+        }
+
+        // Ask user if they want to initialize
+        return new Promise(resolve => {
+            const modal = new Modal(this.app);
+            modal.titleEl.setText('⚠️ System Not Initialized');
+
+            const content = modal.contentEl.createDiv();
+            content.style.padding = '20px';
+            content.createDiv({
+                text: 'The plugin systems need to be initialized before this operation.',
+                cls: 'message'
+            }).style.marginBottom = '15px';
+
+            const missing = this.initManager.getMissingPrerequisites();
+            if (missing.length > 0) {
+                content.createDiv({
+                    text: 'Missing requirements:',
+                    cls: 'message'
+                }).style.fontWeight = '500';
+
+                const list = content.createEl('ul');
+                list.style.marginLeft = '20px';
+                missing.forEach(req => {
+                    list.createEl('li', { text: req });
+                });
+
+                content.createDiv({
+                    text: 'Please complete setup in Settings first.',
+                    cls: 'message'
+                }).style.marginTop = '15px';
             } else {
-                console.log('⚠ Skipping Agent Manager initialization - dependencies not ready');
+                content.createDiv({
+                    text: 'Would you like to initialize now?',
+                    cls: 'message'
+                });
             }
 
-            console.log('All managers initialized');
-        } catch (error) {
-            console.error('Error initializing managers:', error);
-            new Notice('Error initializing plugin. Check console for details.');
-        }
+            const btnContainer = modal.contentEl.createDiv();
+            btnContainer.style.marginTop = '20px';
+            btnContainer.style.display = 'flex';
+            btnContainer.style.gap = '10px';
+            btnContainer.style.justifyContent = 'flex-end';
+
+            if (missing.length === 0) {
+                const initBtn = btnContainer.createEl('button', { text: 'Initialize Now' });
+                initBtn.style.backgroundColor = 'var(--interactive-accent)';
+                initBtn.style.color = 'white';
+                initBtn.onclick = async () => {
+                    modal.close();
+                    new Notice('Initializing systems...');
+
+                    const result = await this.initManager.initializeAll();
+                    resolve(result.success);
+                };
+            }
+
+            const settingsBtn = btnContainer.createEl('button', { text: 'Open Settings' });
+            settingsBtn.onclick = () => {
+                modal.close();
+                // @ts-ignore
+                this.app.setting.open();
+                // @ts-ignore
+                this.app.setting.openTabById(this.manifest.id);
+                resolve(false);
+            };
+
+            const cancelBtn = btnContainer.createEl('button', { text: 'Cancel' });
+            cancelBtn.onclick = () => {
+                modal.close();
+                resolve(false);
+            };
+
+            modal.open();
+        });
     }
 
     /**
@@ -183,21 +236,23 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'open-settings',
             name: 'Open Settings',
             callback: () => {
-                // @ts-ignore - Obsidian internal API
+                // @ts-ignore
                 this.app.setting.open();
-                // @ts-ignore - Obsidian internal API
+                // @ts-ignore
                 this.app.setting.openTabById(this.manifest.id);
             },
         });
 
-        // ========== Phase 5: Agent Commands ==========
+        // ========== Agent Commands ==========
 
         // Command: Open Agent Palette
         this.addCommand({
             id: 'open-agent-palette',
             name: 'Open Agent Palette',
-            callback: () => {
-                this.openAgentPalette();
+            callback: async () => {
+                if (await this.ensureInitialized()) {
+                    this.openAgentPalette();
+                }
             },
         });
 
@@ -223,10 +278,7 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'ask-default-agent',
             name: 'Ask Default Agent',
             callback: async () => {
-                if (!this.agentManager || !this.agentManager.isReady()) {
-                    new Notice('Agent system not ready. Please configure settings first.');
-                    return;
-                }
+                if (!await this.ensureInitialized()) return;
 
                 const query = await this.promptForQuery();
                 if (!query) return;
@@ -253,10 +305,7 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'test-agent-system',
             name: 'Test Agent System',
             callback: async () => {
-                if (!this.agentManager || !this.agentManager.isReady()) {
-                    new Notice('Agent system not ready');
-                    return;
-                }
+                if (!await this.ensureInitialized()) return;
 
                 new Notice('Testing agent system...');
 
@@ -302,8 +351,8 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'test-rag-system',
             name: 'Test RAG System',
             callback: async () => {
-                if (!this.retriever) {
-                    new Notice('RAG system not initialized');
+                if (!this.retriever?.isReady()) {
+                    new Notice('RAG system not ready. Initialize it in settings first.');
                     return;
                 }
 
@@ -326,36 +375,6 @@ export default class RiskManagementPlugin extends Plugin {
             },
         });
 
-        // Command: Show RAG stats
-        this.addCommand({
-            id: 'rag-stats',
-            name: 'Show RAG Statistics',
-            callback: () => {
-                if (!this.retriever) {
-                    new Notice('RAG system not initialized');
-                    return;
-                }
-
-                const stats = this.retriever.getStats();
-
-                if (!stats) {
-                    new Notice('No stats available');
-                    return;
-                }
-
-                const memory = (stats.memoryUsage / 1024 / 1024).toFixed(2);
-
-                new Notice(
-                    `RAG Stats:\n` +
-                    `Chunks: ${stats.totalChunks}\n` +
-                    `Model: ${stats.embeddingModel}\n` +
-                    `Dimensions: ${stats.dimension}\n` +
-                    `Memory: ${memory} MB`,
-                    10000
-                );
-            },
-        });
-
         // ========== LLM Commands ==========
 
         // Command: Test LLM providers
@@ -363,8 +382,8 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'test-llm-providers',
             name: 'Test All LLM Providers',
             callback: async () => {
-                if (!this.llmManager || !this.llmManager.isReady()) {
-                    new Notice('LLM system not initialized. Set master password and configure providers.');
+                if (!this.llmManager?.isReady()) {
+                    new Notice('LLM system not ready. Initialize it in settings first.');
                     return;
                 }
 
@@ -388,95 +407,52 @@ export default class RiskManagementPlugin extends Plugin {
             },
         });
 
-        // Command: Show LLM stats
+        // Command: Initialize All Systems
         this.addCommand({
-            id: 'llm-stats',
-            name: 'Show LLM Statistics',
-            callback: () => {
-                if (!this.llmManager) {
-                    new Notice('LLM system not initialized');
-                    return;
-                }
-
-                const stats = this.llmManager.getStats();
-
-                new Notice(
-                    `LLM Stats:\n` +
-                    `Total Providers: ${stats.totalProviders}\n` +
-                    `Enabled: ${stats.enabledProviders}\n` +
-                    `Initialized: ${stats.initializedProviders}`,
-                    10000
-                );
-            },
-        });
-
-        // Command: Test encryption
-        this.addCommand({
-            id: 'test-encryption',
-            name: 'Test Encryption System',
+            id: 'initialize-all-systems',
+            name: 'Initialize All Systems',
             callback: async () => {
-                if (!this.keyManager.hasMasterPassword()) {
-                    new Notice('Please set master password in settings first');
-                    return;
-                }
+                new Notice('🔄 Initializing all systems...');
+                const result = await this.initManager.initializeAll();
 
-                new Notice('Testing encryption...');
-                const result = await this.keyManager.testEncryption();
-
-                if (result) {
-                    new Notice('✓ Encryption system working correctly!');
+                if (result.success) {
+                    new Notice('✅ All systems initialized!');
                 } else {
-                    new Notice('✗ Encryption test failed. Check console.');
+                    new Notice(`❌ Initialization failed: ${result.errors.join(', ')}`);
                 }
             },
         });
     }
 
     // ========================================================================
-    // Phase 5: Agent Helper Methods
+    // Agent Helper Methods
     // ========================================================================
 
     /**
      * Open agent palette for selecting and executing agents
      */
-    private openAgentPalette() {
+    private async openAgentPalette() {
         if (!this.agentManager || !this.agentManager.isReady()) {
-            new Notice('Agent system not ready. Please configure settings first.');
+            new Notice('Agent system not ready. Please initialize in settings first.');
             return;
         }
 
-        // Create a simple modal for agent selection
         const modal = new Modal(this.app);
         modal.titleEl.setText('Select an Agent');
 
         const agents = this.agentManager.listAgents();
 
         if (agents.length === 0) {
-            const emptyDiv = modal.contentEl.createDiv({
-                cls: 'empty-state'
-            });
+            const emptyDiv = modal.contentEl.createDiv({ cls: 'empty-state' });
             emptyDiv.style.padding = '40px';
             emptyDiv.style.textAlign = 'center';
-            emptyDiv.style.color = 'var(--text-muted)';
 
-            emptyDiv.createDiv({
-                text: '🤖',
-                cls: 'empty-icon'
-            }).style.fontSize = '48px';
-
-            emptyDiv.createDiv({
-                text: 'No agents configured',
-                cls: 'empty-title'
-            }).style.marginTop = '10px';
-
-            emptyDiv.createDiv({
-                text: 'Create one in settings to get started',
-                cls: 'empty-description'
-            });
+            emptyDiv.createDiv({ text: '🤖' }).style.fontSize = '48px';
+            emptyDiv.createDiv({ text: 'No agents configured' }).style.marginTop = '10px';
+            emptyDiv.createDiv({ text: 'Create one in settings to get started' });
 
             const btn = modal.contentEl.createEl('button', { text: 'Create Agent' });
             btn.style.marginTop = '20px';
-            btn.style.padding = '8px 16px';
             btn.onclick = () => {
                 modal.close();
                 new AgentBuilderModal(
@@ -508,12 +484,10 @@ export default class RiskManagementPlugin extends Plugin {
 
                 card.onmouseover = () => {
                     card.style.backgroundColor = 'var(--background-modifier-hover)';
-                    card.style.transform = 'translateX(5px)';
                 };
 
                 card.onmouseout = () => {
                     card.style.backgroundColor = '';
-                    card.style.transform = 'translateX(0)';
                 };
 
                 card.onclick = async () => {
@@ -521,13 +495,8 @@ export default class RiskManagementPlugin extends Plugin {
                     await this.executeAgentWithPrompt(agent.id);
                 };
 
-                const nameEl = card.createEl('h3', { text: agent.name });
-                nameEl.style.margin = '0 0 5px 0';
-                nameEl.style.fontSize = '1.1em';
-
-                const descEl = card.createDiv({ text: agent.description });
-                descEl.style.color = 'var(--text-muted)';
-                descEl.style.fontSize = '0.9em';
+                card.createEl('h3', { text: agent.name }).style.margin = '0 0 5px 0';
+                card.createDiv({ text: agent.description }).style.color = 'var(--text-muted)';
             });
 
         modal.open();
@@ -563,10 +532,6 @@ export default class RiskManagementPlugin extends Plugin {
             textarea.style.width = '100%';
             textarea.style.minHeight = '100px';
             textarea.style.marginBottom = '10px';
-            textarea.style.padding = '10px';
-            textarea.style.fontFamily = 'var(--font-text)';
-            textarea.style.fontSize = '14px';
-            textarea.style.resize = 'vertical';
 
             const btnContainer = modal.contentEl.createDiv();
             btnContainer.style.display = 'flex';
@@ -588,7 +553,6 @@ export default class RiskManagementPlugin extends Plugin {
                 resolve(query || null);
             };
 
-            // Allow Enter key to submit (with Shift+Enter for newlines)
             textarea.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -607,19 +571,16 @@ export default class RiskManagementPlugin extends Plugin {
     private displayResponse(response: AgentResponse) {
         const modal = new Modal(this.app);
         modal.titleEl.setText(`Response from ${response.agentUsed}`);
-
-        // Make modal wider
         modal.modalEl.style.width = '80%';
         modal.modalEl.style.maxWidth = '900px';
 
-        // Response content
         const contentDiv = modal.contentEl.createDiv();
         contentDiv.style.maxHeight = '60vh';
         contentDiv.style.overflowY = 'auto';
         contentDiv.style.padding = '10px';
 
         // Metadata
-        const metaDiv = contentDiv.createDiv({ cls: 'response-meta' });
+        const metaDiv = contentDiv.createDiv();
         metaDiv.style.fontSize = '0.85em';
         metaDiv.style.color = 'var(--text-muted)';
         metaDiv.style.marginBottom = '15px';
@@ -642,34 +603,29 @@ export default class RiskManagementPlugin extends Plugin {
         }
 
         // Answer
-        const answerDiv = contentDiv.createDiv({ cls: 'response-answer' });
+        const answerDiv = contentDiv.createDiv();
         answerDiv.style.whiteSpace = 'pre-wrap';
         answerDiv.style.lineHeight = '1.8';
         answerDiv.style.marginBottom = '20px';
 
-        // Simple markdown rendering
         let formattedAnswer = response.answer
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/\n/g, '<br>');
 
         answerDiv.innerHTML = formattedAnswer;
 
         // Sources
         if (response.sources.length > 0) {
-            const sourcesDiv = contentDiv.createDiv({ cls: 'response-sources' });
+            const sourcesDiv = contentDiv.createDiv();
             sourcesDiv.style.marginTop = '20px';
             sourcesDiv.style.paddingTop = '15px';
             sourcesDiv.style.borderTop = '1px solid var(--background-modifier-border)';
 
-            const sourcesHeader = sourcesDiv.createEl('h4', { text: '📚 Sources' });
-            sourcesHeader.style.marginBottom = '10px';
-            sourcesHeader.style.fontSize = '1em';
+            sourcesDiv.createEl('h4', { text: '📚 Sources' }).style.marginBottom = '10px';
 
             const sourcesList = sourcesDiv.createEl('ul');
             sourcesList.style.fontSize = '0.85em';
             sourcesList.style.color = 'var(--text-muted)';
-            sourcesList.style.marginLeft = '20px';
 
             response.sources.forEach(source => {
                 const li = sourcesList.createEl('li');
@@ -685,7 +641,6 @@ export default class RiskManagementPlugin extends Plugin {
         // Copy button
         const copyBtn = modal.contentEl.createEl('button', { text: 'Copy to Clipboard' });
         copyBtn.style.marginTop = '15px';
-        copyBtn.style.padding = '8px 16px';
         copyBtn.onclick = () => {
             navigator.clipboard.writeText(response.answer);
             new Notice('Response copied to clipboard');
@@ -698,23 +653,14 @@ export default class RiskManagementPlugin extends Plugin {
     // Helper Methods
     // ========================================================================
 
-    /**
-     * Get agent config by ID
-     */
     getAgentConfig(agentId: string): AgentConfig | null {
         return this.settings.agents.find(a => a.id === agentId) || null;
     }
 
-    /**
-     * Get LLM config by ID
-     */
     getLLMConfig(llmId: string) {
         return this.settings.llmConfigs.find(c => c.id === llmId);
     }
 
-    /**
-     * Generate unique ID
-     */
     generateId(): string {
         return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
