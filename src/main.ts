@@ -1,23 +1,25 @@
 /**
  * Risk Management RAG Assistant - Main Plugin File
  *
- * Updated with Initialization Manager for better UI control
+ * Complete implementation including Phase 5: Agent System
  */
 
 import { Plugin, Notice, Modal } from 'obsidian';
-import { PluginSettings, AgentConfig, AgentResponse } from './types';
+import { PluginSettings, AgentConfig, AgentResponse, Message } from './types';
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings } from './settings';
-import { PLUGIN_NAME } from './constants';
+import { PLUGIN_NAME, SUCCESS } from './constants';
 
 // Import modules
 import { KeyManager } from './encryption/keyManager';
 import { RiskManagementSettingTab } from './ui/settingsTab';
 import { RAGRetriever } from './rag/retriever';
 import { LLMManager } from './llm/llmManager';
+import { InitializationManager } from './utils/initializationManager';
+
+// Phase 5: Agent System imports
 import { AgentManager } from './agents/agentManager';
 import { AgentBuilderModal } from './ui/agentBuilderModal';
 import { exposePublicAPI } from './integration/publicAPI';
-import { InitializationManager } from './utils/initializationManager'; // NEW
 
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
@@ -27,7 +29,7 @@ export default class RiskManagementPlugin extends Plugin {
     retriever: RAGRetriever;
     llmManager: LLMManager;
     agentManager: AgentManager;
-    initManager: InitializationManager; // NEW
+    initManager: InitializationManager;
 
     /**
      * Plugin initialization - called when plugin is loaded
@@ -38,8 +40,8 @@ export default class RiskManagementPlugin extends Plugin {
         // Load settings
         await this.loadSettings();
 
-        // Initialize core managers (without full initialization)
-        await this.createManagers();
+        // Initialize core managers
+        await this.initializeManagers();
 
         // Create initialization manager
         this.initManager = new InitializationManager(this);
@@ -55,11 +57,20 @@ export default class RiskManagementPlugin extends Plugin {
         // Register commands
         this.registerCommands();
 
-        // Expose public API
+        // Phase 5: Expose public API
         exposePublicAPI(this);
 
+        // Show welcome notice on first load
+        if (!this.settings.agents || this.settings.agents.length === 0) {
+            new Notice(
+                `${PLUGIN_NAME} loaded!\nOpen settings to configure your first agent.`,
+                5000
+            );
+        } else {
+            new Notice(`${PLUGIN_NAME} loaded successfully!`);
+        }
+
         console.log(`${PLUGIN_NAME} loaded successfully`);
-        new Notice(`${PLUGIN_NAME} loaded! Check settings for initialization status.`, 4000);
     }
 
     /**
@@ -68,19 +79,22 @@ export default class RiskManagementPlugin extends Plugin {
     async onunload() {
         console.log(`Unloading ${PLUGIN_NAME}`);
 
-        // Cleanup managers
+        // Phase 5: Cleanup agent manager
         if (this.agentManager) {
             this.agentManager.cleanup();
         }
 
+        // Cleanup LLM system
         if (this.llmManager) {
             this.llmManager.cleanup();
         }
 
+        // Cleanup RAG system
         if (this.retriever) {
             await this.retriever.cleanup();
         }
 
+        // Clear master password from memory
         if (this.keyManager) {
             this.keyManager.clearMasterPassword();
         }
@@ -95,7 +109,7 @@ export default class RiskManagementPlugin extends Plugin {
         const loadedData = await this.loadData();
         this.settings = mergeSettings(loadedData || {});
 
-        // Ensure agents array exists
+        // Ensure agents array exists (Phase 5)
         if (!this.settings.agents) {
             this.settings.agents = [];
         }
@@ -116,115 +130,60 @@ export default class RiskManagementPlugin extends Plugin {
     }
 
     /**
-     * Create managers without full initialization
-     * Actual initialization happens via InitializationManager
+     * Initialize core managers and systems
      */
-    async createManagers() {
+    async initializeManagers() {
         try {
-            // Create KeyManager (always available)
+            // Phase 2: Initialize encryption manager
             this.keyManager = new KeyManager(this.app);
-            console.log('✓ KeyManager created');
+            console.log('✓ KeyManager initialized');
 
-            // Create RAGRetriever (not initialized yet)
+            // Phase 3: Initialize RAG system
             this.retriever = new RAGRetriever(this);
-            console.log('✓ RAGRetriever created');
+            await this.retriever.initialize();
+            console.log('✓ RAGRetriever initialized');
 
-            // Create LLMManager (not initialized yet)
+            // Phase 4: Initialize LLM system
             this.llmManager = new LLMManager(this);
-            console.log('✓ LLMManager created');
 
-            // Create AgentManager (not initialized yet)
+            // Only initialize LLM providers if master password is set
+            if (this.keyManager.hasMasterPassword()) {
+                try {
+                    await this.llmManager.initialize();
+                    console.log('✓ LLMManager initialized');
+                } catch (error) {
+                    console.warn('LLM Manager initialization skipped (master password may be needed)');
+                }
+            } else {
+                console.log('⚠ LLM Manager initialization skipped (no master password)');
+            }
+
+            // Phase 5: Initialize Agent Manager
             this.agentManager = new AgentManager(this, this.retriever, this.llmManager);
-            console.log('✓ AgentManager created');
 
-            console.log('All managers created (use initialization buttons in settings to initialize)');
+            if (this.llmManager.isReady() && this.retriever.isReady()) {
+                try {
+                    await this.agentManager.initialize();
+                    console.log('✓ Agent Manager initialized');
+                } catch (error) {
+                    console.warn('Agent Manager initialization incomplete:', error);
+                }
+            } else {
+                console.log('⚠ Skipping Agent Manager initialization - dependencies not ready');
+            }
+
+            console.log('All managers initialized');
         } catch (error) {
-            console.error('Error creating managers:', error);
-            new Notice('Error creating plugin components. Check console for details.');
+            console.error('Error initializing managers:', error);
+            new Notice('Error initializing plugin. Check console for details.');
         }
     }
 
     /**
-     * Ensure system is initialized before operation
+     * Generate unique ID
      */
-    private async ensureInitialized(): Promise<boolean> {
-        if (this.initManager.isFullyInitialized()) {
-            return true;
-        }
-
-        // Ask user if they want to initialize
-        return new Promise(resolve => {
-            const modal = new Modal(this.app);
-            modal.titleEl.setText('⚠️ System Not Initialized');
-
-            const content = modal.contentEl.createDiv();
-            content.style.padding = '20px';
-            content.createDiv({
-                text: 'The plugin systems need to be initialized before this operation.',
-                cls: 'message'
-            }).style.marginBottom = '15px';
-
-            const missing = this.initManager.getMissingPrerequisites();
-            if (missing.length > 0) {
-                content.createDiv({
-                    text: 'Missing requirements:',
-                    cls: 'message'
-                }).style.fontWeight = '500';
-
-                const list = content.createEl('ul');
-                list.style.marginLeft = '20px';
-                missing.forEach(req => {
-                    list.createEl('li', { text: req });
-                });
-
-                content.createDiv({
-                    text: 'Please complete setup in Settings first.',
-                    cls: 'message'
-                }).style.marginTop = '15px';
-            } else {
-                content.createDiv({
-                    text: 'Would you like to initialize now?',
-                    cls: 'message'
-                });
-            }
-
-            const btnContainer = modal.contentEl.createDiv();
-            btnContainer.style.marginTop = '20px';
-            btnContainer.style.display = 'flex';
-            btnContainer.style.gap = '10px';
-            btnContainer.style.justifyContent = 'flex-end';
-
-            if (missing.length === 0) {
-                const initBtn = btnContainer.createEl('button', { text: 'Initialize Now' });
-                initBtn.style.backgroundColor = 'var(--interactive-accent)';
-                initBtn.style.color = 'white';
-                initBtn.onclick = async () => {
-                    modal.close();
-                    new Notice('Initializing systems...');
-
-                    const result = await this.initManager.initializeAll();
-                    resolve(result.success);
-                };
-            }
-
-            const settingsBtn = btnContainer.createEl('button', { text: 'Open Settings' });
-            settingsBtn.onclick = () => {
-                modal.close();
-                // @ts-ignore
-                this.app.setting.open();
-                // @ts-ignore
-                this.app.setting.openTabById(this.manifest.id);
-                resolve(false);
-            };
-
-            const cancelBtn = btnContainer.createEl('button', { text: 'Cancel' });
-            cancelBtn.onclick = () => {
-                modal.close();
-                resolve(false);
-            };
-
-            modal.open();
-        });
+    generateId(): string {
+        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
 
     /**
@@ -236,23 +195,21 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'open-settings',
             name: 'Open Settings',
             callback: () => {
-                // @ts-ignore
+                // @ts-ignore - Obsidian internal API
                 this.app.setting.open();
-                // @ts-ignore
+                // @ts-ignore - Obsidian internal API
                 this.app.setting.openTabById(this.manifest.id);
             },
         });
 
-        // ========== Agent Commands ==========
+        // ========== Phase 5: Agent Commands ==========
 
         // Command: Open Agent Palette
         this.addCommand({
             id: 'open-agent-palette',
             name: 'Open Agent Palette',
-            callback: async () => {
-                if (await this.ensureInitialized()) {
-                    this.openAgentPalette();
-                }
+            callback: () => {
+                this.openAgentPalette();
             },
         });
 
@@ -278,112 +235,81 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'ask-default-agent',
             name: 'Ask Default Agent',
             callback: async () => {
-                if (!await this.ensureInitialized()) return;
-
-                const query = await this.promptForQuery();
-                if (!query) return;
+                if (!this.agentManager || !this.agentManager.isReady()) {
+                    new Notice('Agent system not ready. Please configure settings first.');
+                    return;
+                }
 
                 const defaultAgent = this.agentManager.getDefaultAgent();
                 if (!defaultAgent) {
-                    new Notice('No default agent configured. Set one in settings.');
+                    new Notice('No default agent configured');
                     return;
                 }
 
-                try {
-                    new Notice('Executing agent...');
-                    const response = await defaultAgent.execute(query);
-                    this.displayResponse(response);
-                } catch (error: any) {
-                    console.error('Agent execution failed:', error);
-                    new Notice(`Error: ${error.message}`);
-                }
+                // Show input modal
+                this.showAgentQueryModal(defaultAgent.getConfig().id);
             },
         });
 
-        // Command: Test Agent System
+        // ========== Phase 3: RAG Commands ==========
+
+        // Command: Test RAG retrieval
         this.addCommand({
-            id: 'test-agent-system',
-            name: 'Test Agent System',
+            id: 'test-rag',
+            name: 'Test RAG Retrieval',
             callback: async () => {
-                if (!await this.ensureInitialized()) return;
-
-                new Notice('Testing agent system...');
-
-                try {
-                    const stats = this.agentManager.getStats();
-                    new Notice(
-                        `Agent System Status:\n` +
-                        `Total: ${stats.totalAgents}\n` +
-                        `Enabled: ${stats.enabledAgents}\n` +
-                        `Initialized: ${stats.initializedAgents}`,
-                        8000
-                    );
-                } catch (error: any) {
-                    console.error('Agent system test failed:', error);
-                    new Notice(`Test failed: ${error.message}`);
-                }
-            },
-        });
-
-        // ========== RAG Commands ==========
-
-        // Command: Ingest RAG chunks
-        this.addCommand({
-            id: 'ingest-chunks',
-            name: 'Ingest RAG Chunks',
-            callback: async () => {
-                if (!this.retriever) {
-                    new Notice('RAG system not initialized');
-                    return;
-                }
-
-                try {
-                    await this.retriever.ingestChunks();
-                } catch (error) {
-                    console.error('Ingestion error:', error);
-                    new Notice('Chunk ingestion failed. Check console for details.');
-                }
-            },
-        });
-
-        // Command: Test RAG system
-        this.addCommand({
-            id: 'test-rag-system',
-            name: 'Test RAG System',
-            callback: async () => {
-                if (!this.retriever?.isReady()) {
-                    new Notice('RAG system not ready. Initialize it in settings first.');
+                if (!this.retriever.isReady()) {
+                    new Notice('RAG system not ready. Please configure an OpenAI provider and ingest chunks.');
                     return;
                 }
 
                 new Notice('Testing RAG system...');
-                const result = await this.retriever.test();
 
-                if (result) {
-                    const stats = this.retriever.getStats();
-                    if (stats) {
-                        new Notice(
-                            `✓ RAG system working! ${stats.totalChunks} chunks indexed`,
-                            5000
-                        );
+                try {
+                    const result = await this.retriever.test();
+                    if (result) {
+                        new Notice('✓ RAG system working correctly!');
                     } else {
-                        new Notice('✓ RAG system working!');
+                        new Notice('✗ RAG test failed. Check console.');
                     }
-                } else {
-                    new Notice('✗ RAG system test failed. Check console.');
+                } catch (error) {
+                    console.error('RAG test error:', error);
+                    new Notice('✗ RAG test failed. Check console.');
                 }
             },
         });
 
-        // ========== LLM Commands ==========
-
-        // Command: Test LLM providers
+        // Command: Show RAG stats
         this.addCommand({
-            id: 'test-llm-providers',
+            id: 'rag-stats',
+            name: 'Show RAG Statistics',
+            callback: () => {
+                const stats = this.retriever.getStats();
+
+                if (!stats) {
+                    new Notice('No RAG statistics available');
+                    return;
+                }
+
+                new Notice(
+                    `RAG Stats:\n` +
+                    `Total Chunks: ${stats.totalChunks}\n` +
+                    `Embedding Model: ${stats.embeddingModel}\n` +
+                    `Dimension: ${stats.dimension}`,
+                    10000
+                );
+            },
+        });
+
+        // ========== Phase 4: LLM Commands ==========
+
+        // Command: Test all LLM providers
+        this.addCommand({
+            id: 'test-llm',
             name: 'Test All LLM Providers',
             callback: async () => {
-                if (!this.llmManager?.isReady()) {
-                    new Notice('LLM system not ready. Initialize it in settings first.');
+                if (!this.llmManager || !this.llmManager.isReady()) {
+                    new Notice('LLM system not ready. Set master password and configure providers.');
                     return;
                 }
 
@@ -407,261 +333,260 @@ export default class RiskManagementPlugin extends Plugin {
             },
         });
 
-        // Command: Initialize All Systems
+        // Command: Show LLM stats
         this.addCommand({
-            id: 'initialize-all-systems',
-            name: 'Initialize All Systems',
-            callback: async () => {
-                new Notice('🔄 Initializing all systems...');
-                const result = await this.initManager.initializeAll();
+            id: 'llm-stats',
+            name: 'Show LLM Statistics',
+            callback: () => {
+                if (!this.llmManager) {
+                    new Notice('LLM system not initialized');
+                    return;
+                }
 
-                if (result.success) {
-                    new Notice('✅ All systems initialized!');
+                const stats = this.llmManager.getStats();
+
+                new Notice(
+                    `LLM Stats:\n` +
+                    `Total Providers: ${stats.totalProviders}\n` +
+                    `Enabled: ${stats.enabledProviders}\n` +
+                    `Initialized: ${stats.initializedProviders}`,
+                    10000
+                );
+            },
+        });
+
+        // Command: Test encryption
+        this.addCommand({
+            id: 'test-encryption',
+            name: 'Test Encryption System',
+            callback: async () => {
+                if (!this.keyManager.hasMasterPassword()) {
+                    new Notice('Please set master password in settings first');
+                    return;
+                }
+
+                new Notice('Testing encryption...');
+                const result = await this.keyManager.testEncryption();
+
+                if (result) {
+                    new Notice('✓ Encryption system working correctly!');
                 } else {
-                    new Notice(`❌ Initialization failed: ${result.errors.join(', ')}`);
+                    new Notice('✗ Encryption test failed. Check console.');
                 }
             },
         });
     }
 
     // ========================================================================
-    // Agent Helper Methods
+    // Phase 5: Agent Helper Methods
     // ========================================================================
 
     /**
      * Open agent palette for selecting and executing agents
      */
-    private async openAgentPalette() {
+    private openAgentPalette() {
         if (!this.agentManager || !this.agentManager.isReady()) {
-            new Notice('Agent system not ready. Please initialize in settings first.');
+            new Notice('Agent system not ready. Please configure settings first.');
             return;
         }
-
-        const modal = new Modal(this.app);
-        modal.titleEl.setText('Select an Agent');
 
         const agents = this.agentManager.listAgents();
 
         if (agents.length === 0) {
-            const emptyDiv = modal.contentEl.createDiv({ cls: 'empty-state' });
-            emptyDiv.style.padding = '40px';
-            emptyDiv.style.textAlign = 'center';
-
-            emptyDiv.createDiv({ text: '🤖' }).style.fontSize = '48px';
-            emptyDiv.createDiv({ text: 'No agents configured' }).style.marginTop = '10px';
-            emptyDiv.createDiv({ text: 'Create one in settings to get started' });
-
-            const btn = modal.contentEl.createEl('button', { text: 'Create Agent' });
-            btn.style.marginTop = '20px';
-            btn.onclick = () => {
-                modal.close();
-                new AgentBuilderModal(
-                    this.app,
-                    this,
-                    null,
-                    async (config) => {
-                        await this.agentManager.addAgent(config);
-                        new Notice(`Agent "${config.name}" created successfully`);
-                    }
-                ).open();
-            };
-
-            modal.open();
+            new Notice('No agents available. Create one in settings first.');
             return;
         }
 
-        // Display agent cards
-        agents
-            .filter(a => a.enabled)
-            .forEach(agent => {
-                const card = modal.contentEl.createDiv({ cls: 'agent-selection-card' });
-                card.style.border = '1px solid var(--background-modifier-border)';
-                card.style.borderRadius = '8px';
-                card.style.padding = '15px';
-                card.style.marginBottom = '10px';
-                card.style.cursor = 'pointer';
-                card.style.transition = 'all 0.2s ease';
-
-                card.onmouseover = () => {
-                    card.style.backgroundColor = 'var(--background-modifier-hover)';
-                };
-
-                card.onmouseout = () => {
-                    card.style.backgroundColor = '';
-                };
-
-                card.onclick = async () => {
-                    modal.close();
-                    await this.executeAgentWithPrompt(agent.id);
-                };
-
-                card.createEl('h3', { text: agent.name }).style.margin = '0 0 5px 0';
-                card.createDiv({ text: agent.description }).style.color = 'var(--text-muted)';
-            });
-
+        // Show agent selection modal
+        const modal = new AgentSelectorModal(this.app, agents, (agentId) => {
+            this.showAgentQueryModal(agentId);
+        });
         modal.open();
     }
 
     /**
-     * Execute an agent after prompting for query
+     * Show modal to query an agent
      */
-    private async executeAgentWithPrompt(agentId: string) {
-        const query = await this.promptForQuery();
-        if (!query) return;
-
-        try {
-            new Notice('Executing agent...');
-            const response = await this.agentManager.executeAgent(agentId, query);
-            this.displayResponse(response);
-        } catch (error: any) {
-            console.error('Agent execution failed:', error);
-            new Notice(`Error: ${error.message}`);
-        }
+    private showAgentQueryModal(agentId: string) {
+        const modal = new AgentQueryModal(this.app, this, agentId);
+        modal.open();
     }
 
     /**
-     * Prompt user for a query
+     * Get LLM config by ID (helper)
      */
-    private async promptForQuery(): Promise<string | null> {
-        return new Promise(resolve => {
-            const modal = new Modal(this.app);
-            modal.titleEl.setText('Enter Your Query');
+    private getLLMConfig(id: string) {
+        return this.settings.llmConfigs.find(c => c.id === id);
+    }
+}
 
-            const textarea = modal.contentEl.createEl('textarea');
-            textarea.placeholder = 'What would you like to know about risk management?';
-            textarea.style.width = '100%';
-            textarea.style.minHeight = '100px';
-            textarea.style.marginBottom = '10px';
+// ============================================================================
+// Modal Classes
+// ============================================================================
 
-            const btnContainer = modal.contentEl.createDiv();
-            btnContainer.style.display = 'flex';
-            btnContainer.style.gap = '10px';
-            btnContainer.style.justifyContent = 'flex-end';
+/**
+ * Agent Selector Modal
+ */
+class AgentSelectorModal extends Modal {
+    private agents: Array<{ id: string; name: string; description: string }>;
+    private onSelect: (agentId: string) => void;
 
-            const cancelBtn = btnContainer.createEl('button', { text: 'Cancel' });
-            cancelBtn.onclick = () => {
-                modal.close();
-                resolve(null);
-            };
+    constructor(
+        app: any,
+        agents: Array<{ id: string; name: string; description: string }>,
+        onSelect: (agentId: string) => void
+    ) {
+        super(app);
+        this.agents = agents;
+        this.onSelect = onSelect;
+    }
 
-            const submitBtn = btnContainer.createEl('button', { text: 'Submit' });
-            submitBtn.style.backgroundColor = 'var(--interactive-accent)';
-            submitBtn.style.color = 'white';
-            submitBtn.onclick = () => {
-                const query = textarea.value.trim();
-                modal.close();
-                resolve(query || null);
-            };
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
 
-            textarea.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    submitBtn.click();
-                }
+        contentEl.createEl('h2', { text: '🤖 Select Agent' });
+
+        this.agents.forEach(agent => {
+            const agentDiv = contentEl.createDiv({ cls: 'agent-selector-item' });
+            agentDiv.style.padding = '15px';
+            agentDiv.style.marginBottom = '10px';
+            agentDiv.style.border = '1px solid var(--background-modifier-border)';
+            agentDiv.style.borderRadius = '6px';
+            agentDiv.style.cursor = 'pointer';
+
+            agentDiv.addEventListener('click', () => {
+                this.close();
+                this.onSelect(agent.id);
             });
 
-            modal.open();
-            textarea.focus();
+            agentDiv.addEventListener('mouseenter', () => {
+                agentDiv.style.backgroundColor = 'var(--background-modifier-hover)';
+            });
+
+            agentDiv.addEventListener('mouseleave', () => {
+                agentDiv.style.backgroundColor = '';
+            });
+
+            const name = agentDiv.createEl('h3', { text: agent.name });
+            name.style.marginTop = '0';
+            name.style.marginBottom = '5px';
+
+            agentDiv.createEl('p', { text: agent.description });
         });
     }
 
-    /**
-     * Display agent response in a modal
-     */
-    private displayResponse(response: AgentResponse) {
-        const modal = new Modal(this.app);
-        modal.titleEl.setText(`Response from ${response.agentUsed}`);
-        modal.modalEl.style.width = '80%';
-        modal.modalEl.style.maxWidth = '900px';
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
 
-        const contentDiv = modal.contentEl.createDiv();
-        contentDiv.style.maxHeight = '60vh';
-        contentDiv.style.overflowY = 'auto';
-        contentDiv.style.padding = '10px';
+/**
+ * Agent Query Modal
+ */
+class AgentQueryModal extends Modal {
+    private plugin: RiskManagementPlugin;
+    private agentId: string;
 
-        // Metadata
-        const metaDiv = contentDiv.createDiv();
-        metaDiv.style.fontSize = '0.85em';
-        metaDiv.style.color = 'var(--text-muted)';
-        metaDiv.style.marginBottom = '15px';
-        metaDiv.style.paddingBottom = '10px';
-        metaDiv.style.borderBottom = '1px solid var(--background-modifier-border)';
+    constructor(app: any, plugin: RiskManagementPlugin, agentId: string) {
+        super(app);
+        this.plugin = plugin;
+        this.agentId = agentId;
+    }
 
-        metaDiv.innerHTML = `
-            <strong>Model:</strong> ${response.llmProvider} (${response.model}) |
-            <strong>Time:</strong> ${response.executionTime}ms |
-            <strong>Sources:</strong> ${response.sources.length}
-        `;
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
 
-        if (response.usage) {
-            const usageDiv = metaDiv.createDiv();
-            usageDiv.style.marginTop = '5px';
-            usageDiv.innerHTML = `
-                <strong>Tokens:</strong> ${response.usage.totalTokens}
-                (${response.usage.promptTokens} prompt + ${response.usage.completionTokens} completion)
-            `;
+        const agent = this.plugin.agentManager.getAgent(this.agentId);
+        if (!agent) {
+            new Notice('Agent not found');
+            this.close();
+            return;
         }
 
-        // Answer
-        const answerDiv = contentDiv.createDiv();
-        answerDiv.style.whiteSpace = 'pre-wrap';
-        answerDiv.style.lineHeight = '1.8';
-        answerDiv.style.marginBottom = '20px';
+        contentEl.createEl('h2', { text: `💬 Ask ${agent.getConfig().name}` });
 
-        let formattedAnswer = response.answer
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\n/g, '<br>');
+        // Query input
+        const inputDiv = contentEl.createDiv();
+        inputDiv.style.marginBottom = '15px';
 
-        answerDiv.innerHTML = formattedAnswer;
+        const textarea = inputDiv.createEl('textarea');
+        textarea.placeholder = 'Enter your question...';
+        textarea.style.width = '100%';
+        textarea.style.minHeight = '100px';
+        textarea.style.padding = '10px';
+        textarea.style.fontFamily = 'inherit';
+        textarea.style.fontSize = '14px';
 
-        // Sources
-        if (response.sources.length > 0) {
-            const sourcesDiv = contentDiv.createDiv();
-            sourcesDiv.style.marginTop = '20px';
-            sourcesDiv.style.paddingTop = '15px';
-            sourcesDiv.style.borderTop = '1px solid var(--background-modifier-border)';
+        // Buttons
+        const buttonDiv = contentEl.createDiv();
+        buttonDiv.style.display = 'flex';
+        buttonDiv.style.gap = '10px';
 
-            sourcesDiv.createEl('h4', { text: '📚 Sources' }).style.marginBottom = '10px';
+        const submitBtn = buttonDiv.createEl('button', { text: 'Ask' });
+        submitBtn.style.padding = '10px 20px';
+        submitBtn.style.cursor = 'pointer';
 
-            const sourcesList = sourcesDiv.createEl('ul');
-            sourcesList.style.fontSize = '0.85em';
-            sourcesList.style.color = 'var(--text-muted)';
+        const cancelBtn = buttonDiv.createEl('button', { text: 'Cancel' });
+        cancelBtn.style.padding = '10px 20px';
+        cancelBtn.style.cursor = 'pointer';
 
-            response.sources.forEach(source => {
-                const li = sourcesList.createEl('li');
-                li.style.marginBottom = '8px';
-                li.innerHTML = `
-                    <strong>${source.document_title}</strong> -
-                    Section ${source.section}${source.section_title ? ': ' + source.section_title : ''}
-                    (Page ${source.page_reference})
-                `;
-            });
-        }
+        // Response area
+        const responseDiv = contentEl.createDiv();
+        responseDiv.style.marginTop = '20px';
+        responseDiv.style.display = 'none';
 
-        // Copy button
-        const copyBtn = modal.contentEl.createEl('button', { text: 'Copy to Clipboard' });
-        copyBtn.style.marginTop = '15px';
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(response.answer);
-            new Notice('Response copied to clipboard');
-        };
+        submitBtn.addEventListener('click', async () => {
+            const query = textarea.value.trim();
+            if (!query) {
+                new Notice('Please enter a question');
+                return;
+            }
 
-        modal.open();
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Thinking...';
+
+            try {
+                const response = await this.plugin.agentManager.executeAgent(this.agentId, query);
+
+                responseDiv.style.display = 'block';
+                responseDiv.empty();
+
+                responseDiv.createEl('h3', { text: '📝 Response' });
+                const answerDiv = responseDiv.createDiv();
+                answerDiv.style.padding = '15px';
+                answerDiv.style.backgroundColor = 'var(--background-secondary)';
+                answerDiv.style.borderRadius = '6px';
+                answerDiv.style.whiteSpace = 'pre-wrap';
+                answerDiv.textContent = response.answer;
+
+                // Show sources if any
+                if (response.sources && response.sources.length > 0) {
+                    responseDiv.createEl('h4', { text: '📚 Sources' });
+                    const sourcesList = responseDiv.createEl('ul');
+                    response.sources.forEach(source => {
+                        const li = sourcesList.createEl('li');
+                        li.textContent = `${source.documentTitle} - ${source.section}`;
+                    });
+                }
+
+            } catch (error: any) {
+                new Notice(`Error: ${error.message}`);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Ask';
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            this.close();
+        });
     }
 
-    // ========================================================================
-    // Helper Methods
-    // ========================================================================
-
-    getAgentConfig(agentId: string): AgentConfig | null {
-        return this.settings.agents.find(a => a.id === agentId) || null;
-    }
-
-    getLLMConfig(llmId: string) {
-        return this.settings.llmConfigs.find(c => c.id === llmId);
-    }
-
-    generateId(): string {
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
     }
 }

@@ -1,15 +1,14 @@
 /**
- * Settings Tab
+ * Settings Tab - Complete Implementation (All TypeScript Errors Fixed)
  *
- * Complete settings UI with initialization controls
+ * Includes smart initialization and comprehensive system status
  */
 
-import { App, PluginSettingTab, Setting, Notice, TextComponent, DropdownComponent } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice, TextComponent, DropdownComponent, Modal } from 'obsidian';
 import RiskManagementPlugin from '../main';
-import { LLMConfig } from '../types';
+import { LLMConfig, AgentConfig } from '../types';
 import { LLMProvider } from '../constants';
 import { AgentBuilderModal } from './agentBuilderModal';
-import { createAgentCard } from './components';
 import { InitializationManager } from '../utils/initializationManager';
 
 export class RiskManagementSettingTab extends PluginSettingTab {
@@ -29,13 +28,13 @@ export class RiskManagementSettingTab extends PluginSettingTab {
         // Header
         containerEl.createEl('h1', { text: 'Risk Management RAG Assistant' });
 
-        // ========== NEW: System Status Section (FIRST!) ==========
+        // System Status Section (FIRST - before security)
         this.displaySystemStatus(containerEl);
 
-        // ========== Security Section ==========
+        // Security Section
         this.displaySecuritySection(containerEl);
 
-        // ========== Only show other sections if password verified ==========
+        // Only show other sections if password verified
         if (this.passwordVerified) {
             this.displayLLMSection(containerEl);
             this.displayRAGSection(containerEl);
@@ -47,7 +46,7 @@ export class RiskManagementSettingTab extends PluginSettingTab {
      * Display System Status and Initialization Controls
      */
     private displaySystemStatus(containerEl: HTMLElement): void {
-        const section = containerEl.createEl('div', { cls: 'system-status-section' });
+        const section = containerEl.createDiv({ cls: 'system-status-section' });
         section.style.marginBottom = '30px';
         section.style.padding = '20px';
         section.style.backgroundColor = 'var(--background-secondary)';
@@ -59,440 +58,362 @@ export class RiskManagementSettingTab extends PluginSettingTab {
         header.style.marginTop = '0';
         header.style.marginBottom = '15px';
 
-        // Get initialization manager (create if doesn't exist)
+        // Get or create initialization manager
         if (!this.plugin.initManager) {
             this.plugin.initManager = new InitializationManager(this.plugin);
         }
 
         const status = this.plugin.initManager.getStatus();
         const requirements = this.plugin.initManager.getRequirements();
+        const issues = this.plugin.initManager.diagnose();
 
         // Overall Status Badge
-        const overallStatus = section.createDiv({ cls: 'overall-status' });
-        overallStatus.style.marginBottom = '20px';
-        overallStatus.style.padding = '15px';
-        overallStatus.style.borderRadius = '6px';
-        overallStatus.style.textAlign = 'center';
-        overallStatus.style.fontSize = '1.1em';
-        overallStatus.style.fontWeight = 'bold';
+        const statusBadge = section.createDiv();
+        statusBadge.style.display = 'inline-block';
+        statusBadge.style.padding = '10px 20px';
+        statusBadge.style.borderRadius = '20px';
+        statusBadge.style.fontWeight = '600';
+        statusBadge.style.marginBottom = '20px';
+        statusBadge.style.fontSize = '1.1em';
 
         if (status.overall) {
-            overallStatus.style.backgroundColor = 'var(--interactive-success)';
-            overallStatus.style.color = 'white';
-            overallStatus.innerHTML = '✅ All Systems Operational';
-        } else if (this.plugin.initManager.isInitializing()) {
-            overallStatus.style.backgroundColor = 'var(--background-modifier-border)';
-            overallStatus.style.color = 'var(--text-normal)';
-            overallStatus.innerHTML = '⏳ Initializing...';
+            statusBadge.textContent = '✅ All Systems Ready';
+            statusBadge.style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+            statusBadge.style.color = '#28a745';
+            statusBadge.style.border = '2px solid #28a745';
         } else {
-            overallStatus.style.backgroundColor = 'var(--background-modifier-error)';
-            overallStatus.style.color = 'white';
-            overallStatus.innerHTML = '⚠️ System Initialization Required';
+            statusBadge.textContent = '⚠️ Action Required';
+            statusBadge.style.backgroundColor = 'rgba(255, 193, 7, 0.2)';
+            statusBadge.style.color = '#ffc107';
+            statusBadge.style.border = '2px solid #ffc107';
         }
 
         // Component Status Grid
-        const statusGrid = section.createDiv({ cls: 'status-grid' });
-        statusGrid.style.display = 'grid';
-        statusGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
-        statusGrid.style.gap = '10px';
-        statusGrid.style.marginBottom = '20px';
+        const grid = section.createDiv();
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+        grid.style.gap = '15px';
+        grid.style.marginBottom = '20px';
 
-        // Status components
-        const components = [
-            { name: 'Security', key: 'keyManager', icon: '🔐' },
-            { name: 'RAG System', key: 'retriever', icon: '📚' },
-            { name: 'LLM Providers', key: 'llmManager', icon: '🤖' },
-            { name: 'Agent System', key: 'agentManager', icon: '👔' }
-        ];
+        // Helper to create status cards
+        const createCard = (icon: string, title: string, isReady: boolean, details: string) => {
+            const card = grid.createDiv();
+            card.style.padding = '15px';
+            card.style.borderRadius = '8px';
+            card.style.border = '2px solid ' + (isReady ? '#28a745' : '#dc3545');
+            card.style.backgroundColor = isReady
+                ? 'rgba(40, 167, 69, 0.1)'
+                : 'rgba(220, 53, 69, 0.1)';
 
-        components.forEach(component => {
-            const card = statusGrid.createDiv({ cls: 'status-card' });
-            card.style.padding = '12px';
-            card.style.borderRadius = '6px';
-            card.style.border = '1px solid var(--background-modifier-border)';
-            card.style.display = 'flex';
-            card.style.alignItems = 'center';
-            card.style.gap = '10px';
+            const headerDiv = card.createDiv();
+            headerDiv.style.display = 'flex';
+            headerDiv.style.alignItems = 'center';
+            headerDiv.style.gap = '8px';
+            headerDiv.style.marginBottom = '8px';
 
-            const isReady = status[component.key as keyof typeof status];
+            const iconSpan = headerDiv.createSpan({ text: icon });
+            iconSpan.style.fontSize = '24px';
 
-            if (isReady) {
-                card.style.backgroundColor = 'var(--background-secondary-alt)';
-            } else {
-                card.style.backgroundColor = 'var(--background-primary)';
-                card.style.opacity = '0.7';
-            }
+            const titleSpan = headerDiv.createSpan({ text: title });
+            titleSpan.style.fontWeight = '600';
+            titleSpan.style.fontSize = '1em';
 
-            const icon = card.createSpan({ text: component.icon });
-            icon.style.fontSize = '24px';
-
-            const info = card.createDiv();
-            const name = info.createDiv({ text: component.name });
-            name.style.fontWeight = '500';
-            name.style.marginBottom = '3px';
-
-            const statusText = info.createDiv({
-                text: isReady ? 'Ready' : 'Not Ready'
+            const statusSpan = card.createDiv({
+                text: isReady ? '✓ Ready' : '✗ Not Ready'
             });
-            statusText.style.fontSize = '0.85em';
-            statusText.style.color = isReady ? 'var(--text-success)' : 'var(--text-muted)';
-        });
+            statusSpan.style.fontSize = '0.9em';
+            statusSpan.style.color = isReady ? '#28a745' : '#dc3545';
+            statusSpan.style.marginBottom = '5px';
 
-        // Requirements Checklist
-        const reqSection = section.createDiv({ cls: 'requirements-section' });
-        reqSection.style.marginBottom = '20px';
+            const detailsSpan = card.createDiv({ text: details });
+            detailsSpan.style.fontSize = '0.85em';
+            detailsSpan.style.opacity = '0.8';
+        };
 
-        const reqHeader = reqSection.createEl('h3', { text: 'Setup Requirements' });
-        reqHeader.style.fontSize = '1em';
-        reqHeader.style.marginBottom = '10px';
+        // Status cards
+        createCard(
+            '🔐',
+            'Security',
+            status.keyManager,
+            status.keyManager ? 'Password configured' : 'Set master password'
+        );
 
-        const reqList = reqSection.createEl('ul');
-        reqList.style.listStyle = 'none';
-        reqList.style.padding = '0';
-        reqList.style.margin = '0';
+        createCard(
+            '📚',
+            'RAG System',
+            status.retriever,
+            status.chunksIngested
+                ? `${status.chunkCount} chunks loaded`
+                : 'No chunks ingested'
+        );
 
-        requirements.forEach(req => {
-            const item = reqList.createEl('li');
-            item.style.padding = '8px 0';
-            item.style.display = 'flex';
-            item.style.alignItems = 'center';
-            item.style.gap = '10px';
+        createCard(
+            '🤖',
+            'LLM Providers',
+            status.llmManager,
+            status.llmProvidersConfigured
+                ? `${status.llmProvidersInitialized}/${status.providerCount} active`
+                : 'No providers configured'
+        );
 
-            const checkbox = item.createSpan({ text: req.met ? '✅' : '⬜' });
-            checkbox.style.fontSize = '16px';
+        createCard(
+            '🎯',
+            'AI Agents',
+            status.agentManager,
+            status.agentsConfigured
+                ? `${status.agentsInitialized}/${status.agentCount} active`
+                : 'No agents configured'
+        );
 
-            const text = item.createDiv();
-            text.style.flex = '1';
+        // Issues & Diagnostics (if any)
+        if (issues.length > 0) {
+            const issuesBox = section.createDiv();
+            issuesBox.style.padding = '15px';
+            issuesBox.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+            issuesBox.style.border = '1px solid rgba(255, 193, 7, 0.3)';
+            issuesBox.style.borderRadius = '6px';
+            issuesBox.style.marginBottom = '20px';
 
-            const reqName = text.createSpan({ text: req.requirement });
-            reqName.style.fontWeight = '500';
-            reqName.style.marginRight = '10px';
+            const issuesHeader = issuesBox.createEl('h4', { text: '⚠️ Issues Detected' });
+            issuesHeader.style.marginTop = '0';
+            issuesHeader.style.marginBottom = '10px';
+            issuesHeader.style.color = '#ffc107';
 
-            const reqMessage = text.createSpan({ text: req.message });
-            reqMessage.style.fontSize = '0.85em';
-            reqMessage.style.color = 'var(--text-muted)';
-        });
+            const issuesList = issuesBox.createEl('ul');
+            issuesList.style.margin = '0';
+            issuesList.style.paddingLeft = '20px';
+
+            issues.forEach(issue => {
+                const li = issuesList.createEl('li');
+                li.style.marginBottom = '5px';
+                li.textContent = issue;
+            });
+        }
 
         // Action Buttons
-        const actions = section.createDiv({ cls: 'initialization-actions' });
-        actions.style.display = 'flex';
-        actions.style.gap = '10px';
-        actions.style.flexWrap = 'wrap';
-        actions.style.marginBottom = '15px';
+        const actionsDiv = section.createDiv();
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '10px';
+        actionsDiv.style.flexWrap = 'wrap';
+        actionsDiv.style.marginTop = '20px';
 
-        // Initialize All Button
-        new Setting(actions)
-            .addButton(btn => btn
-                .setButtonText(status.overall ? 'Re-Initialize All' : 'Initialize All Systems')
-                .setCta()
-                .setDisabled(this.plugin.initManager.isInitializing())
-                .onClick(async () => {
-                    btn.setDisabled(true);
-                    btn.setButtonText('Initializing...');
-
-                    const result = await this.plugin.initManager.initializeAll(status.overall);
-
-                    if (result.success) {
-                        new Notice('✅ Systems initialized successfully!');
-                    } else {
-                        new Notice(`❌ Initialization failed: ${result.errors.join(', ')}`);
-                    }
-
-                    // Refresh display
-                    this.display();
-                }));
-
-        // Initialize Missing Button
-        if (!status.overall) {
-            new Setting(actions)
-                .addButton(btn => btn
-                    .setButtonText('Initialize Missing')
+        // Initialize/Re-initialize All
+        new Setting(actionsDiv)
+            .addButton(btn => {
+                btn.setButtonText(status.overall ? '🔄 Re-initialize All' : '⚡ Initialize All')
+                    .setCta()
                     .setDisabled(this.plugin.initManager.isInitializing())
                     .onClick(async () => {
                         btn.setDisabled(true);
-                        btn.setButtonText('Initializing...');
+                        const originalText = btn.buttonEl.textContent;
+                        btn.setButtonText('⏳ Initializing...');
 
-                        const result = await this.plugin.initManager.initializeMissing();
+                        const result = await this.plugin.initManager.initializeAll(status.overall);
 
                         if (result.success) {
-                            new Notice('✅ Missing components initialized!');
-                        } else if (result.warnings.length > 0) {
-                            new Notice(`⚠️ ${result.warnings.join(', ')}`, 5000);
+                            new Notice('✅ All systems initialized!', 3000);
+                        } else {
+                            new Notice(`⚠️ Errors: ${result.errors.join(', ')}`, 5000);
+                        }
+
+                        if (result.warnings.length > 0) {
+                            new Notice(`ℹ️ ${result.warnings.join(', ')}`, 4000);
                         }
 
                         // Refresh display
                         this.display();
-                    }));
+                    });
+            });
+
+        // Initialize Missing (only show if something is missing)
+        if (!status.overall && (status.llmProvidersConfigured || status.agentsConfigured)) {
+            new Setting(actionsDiv)
+                .addButton(btn => {
+                    btn.setButtonText('🔧 Initialize Missing')
+                        .setDisabled(this.plugin.initManager.isInitializing())
+                        .onClick(async () => {
+                            btn.setDisabled(true);
+                            btn.setButtonText('⏳ Initializing...');
+
+                            const result = await this.plugin.initManager.initializeMissing();
+
+                            if (result.success) {
+                                new Notice('✅ Missing components initialized!', 3000);
+                            } else {
+                                new Notice(`⚠️ Errors: ${result.errors.join(', ')}`, 5000);
+                            }
+
+                            this.display();
+                        });
+                });
         }
 
-        // Test All Button
-        new Setting(actions)
-            .addButton(btn => btn
-                .setButtonText('Test All Systems')
-                .setDisabled(!status.overall)
-                .onClick(async () => {
-                    btn.setDisabled(true);
-                    btn.setButtonText('Testing...');
+        // Re-initialize LLM (if providers configured but not all initialized)
+        if (status.llmProvidersConfigured && status.llmProvidersInitialized < status.providerCount) {
+            new Setting(actionsDiv)
+                .addButton(btn => {
+                    btn.setButtonText('🤖 Re-initialize LLM')
+                        .setDisabled(this.plugin.initManager.isInitializing())
+                        .onClick(async () => {
+                            btn.setDisabled(true);
+                            btn.setButtonText('⏳ Working...');
 
-                    try {
-                        const results = [];
+                            await this.plugin.initManager.reinitializeLLM();
 
-                        // Test RAG
-                        if (this.plugin.retriever?.isReady()) {
-                            const ragTest = await this.plugin.retriever.test();
-                            results.push(`RAG: ${ragTest ? '✓' : '✗'}`);
-                        }
+                            this.display();
+                        });
+                });
+        }
 
-                        // Test LLM
-                        if (this.plugin.llmManager?.isReady()) {
-                            const llmTests = await this.plugin.llmManager.testAllProviders();
-                            const passed = Array.from(llmTests.values()).filter(v => v).length;
-                            results.push(`LLM: ${passed}/${llmTests.size} providers`);
-                        }
+        // Re-initialize Agents (if agents configured but not all initialized)
+        if (status.agentsConfigured && status.agentsInitialized < status.agentCount) {
+            new Setting(actionsDiv)
+                .addButton(btn => {
+                    btn.setButtonText('🎯 Re-initialize Agents')
+                        .setDisabled(this.plugin.initManager.isInitializing())
+                        .onClick(async () => {
+                            btn.setDisabled(true);
+                            btn.setButtonText('⏳ Working...');
 
-                        // Test Agents
-                        if (this.plugin.agentManager?.isReady()) {
-                            const agentTests = await this.plugin.agentManager.testAllAgents();
-                            const passed = Array.from(agentTests.values()).filter(v => v).length;
-                            results.push(`Agents: ${passed}/${agentTests.size}`);
-                        }
+                            await this.plugin.initManager.reinitializeAgents();
 
-                        new Notice(`Test Results:\n${results.join('\n')}`, 8000);
-
-                    } catch (error: any) {
-                        new Notice(`Test failed: ${error.message}`);
-                    } finally {
-                        btn.setDisabled(false);
-                        btn.setButtonText('Test All Systems');
-                    }
-                }));
+                            this.display();
+                        });
+                });
+        }
 
         // Refresh Status Button
-        new Setting(actions)
-            .addButton(btn => btn
-                .setButtonText('Refresh Status')
-                .onClick(() => {
-                    this.display();
-                    new Notice('Status refreshed');
-                }));
+        new Setting(actionsDiv)
+            .addButton(btn => {
+                btn.setButtonText('🔄 Refresh Status')
+                    .onClick(() => {
+                        this.display();
+                        new Notice('Status refreshed', 2000);
+                    });
+            });
 
-        // Details Section (collapsible)
-        if (!status.overall) {
-            const details = section.createDiv({ cls: 'initialization-details' });
-            details.style.marginTop = '20px';
-            details.style.padding = '15px';
-            details.style.backgroundColor = 'var(--background-primary)';
-            details.style.borderRadius = '6px';
-            details.style.fontSize = '0.9em';
+        // Divider
+        section.createEl('hr', { attr: { style: 'margin: 20px 0; border: none; border-top: 1px solid var(--background-modifier-border);' } });
 
-            const detailsHeader = details.createEl('h4', { text: '📋 Next Steps' });
-            detailsHeader.style.marginTop = '0';
-            detailsHeader.style.marginBottom = '10px';
+        // Help text
+        const helpText = section.createEl('p');
+        helpText.style.fontSize = '0.9em';
+        helpText.style.opacity = '0.8';
+        helpText.style.margin = '0';
+        helpText.innerHTML = `
+            <strong>💡 Tip:</strong> If you've just added providers or agents, click <strong>"Initialize Missing"</strong> 
+            to activate them without restarting Obsidian.
+        `;
+    }
 
-            const missingPrereqs = this.plugin.initManager.getMissingPrerequisites();
+    /**
+     * Verify password by attempting to decrypt a test config
+     */
+    private verifyMasterPassword(password: string): boolean {
+        if (!password) {
+            return false;
+        }
 
-            if (missingPrereqs.length > 0) {
-                details.createDiv({
-                    text: 'Complete these requirements to enable all features:',
-                    cls: 'details-text'
-                });
+        try {
+            // Set the password
+            this.plugin.keyManager.setMasterPassword(password);
 
-                const steps = details.createEl('ol');
-                steps.style.marginLeft = '20px';
-
-                missingPrereqs.forEach(prereq => {
-                    const step = steps.createEl('li');
-                    step.style.marginBottom = '8px';
-
-                    switch (prereq) {
-                        case 'Master Password':
-                            step.innerHTML = '<strong>Set Master Password:</strong> Scroll down to Security section';
-                            break;
-                        case 'OpenAI API Key':
-                            step.innerHTML = '<strong>Add OpenAI Provider:</strong> Required for embeddings (RAG system)';
-                            break;
-                        case 'LLM Provider':
-                            step.innerHTML = '<strong>Configure LLM Provider:</strong> Add Anthropic or OpenAI provider';
-                            break;
-                        case 'RAG Chunks':
-                            step.innerHTML = '<strong>Ingest Chunks:</strong> Scroll to RAG Configuration section and click "Ingest Chunks"';
-                            break;
-                        case 'Agent Configuration':
-                            step.innerHTML = '<strong>Create Agent:</strong> Scroll to Agents section and click "Create Agent"';
-                            break;
-                    }
-                });
-            } else {
-                details.createDiv({
-                    text: 'All requirements met! Click "Initialize All Systems" above.',
-                    cls: 'details-text'
-                });
+            // Test decryption if we have any configs
+            if (this.plugin.settings.llmConfigs.length > 0) {
+                const testConfig = this.plugin.settings.llmConfigs[0];
+                const encrypted = JSON.parse(testConfig.encryptedApiKey);
+                this.plugin.keyManager.decrypt(encrypted);
             }
+
+            return true;
+        } catch (error) {
+            // Clear failed password attempt
+            this.plugin.keyManager.clearMasterPassword();
+            return false;
         }
     }
 
     /**
-     * Display Security Section (Master Password)
+     * Display Security Section
      */
     private displaySecuritySection(containerEl: HTMLElement): void {
         containerEl.createEl('h2', { text: '🔐 Security' });
 
         const desc = containerEl.createEl('p', {
-            text: 'Set a master password to encrypt your API keys. This password is stored in memory only and never saved to disk.',
+            text: 'Set a master password to encrypt your API keys. This password is required to use the plugin.',
             cls: 'setting-item-description'
         });
         desc.style.marginBottom = '20px';
 
-        // Check if master password is set
+        // Check if password is already set
         const hasPassword = this.plugin.keyManager.hasMasterPassword();
 
         if (!hasPassword) {
-            // Prompt to set master password
-            const warningDiv = containerEl.createDiv({ cls: 'message warning' });
-            warningDiv.style.padding = '15px';
-            warningDiv.style.marginBottom = '20px';
-            warningDiv.style.backgroundColor = 'var(--background-modifier-error)';
-            warningDiv.style.borderRadius = '6px';
-            warningDiv.innerHTML = '⚠️ <strong>Master password not set.</strong> Set a password below to enable encryption and access other features.';
-
-            let passwordInput: TextComponent;
-            let confirmInput: TextComponent;
-
+            // Show password setup
             new Setting(containerEl)
                 .setName('Master Password')
-                .setDesc('Enter a strong password to encrypt your API keys')
+                .setDesc('Create a master password to encrypt your API keys')
                 .addText(text => {
-                    passwordInput = text;
-                    text.setPlaceholder('Enter master password');
-                    text.inputEl.type = 'password';
-                    text.inputEl.style.width = '100%';
-                });
-
-            new Setting(containerEl)
-                .setName('Confirm Password')
-                .setDesc('Re-enter your password')
-                .addText(text => {
-                    confirmInput = text;
-                    text.setPlaceholder('Confirm password');
-                    text.inputEl.type = 'password';
-                    text.inputEl.style.width = '100%';
-                });
-
-            new Setting(containerEl)
+                    text.setPlaceholder('Enter master password')
+                        .inputEl.type = 'password';
+                    text.inputEl.id = 'master-password-input';
+                })
                 .addButton(btn => btn
-                    .setButtonText('Set Master Password')
+                    .setButtonText('Set Password')
                     .setCta()
                     .onClick(async () => {
-                        const password = passwordInput.getValue();
-                        const confirm = confirmInput.getValue();
+                        const input = document.getElementById('master-password-input') as HTMLInputElement;
+                        const password = input?.value;
 
                         if (!password || password.length < 8) {
                             new Notice('Password must be at least 8 characters');
                             return;
                         }
 
-                        if (password !== confirm) {
-                            new Notice('Passwords do not match');
-                            return;
+                        try {
+                            await this.plugin.keyManager.setMasterPassword(password);
+                            new Notice('Master password set successfully!');
+                            this.passwordVerified = true;
+                            this.display();
+                        } catch (error: any) {
+                            new Notice(`Failed to set password: ${error.message}`);
                         }
-
-                        // Set the master password
-                        this.plugin.keyManager.setMasterPassword(password);
-                        this.plugin.settings.lastPasswordChangeDate = Date.now();
-                        await this.plugin.saveSettings();
-
-                        new Notice('✓ Master password set successfully!');
-                        this.passwordVerified = true;
-                        this.display();
                     }));
-
         } else {
-            // Master password is set - show verification
+            // Show password verification
             if (!this.passwordVerified) {
-                const infoDiv = containerEl.createDiv({ cls: 'message info' });
-                infoDiv.style.padding = '15px';
-                infoDiv.style.marginBottom = '20px';
-                infoDiv.style.backgroundColor = 'var(--background-secondary)';
-                infoDiv.style.borderRadius = '6px';
-                infoDiv.innerHTML = '🔒 Master password is set. Enter it below to access configuration.';
-
-                let passwordInput: TextComponent;
-
                 new Setting(containerEl)
-                    .setName('Enter Master Password')
-                    .setDesc('Verify your master password to continue')
+                    .setName('Verify Password')
+                    .setDesc('Enter your master password to access settings')
                     .addText(text => {
-                        passwordInput = text;
-                        text.setPlaceholder('Enter password');
-                        text.inputEl.type = 'password';
-                        text.inputEl.style.width = '100%';
-                    });
-
-                new Setting(containerEl)
+                        text.setPlaceholder('Enter master password')
+                            .inputEl.type = 'password';
+                        text.inputEl.id = 'verify-password-input';
+                    })
                     .addButton(btn => btn
-                        .setButtonText('Verify Password')
+                        .setButtonText('Unlock')
                         .setCta()
                         .onClick(() => {
-                            const password = passwordInput.getValue();
+                            const input = document.getElementById('verify-password-input') as HTMLInputElement;
+                            const password = input?.value;
 
-                            if (!password) {
-                                new Notice('Please enter your password');
-                                return;
-                            }
-
-                            // Set the password (this will be used for decryption)
-                            this.plugin.keyManager.setMasterPassword(password);
-
-                            // Test if it works by trying to decrypt something
-                            const testConfig = this.plugin.settings.llmConfigs[0];
-                            if (testConfig) {
-                                try {
-                                    this.plugin.keyManager.decryptApiKey(testConfig.encryptedApiKey);
-                                    new Notice('✓ Password verified!');
-                                    this.passwordVerified = true;
-                                    this.display();
-                                } catch (error) {
-                                    new Notice('✗ Incorrect password');
-                                    this.plugin.keyManager.clearMasterPassword();
-                                }
-                            } else {
-                                // No configs to test with, just accept it
-                                new Notice('✓ Password accepted!');
+                            if (this.verifyMasterPassword(password)) {
                                 this.passwordVerified = true;
+                                new Notice('Password verified!');
                                 this.display();
+                            } else {
+                                new Notice('Incorrect password');
                             }
                         }));
-
             } else {
-                // Password verified - show options
-                const successDiv = containerEl.createDiv({ cls: 'message success' });
-                successDiv.style.padding = '15px';
-                successDiv.style.marginBottom = '20px';
-                successDiv.style.backgroundColor = 'var(--interactive-success)';
-                successDiv.style.color = 'white';
-                successDiv.style.borderRadius = '6px';
-                successDiv.innerHTML = '✓ Master password verified. Configuration sections unlocked.';
-
-                new Setting(containerEl)
-                    .setName('Change Master Password')
-                    .setDesc('Set a new master password (will re-encrypt all API keys)')
-                    .addButton(btn => btn
-                        .setButtonText('Change Password')
-                        .onClick(() => {
-                            this.showChangePasswordModal();
-                        }));
-
-                new Setting(containerEl)
-                    .setName('Lock Settings')
-                    .setDesc('Clear password from memory')
-                    .addButton(btn => btn
-                        .setButtonText('Lock')
-                        .onClick(() => {
-                            this.plugin.keyManager.clearMasterPassword();
-                            this.passwordVerified = false;
-                            this.display();
-                            new Notice('Settings locked');
-                        }));
+                // Show password management options
+                const statusDiv = containerEl.createDiv({ cls: 'message' });
+                statusDiv.style.padding = '15px';
+                statusDiv.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+                statusDiv.style.border = '1px solid rgba(40, 167, 69, 0.3)';
+                statusDiv.style.borderRadius = '6px';
+                statusDiv.style.marginBottom = '20px';
+                statusDiv.setText('✓ Master password is set and verified');
             }
         }
     }
@@ -504,19 +425,30 @@ export class RiskManagementSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', { text: '🤖 LLM Providers' });
 
         const desc = containerEl.createEl('p', {
-            text: 'Configure language model providers for agent responses. At least one provider is required.',
+            text: 'Configure Large Language Model providers for generating responses.',
             cls: 'setting-item-description'
         });
         desc.style.marginBottom = '20px';
 
-        // Show LLM status
-        if (this.plugin.llmManager) {
-            const stats = this.plugin.llmManager.getStats();
-            const statusDiv = containerEl.createDiv({ cls: 'message' });
-            statusDiv.style.marginBottom = '15px';
-            statusDiv.style.padding = '10px';
-            statusDiv.innerHTML = `📊 Status: ${stats.initializedProviders}/${stats.enabledProviders} providers ready`;
-        }
+        // Add provider button
+        new Setting(containerEl)
+            .setName('Add LLM Provider')
+            .setDesc('Add a new LLM provider configuration')
+            .addButton(btn => btn
+                .setButtonText('Add Provider')
+                .setCta()
+                .onClick(() => {
+                    new LLMConfigModal(this.app, this.plugin, null, async (config) => {
+                        this.plugin.settings.llmConfigs.push(config);
+                        await this.plugin.saveSettings();
+
+                        // Re-initialize LLM manager
+                        await this.plugin.llmManager.initialize();
+
+                        new Notice(`Provider "${config.name}" added successfully`);
+                        this.display();
+                    }).open();
+                }));
 
         // List existing providers
         if (this.plugin.settings.llmConfigs.length === 0) {
@@ -524,88 +456,85 @@ export class RiskManagementSettingTab extends PluginSettingTab {
             emptyDiv.style.padding = '20px';
             emptyDiv.style.textAlign = 'center';
             emptyDiv.style.marginBottom = '20px';
-            emptyDiv.setText('No LLM providers configured yet. Add one below to get started.');
+            emptyDiv.setText('No LLM providers configured yet.');
         } else {
             this.plugin.settings.llmConfigs.forEach((config, index) => {
-                this.displayLLMConfigCard(containerEl, config, index);
+                this.displayLLMProviderCard(containerEl, config, index);
             });
         }
-
-        // Add provider button
-        new Setting(containerEl)
-            .addButton(btn => btn
-                .setButtonText('Add LLM Provider')
-                .setCta()
-                .onClick(() => {
-                    this.showAddLLMModal();
-                }));
     }
 
     /**
-     * Display individual LLM config card
+     * Display individual LLM provider card
      */
-    private displayLLMConfigCard(containerEl: HTMLElement, config: LLMConfig, index: number): void {
-        const card = containerEl.createDiv({ cls: 'llm-config-card' });
-        card.style.border = '1px solid var(--background-modifier-border)';
-        card.style.borderRadius = '8px';
+    private displayLLMProviderCard(containerEl: HTMLElement, config: LLMConfig, index: number): void {
+        const card = containerEl.createDiv({ cls: 'llm-provider-card' });
         card.style.padding = '15px';
         card.style.marginBottom = '15px';
+        card.style.border = '1px solid var(--background-modifier-border)';
+        card.style.borderRadius = '8px';
+        card.style.backgroundColor = config.enabled
+            ? 'var(--background-secondary)'
+            : 'var(--background-primary)';
 
-        // Header
-        const header = card.createDiv();
-        header.style.display = 'flex';
-        header.style.justifyContent = 'space-between';
-        header.style.marginBottom = '10px';
+        // Header row
+        const headerRow = card.createDiv();
+        headerRow.style.display = 'flex';
+        headerRow.style.justifyContent = 'space-between';
+        headerRow.style.alignItems = 'center';
+        headerRow.style.marginBottom = '10px';
 
-        const title = header.createEl('h3', { text: config.name });
+        const titleDiv = headerRow.createDiv();
+        const title = titleDiv.createEl('h3', { text: config.name });
         title.style.margin = '0';
+        title.style.fontSize = '1.1em';
 
-        const badge = header.createSpan({
-            text: config.enabled ? 'Enabled' : 'Disabled',
-            cls: config.enabled ? 'status-badge enabled' : 'status-badge disabled'
+        const statusBadge = headerRow.createSpan({
+            text: config.enabled ? '✓ Enabled' : '○ Disabled'
         });
-        badge.style.padding = '4px 8px';
-        badge.style.borderRadius = '4px';
-        badge.style.fontSize = '0.85em';
-        badge.style.backgroundColor = config.enabled ? 'var(--interactive-success)' : 'var(--background-modifier-error)';
-        badge.style.color = 'white';
+        statusBadge.style.padding = '4px 12px';
+        statusBadge.style.borderRadius = '12px';
+        statusBadge.style.fontSize = '0.85em';
+        statusBadge.style.backgroundColor = config.enabled
+            ? 'rgba(40, 167, 69, 0.2)'
+            : 'rgba(108, 117, 125, 0.2)';
+        statusBadge.style.color = config.enabled ? '#28a745' : '#6c757d';
 
-        // Info
-        const info = card.createDiv();
-        info.style.fontSize = '0.9em';
-        info.style.color = 'var(--text-muted)';
-        info.style.marginBottom = '15px';
-        info.innerHTML = `
+        // Details
+        const detailsDiv = card.createDiv();
+        detailsDiv.style.fontSize = '0.9em';
+        detailsDiv.style.marginBottom = '10px';
+        detailsDiv.innerHTML = `
             <strong>Provider:</strong> ${config.provider}<br>
             <strong>Model:</strong> ${config.model}<br>
-            <strong>Temperature:</strong> ${config.temperature}
+            <strong>Temperature:</strong> ${config.temperature}<br>
+            <strong>Max Tokens:</strong> ${config.maxTokens}
         `;
 
         // Actions
-        const actions = card.createDiv();
-        actions.style.display = 'flex';
-        actions.style.gap = '8px';
+        const actionsDiv = card.createDiv();
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '8px';
 
-        new Setting(actions)
+        new Setting(actionsDiv)
             .addButton(btn => btn
-                .setButtonText('Test')
-                .onClick(async () => {
-                    btn.setDisabled(true);
-                    btn.setButtonText('Testing...');
-
-                    try {
-                        const success = await this.plugin.llmManager.testProvider(config.id);
-                        new Notice(success ? `✓ ${config.name} working` : `✗ ${config.name} failed`);
-                    } finally {
-                        btn.setDisabled(false);
-                        btn.setButtonText('Test');
-                    }
+                .setButtonText('Edit')
+                .onClick(() => {
+                    new LLMConfigModal(this.app, this.plugin, config, async (updatedConfig) => {
+                        this.plugin.settings.llmConfigs[index] = updatedConfig;
+                        await this.plugin.saveSettings();
+                        await this.plugin.llmManager.initialize();
+                        new Notice(`Provider "${updatedConfig.name}" updated`);
+                        this.display();
+                    }).open();
                 }))
             .addButton(btn => btn
                 .setButtonText(config.enabled ? 'Disable' : 'Enable')
                 .onClick(async () => {
                     config.enabled = !config.enabled;
                     await this.plugin.saveSettings();
+                    await this.plugin.llmManager.initialize();
+                    new Notice(`Provider ${config.enabled ? 'enabled' : 'disabled'}`);
                     this.display();
                 }))
             .addButton(btn => btn
@@ -615,6 +544,8 @@ export class RiskManagementSettingTab extends PluginSettingTab {
                     if (confirm(`Delete provider "${config.name}"?`)) {
                         this.plugin.settings.llmConfigs.splice(index, 1);
                         await this.plugin.saveSettings();
+                        await this.plugin.llmManager.initialize();
+                        new Notice(`Provider "${config.name}" deleted`);
                         this.display();
                     }
                 }));
@@ -627,58 +558,60 @@ export class RiskManagementSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', { text: '📚 RAG Configuration' });
 
         const desc = containerEl.createEl('p', {
-            text: 'Configure the Retrieval-Augmented Generation system for knowledge retrieval.',
+            text: 'Configure Retrieval Augmented Generation settings.',
             cls: 'setting-item-description'
         });
         desc.style.marginBottom = '20px';
 
-        // Show RAG stats
-        if (this.plugin.retriever) {
-            const stats = this.plugin.retriever.getStats();
-            if (stats) {
-                const statusDiv = containerEl.createDiv({ cls: 'message' });
-                statusDiv.style.marginBottom = '15px';
-                statusDiv.style.padding = '10px';
-                statusDiv.innerHTML = `
-                    📊 Status: ${stats.totalChunks} chunks indexed | 
-                    Model: ${stats.embeddingModel} | 
-                    Memory: ${(stats.memoryUsage / 1024 / 1024).toFixed(2)} MB
-                `;
-            }
-        }
+        // Show stats
+        const stats = this.plugin.retriever.getStats();
+        const statsDiv = containerEl.createDiv({ cls: 'message' });
+        statsDiv.style.marginBottom = '15px';
+        statsDiv.style.padding = '15px';
+        statsDiv.innerHTML = `
+            <strong>📊 Current Status:</strong><br>
+            Total Chunks: ${stats?.totalChunks || 0}<br>
+            Embedding Model: ${stats?.embeddingModel || 'N/A'}<br>
+            Dimension: ${stats?.dimension || 0}
+        `;
 
-        // Ingest chunks button
+        // Vector DB path
         new Setting(containerEl)
-            .setName('Ingest Knowledge Base')
-            .setDesc('Load and index chunks from the data/rag_chunks directory')
+            .setName('Vector Database Path')
+            .setDesc('Path to store the vector database index')
+            .addText(text => text
+                .setPlaceholder('vector-store-index.json')
+                .setValue(this.plugin.settings.vectorDbPath || '')
+                .onChange(async (value) => {
+                    this.plugin.settings.vectorDbPath = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Ingestion controls
+        new Setting(containerEl)
+            .setName('Ingest Chunks')
+            .setDesc('Ingest or re-ingest RAG chunks from the handbook directory')
             .addButton(btn => btn
                 .setButtonText('Ingest Chunks')
                 .setCta()
                 .onClick(async () => {
-                    btn.setDisabled(true);
-                    btn.setButtonText('Ingesting...');
+                    if (!this.plugin.retriever.isReady()) {
+                        new Notice('RAG system not ready. Configure an OpenAI provider first.');
+                        return;
+                    }
 
                     try {
                         await this.plugin.retriever.ingestChunks();
-                        new Notice('✓ Chunks ingested successfully!');
                         this.display();
                     } catch (error: any) {
-                        new Notice(`✗ Ingestion failed: ${error.message}`);
-                    } finally {
-                        btn.setDisabled(false);
-                        btn.setButtonText('Ingest Chunks');
+                        new Notice(`Ingestion failed: ${error.message}`);
                     }
-                }));
-
-        // Clear index button
-        new Setting(containerEl)
-            .setName('Clear Vector Index')
-            .setDesc('Remove all indexed chunks (requires re-ingestion)')
+                }))
             .addButton(btn => btn
                 .setButtonText('Clear Index')
                 .setWarning()
                 .onClick(async () => {
-                    if (confirm('Clear all indexed chunks? You will need to re-ingest.')) {
+                    if (confirm('Clear all ingested chunks? You will need to re-ingest.')) {
                         await this.plugin.retriever.clearIndex();
                         new Notice('✓ Index cleared');
                         this.display();
@@ -690,7 +623,7 @@ export class RiskManagementSettingTab extends PluginSettingTab {
      * Display Agents Section
      */
     private displayAgentsSection(containerEl: HTMLElement): void {
-        containerEl.createEl('h2', { text: '🤖 AI Agents' });
+        containerEl.createEl('h2', { text: '🎯 AI Agents' });
 
         const desc = containerEl.createEl('p', {
             text: 'Create and manage specialized AI agents for different risk management tasks.',
@@ -707,6 +640,26 @@ export class RiskManagementSettingTab extends PluginSettingTab {
             statusDiv.innerHTML = `📊 Status: ${stats.initializedAgents}/${stats.enabledAgents} agents initialized`;
         }
 
+        // Add agent button
+        new Setting(containerEl)
+            .setName('Create Agent')
+            .setDesc('Create a new AI agent')
+            .addButton(btn => btn
+                .setButtonText('Create Agent')
+                .setCta()
+                .onClick(() => {
+                    new AgentBuilderModal(
+                        this.app,
+                        this.plugin,
+                        null,
+                        async (config) => {
+                            await this.plugin.agentManager.addAgent(config);
+                            new Notice(`Agent "${config.name}" created successfully`);
+                            this.display();
+                        }
+                    ).open();
+                }));
+
         // List existing agents
         if (this.plugin.settings.agents.length === 0) {
             const emptyDiv = containerEl.createDiv({ cls: 'message' });
@@ -715,231 +668,239 @@ export class RiskManagementSettingTab extends PluginSettingTab {
             emptyDiv.style.marginBottom = '20px';
             emptyDiv.setText('No agents configured yet. Click "Create Agent" to get started.');
         } else {
-            this.plugin.settings.agents.forEach(config => {
-                createAgentCard(containerEl, config, {
-                    onEdit: () => {
-                        new AgentBuilderModal(this.app, this.plugin, config, async (updated) => {
-                            await this.plugin.agentManager.updateAgent(config.id, updated);
-                            this.display();
-                        }).open();
-                    },
-                    onTest: async () => {
-                        try {
-                            await this.plugin.agentManager.testAgent(config.id);
-                            new Notice(`✓ ${config.name} test passed`);
-                        } catch (error: any) {
-                            new Notice(`✗ Test failed: ${error.message}`);
-                        }
-                    },
-                    onToggle: async (enabled) => {
-                        await this.plugin.agentManager.toggleAgent(config.id, enabled);
-                        this.display();
-                    },
-                    onDelete: async () => {
-                        if (confirm(`Delete agent "${config.name}"?`)) {
-                            await this.plugin.agentManager.deleteAgent(config.id);
-                            this.display();
-                        }
-                    }
-                });
+            this.plugin.settings.agents.forEach((config, index) => {
+                this.displayAgentCard(containerEl, config, index);
             });
         }
+    }
 
-        // Create agent button
-        new Setting(containerEl)
+    /**
+     * Display individual agent card
+     */
+    private displayAgentCard(containerEl: HTMLElement, config: AgentConfig, index: number): void {
+        const card = containerEl.createDiv({ cls: 'agent-card' });
+        card.style.padding = '15px';
+        card.style.marginBottom = '15px';
+        card.style.border = '1px solid var(--background-modifier-border)';
+        card.style.borderRadius = '8px';
+        card.style.backgroundColor = config.enabled
+            ? 'var(--background-secondary)'
+            : 'var(--background-primary)';
+
+        // Header row
+        const headerRow = card.createDiv();
+        headerRow.style.display = 'flex';
+        headerRow.style.justifyContent = 'space-between';
+        headerRow.style.alignItems = 'center';
+        headerRow.style.marginBottom = '10px';
+
+        const titleDiv = headerRow.createDiv();
+        const title = titleDiv.createEl('h3', { text: config.name });
+        title.style.margin = '0';
+        title.style.fontSize = '1.1em';
+
+        const statusBadge = headerRow.createSpan({
+            text: config.enabled ? '✓ Enabled' : '○ Disabled'
+        });
+        statusBadge.style.padding = '4px 12px';
+        statusBadge.style.borderRadius = '12px';
+        statusBadge.style.fontSize = '0.85em';
+        statusBadge.style.backgroundColor = config.enabled
+            ? 'rgba(40, 167, 69, 0.2)'
+            : 'rgba(108, 117, 125, 0.2)';
+        statusBadge.style.color = config.enabled ? '#28a745' : '#6c757d';
+
+        // Description
+        const descDiv = card.createDiv();
+        descDiv.style.fontSize = '0.9em';
+        descDiv.style.marginBottom = '10px';
+        descDiv.style.opacity = '0.8';
+        descDiv.textContent = config.description;
+
+        // Details
+        const llmConfig = this.plugin.settings.llmConfigs.find(c => c.id === config.llmId);
+        const detailsDiv = card.createDiv();
+        detailsDiv.style.fontSize = '0.85em';
+        detailsDiv.style.marginBottom = '10px';
+        detailsDiv.innerHTML = `
+            <strong>LLM:</strong> ${llmConfig?.name || 'Unknown'}<br>
+            <strong>Retrieval:</strong> Top ${config.retrievalSettings.topK} chunks (threshold: ${config.retrievalSettings.scoreThreshold})
+        `;
+
+        // Actions
+        const actionsDiv = card.createDiv();
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '8px';
+
+        new Setting(actionsDiv)
             .addButton(btn => btn
-                .setButtonText('Create Agent')
-                .setCta()
+                .setButtonText('Edit')
                 .onClick(() => {
-                    new AgentBuilderModal(this.app, this.plugin, null, async (config) => {
-                        await this.plugin.agentManager.addAgent(config);
-                        this.display();
-                    }).open();
-                }));
-    }
-
-    /**
-     * Show modal to add LLM provider
-     */
-    private showAddLLMModal(): void {
-        const modal = new Modal(this.app);
-        modal.titleEl.setText('Add LLM Provider');
-
-        let nameInput: TextComponent;
-        let providerSelect: DropdownComponent;
-        let apiKeyInput: TextComponent;
-        let modelInput: TextComponent;
-
-        new Setting(modal.contentEl)
-            .setName('Provider Name')
-            .setDesc('A friendly name for this provider')
-            .addText(text => {
-                nameInput = text;
-                text.setPlaceholder('My Claude API');
-                text.inputEl.style.width = '100%';
-            });
-
-        new Setting(modal.contentEl)
-            .setName('Provider Type')
-            .setDesc('Select the LLM provider')
-            .addDropdown(dropdown => {
-                providerSelect = dropdown;
-                dropdown.addOption(LLMProvider.ANTHROPIC, 'Anthropic (Claude)');
-                dropdown.addOption(LLMProvider.OPENAI, 'OpenAI (GPT)');
-            });
-
-        new Setting(modal.contentEl)
-            .setName('API Key')
-            .setDesc('Your API key (will be encrypted)')
-            .addText(text => {
-                apiKeyInput = text;
-                text.setPlaceholder('sk-...');
-                text.inputEl.type = 'password';
-                text.inputEl.style.width = '100%';
-            });
-
-        new Setting(modal.contentEl)
-            .setName('Model')
-            .setDesc('Model identifier (e.g., claude-sonnet-4-5-20250929)')
-            .addText(text => {
-                modelInput = text;
-                text.setPlaceholder('claude-sonnet-4-5-20250929');
-                text.inputEl.style.width = '100%';
-            });
-
-        new Setting(modal.contentEl)
+                    new AgentBuilderModal(
+                        this.app,
+                        this.plugin,
+                        config,
+                        async (updatedConfig) => {
+                            await this.plugin.agentManager.updateAgent(config.id, updatedConfig);
+                            new Notice(`Agent "${updatedConfig.name}" updated`);
+                            this.display();
+                        }
+                    ).open();
+                }))
             .addButton(btn => btn
-                .setButtonText('Cancel')
-                .onClick(() => modal.close()))
-            .addButton(btn => btn
-                .setButtonText('Add Provider')
-                .setCta()
+                .setButtonText(config.enabled ? 'Disable' : 'Enable')
                 .onClick(async () => {
-                    const name = nameInput.getValue();
-                    const provider = providerSelect.getValue() as LLMProvider;
-                    const apiKey = apiKeyInput.getValue();
-                    const model = modelInput.getValue();
-
-                    if (!name || !apiKey || !model) {
-                        new Notice('Please fill all fields');
-                        return;
-                    }
-
-                    // Encrypt API key
-                    const encryptedKey = this.plugin.keyManager.encryptApiKey(apiKey);
-
-                    // Create config
-                    const config: LLMConfig = {
-                        id: this.plugin.generateId(),
-                        name,
-                        provider,
-                        encryptedApiKey: encryptedKey,
-                        model,
-                        temperature: 0.7,
-                        maxTokens: 4096,
-                        enabled: true,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                    };
-
-                    this.plugin.settings.llmConfigs.push(config);
+                    config.enabled = !config.enabled;
                     await this.plugin.saveSettings();
-
-                    new Notice(`✓ Provider "${name}" added`);
-                    modal.close();
+                    await this.plugin.agentManager.initialize();
+                    new Notice(`Agent ${config.enabled ? 'enabled' : 'disabled'}`);
                     this.display();
+                }))
+            .addButton(btn => btn
+                .setButtonText('Delete')
+                .setWarning()
+                .onClick(async () => {
+                    if (confirm(`Delete agent "${config.name}"?`)) {
+                        await this.plugin.agentManager.deleteAgent(config.id);
+                        new Notice(`Agent "${config.name}" deleted`);
+                        this.display();
+                    }
                 }));
+    }
+}
 
-        modal.open();
+/**
+ * Modal for LLM provider configuration
+ */
+class LLMConfigModal extends Modal {
+    private plugin: RiskManagementPlugin;
+    private config: LLMConfig | null;
+    private onSave: (config: LLMConfig) => void;
+
+    constructor(
+        app: App,
+        plugin: RiskManagementPlugin,
+        config: LLMConfig | null,
+        onSave: (config: LLMConfig) => void
+    ) {
+        super(app);
+        this.plugin = plugin;
+        this.config = config;
+        this.onSave = onSave;
     }
 
-    /**
-     * Show modal to change master password
-     */
-    private showChangePasswordModal(): void {
-        const modal = new Modal(this.app);
-        modal.titleEl.setText('Change Master Password');
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
 
-        let currentInput: TextComponent;
-        let newInput: TextComponent;
-        let confirmInput: TextComponent;
+        contentEl.createEl('h2', { text: this.config ? 'Edit LLM Provider' : 'Add LLM Provider' });
 
-        new Setting(modal.contentEl)
-            .setName('Current Password')
-            .addText(text => {
-                currentInput = text;
-                text.inputEl.type = 'password';
-                text.inputEl.style.width = '100%';
+        // Form fields
+        let name = this.config?.name || '';
+        let provider = this.config?.provider || LLMProvider.OPENAI;
+        let model = this.config?.model || '';
+        let apiKey = '';
+        let temperature = this.config?.temperature || 0.7;
+        let maxTokens = this.config?.maxTokens || 4096;
+
+        new Setting(contentEl)
+            .setName('Provider Name')
+            .addText(text => text
+                .setPlaceholder('My OpenAI Provider')
+                .setValue(name)
+                .onChange(v => name = v));
+
+        new Setting(contentEl)
+            .setName('Provider Type')
+            .addDropdown(dropdown => {
+                dropdown.addOption(LLMProvider.OPENAI, 'OpenAI');
+                dropdown.addOption(LLMProvider.ANTHROPIC, 'Anthropic');
+                dropdown.setValue(provider);
+                dropdown.onChange(v => provider = v as LLMProvider);
             });
 
-        new Setting(modal.contentEl)
-            .setName('New Password')
+        new Setting(contentEl)
+            .setName('Model')
+            .addText(text => text
+                .setPlaceholder('gpt-4')
+                .setValue(model)
+                .onChange(v => model = v));
+
+        new Setting(contentEl)
+            .setName('API Key')
+            .setDesc(this.config ? 'Leave blank to keep existing key' : 'Enter your API key')
             .addText(text => {
-                newInput = text;
+                text.setPlaceholder('sk-...')
+                    .onChange(v => apiKey = v);
                 text.inputEl.type = 'password';
-                text.inputEl.style.width = '100%';
             });
 
-        new Setting(modal.contentEl)
-            .setName('Confirm New Password')
-            .addText(text => {
-                confirmInput = text;
-                text.inputEl.type = 'password';
-                text.inputEl.style.width = '100%';
-            });
+        new Setting(contentEl)
+            .setName('Temperature')
+            .addSlider(slider => slider
+                .setLimits(0, 1, 0.1)
+                .setValue(temperature)
+                .setDynamicTooltip()
+                .onChange(v => temperature = v));
 
-        new Setting(modal.contentEl)
+        new Setting(contentEl)
+            .setName('Max Tokens')
+            .addText(text => text
+                .setPlaceholder('4096')
+                .setValue(String(maxTokens))
+                .onChange(v => maxTokens = parseInt(v) || 4096));
+
+        // Buttons
+        new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Cancel')
-                .onClick(() => modal.close()))
-            .addButton(btn => btn
-                .setButtonText('Change Password')
+                .setButtonText('Save')
                 .setCta()
                 .onClick(async () => {
-                    const current = currentInput.getValue();
-                    const newPass = newInput.getValue();
-                    const confirm = confirmInput.getValue();
-
-                    // Validate
-                    if (newPass.length < 8) {
-                        new Notice('New password must be at least 8 characters');
+                    if (!name || !provider || !model) {
+                        new Notice('Please fill in all required fields');
                         return;
                     }
 
-                    if (newPass !== confirm) {
-                        new Notice('Passwords do not match');
+                    if (!this.config && !apiKey) {
+                        new Notice('API key is required');
                         return;
                     }
 
-                    // Re-encrypt all API keys
                     try {
-                        // Decrypt with old password
-                        const decryptedKeys = this.plugin.settings.llmConfigs.map(config => ({
-                            id: config.id,
-                            apiKey: this.plugin.keyManager.decryptApiKey(config.encryptedApiKey)
-                        }));
+                        let encryptedApiKey = this.config?.encryptedApiKey;
 
-                        // Set new password
-                        this.plugin.keyManager.setMasterPassword(newPass);
+                        if (apiKey) {
+                            const encrypted = this.plugin.keyManager.encrypt(apiKey);
+                            encryptedApiKey = JSON.stringify(encrypted);
+                        }
 
-                        // Re-encrypt with new password
-                        decryptedKeys.forEach(({ id, apiKey }) => {
-                            const config = this.plugin.settings.llmConfigs.find(c => c.id === id);
-                            if (config) {
-                                config.encryptedApiKey = this.plugin.keyManager.encryptApiKey(apiKey);
-                            }
-                        });
+                        const now = Date.now();
+                        const newConfig: LLMConfig = {
+                            id: this.config?.id || this.plugin.generateId(),
+                            name,
+                            provider,
+                            model,
+                            encryptedApiKey: encryptedApiKey!,
+                            temperature,
+                            maxTokens,
+                            enabled: this.config?.enabled ?? true,
+                            createdAt: this.config?.createdAt || now,
+                            updatedAt: now
+                        };
 
-                        this.plugin.settings.lastPasswordChangeDate = Date.now();
-                        await this.plugin.saveSettings();
-
-                        new Notice('✓ Master password changed successfully');
-                        modal.close();
-                    } catch (error) {
-                        new Notice('✗ Failed to change password. Incorrect current password?');
+                        this.onSave(newConfig);
+                        this.close();
+                    } catch (error: any) {
+                        new Notice(`Error: ${error.message}`);
                     }
-                }));
+                }))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => this.close()));
+    }
 
-        modal.open();
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
     }
 }

@@ -1,23 +1,42 @@
 /**
- * Initialization Manager
+ * Smart Initialization Manager - FIXED (RAG Embeddings Issue)
  *
- * Handles coordinated initialization of all plugin systems
+ * Provides intelligent initialization and re-initialization of all plugin systems
+ * Can detect actual state and fix issues without requiring plugin reload
  */
 
 import { Notice } from 'obsidian';
 import RiskManagementPlugin from '../main';
 
 export interface InitializationStatus {
+    // Individual component states
     keyManager: boolean;
     retriever: boolean;
     llmManager: boolean;
     agentManager: boolean;
+
+    // Detailed info
+    chunksIngested: boolean;
+    chunkCount: number;
+    agentsConfigured: boolean;
+    agentCount: number;
+    agentsInitialized: number;
+    llmProvidersConfigured: boolean;
+    providerCount: number;
+    llmProvidersInitialized: number;
+
+    // Overall status
     overall: boolean;
+}
+
+export interface InitializationRequirement {
+    requirement: string;
+    met: boolean;
+    message: string;
 }
 
 export interface InitializationResult {
     success: boolean;
-    status: InitializationStatus;
     errors: string[];
     warnings: string[];
 }
@@ -31,45 +50,97 @@ export class InitializationManager {
     }
 
     /**
-     * Get current initialization status
+     * Get comprehensive initialization status
      */
     getStatus(): InitializationStatus {
+        const retrieverStats = this.plugin.retriever?.getStats();
+        const llmStats = this.plugin.llmManager?.getStats();
+        const agentStats = this.plugin.agentManager?.getStats();
+
+        // Check actual initialization state of each manager
+        const keyManager = !!this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword();
+        const retriever = this.plugin.retriever?.isReady() || false;
+        const llmManager = this.plugin.llmManager?.isReady() || false;
+        const agentManager = this.plugin.agentManager?.isReady() || false;
+
+        const chunksIngested = (retrieverStats?.totalChunks || 0) > 0;
+        const agentsConfigured = (this.plugin.settings.agents?.length || 0) > 0;
+        const llmProvidersConfigured = (this.plugin.settings.llmConfigs?.length || 0) > 0;
+
+        const agentsInitialized = agentStats?.initializedAgents || 0;
+        const llmProvidersInitialized = llmStats?.initializedProviders || 0;
+
+        // Overall ready = all managers ready
+        const overall = keyManager && retriever && llmManager && agentManager;
+
         return {
-            keyManager: !!this.plugin.keyManager,
-            retriever: this.plugin.retriever?.isReady() || false,
-            llmManager: this.plugin.llmManager?.isReady() || false,
-            agentManager: this.plugin.agentManager?.isReady() || false,
-            overall: this.isFullyInitialized()
+            keyManager,
+            retriever,
+            llmManager,
+            agentManager,
+            chunksIngested,
+            chunkCount: retrieverStats?.totalChunks || 0,
+            agentsConfigured,
+            agentCount: agentStats?.totalAgents || 0,
+            agentsInitialized,
+            llmProvidersConfigured,
+            providerCount: llmStats?.totalProviders || 0,
+            llmProvidersInitialized,
+            overall
         };
     }
 
     /**
-     * Check if all systems are initialized
+     * Get detailed requirements checklist
      */
-    isFullyInitialized(): boolean {
-        return (
-            !!this.plugin.keyManager &&
-            this.plugin.retriever?.isReady() === true &&
-            this.plugin.llmManager?.isReady() === true &&
-            this.plugin.agentManager?.isReady() === true
-        );
+    getRequirements(): InitializationRequirement[] {
+        const status = this.getStatus();
+        const requirements: InitializationRequirement[] = [];
+
+        // Master password
+        requirements.push({
+            requirement: 'Set master password',
+            met: this.plugin.keyManager?.hasMasterPassword() || false,
+            message: status.keyManager ? 'Password set' : 'Required for encryption'
+        });
+
+        // LLM Providers
+        requirements.push({
+            requirement: 'Configure LLM providers',
+            met: status.llmProvidersConfigured,
+            message: status.llmProvidersConfigured
+                ? `${status.llmProvidersInitialized}/${status.providerCount} initialized`
+                : 'Add at least one provider'
+        });
+
+        // RAG Chunks
+        requirements.push({
+            requirement: 'Ingest RAG chunks',
+            met: status.chunksIngested,
+            message: status.chunksIngested
+                ? `${status.chunkCount} chunks loaded`
+                : 'Run chunk ingestion'
+        });
+
+        // Agents
+        requirements.push({
+            requirement: 'Create AI agents',
+            met: status.agentsConfigured,
+            message: status.agentsConfigured
+                ? `${status.agentsInitialized}/${status.agentCount} initialized`
+                : 'Create at least one agent'
+        });
+
+        return requirements;
     }
 
     /**
-     * Check if currently initializing
-     */
-    isInitializing(): boolean {
-        return this.initializing;
-    }
-
-    /**
-     * Initialize all systems with proper waiting and error handling
+     * Initialize or re-initialize all systems
      */
     async initializeAll(force: boolean = false): Promise<InitializationResult> {
         if (this.initializing) {
             return {
                 success: false,
-                status: this.getStatus(),
                 errors: ['Initialization already in progress'],
                 warnings: []
             };
@@ -80,102 +151,96 @@ export class InitializationManager {
         const warnings: string[] = [];
 
         try {
-            new Notice('🔄 Initializing plugin systems...');
+            new Notice(force ? '🔄 Re-initializing all systems...' : '⚡ Initializing systems...');
 
-            // Phase 1: Key Manager (always available)
+            // 1. Key Manager (always ready)
             if (!this.plugin.keyManager) {
-                errors.push('KeyManager not found - plugin may need reload');
+                errors.push('KeyManager not found');
+                return { success: false, errors, warnings };
             }
 
-            // Phase 2: RAG Retriever
-            if (!this.plugin.retriever) {
-                errors.push('RAGRetriever not found');
-            } else {
-                try {
-                    if (!this.plugin.retriever.isReady() || force) {
-                        await this.plugin.retriever.initialize();
-                        console.log('✓ RAG Retriever initialized');
+            if (!this.plugin.keyManager.hasMasterPassword()) {
+                errors.push('Master password not set');
+                return { success: false, errors, warnings };
+            }
+
+            // 2. Initialize LLM Manager FIRST (needed for RAG embeddings)
+            try {
+                if (this.plugin.settings.llmConfigs.length === 0) {
+                    warnings.push('No LLM providers configured');
+                } else {
+                    await this.plugin.llmManager.initialize();
+
+                    const llmStats = this.plugin.llmManager.getStats();
+                    if (llmStats.initializedProviders === 0) {
+                        errors.push('No LLM providers initialized successfully');
+                    } else if (llmStats.initializedProviders < llmStats.enabledProviders) {
+                        warnings.push(`Only ${llmStats.initializedProviders}/${llmStats.enabledProviders} providers initialized`);
+                    }
+                    console.log('✓ LLM Manager initialized');
+                }
+            } catch (error: any) {
+                errors.push(`LLM initialization failed: ${error.message}`);
+            }
+
+            // 3. Initialize RAG Retriever (now that LLM is ready, embeddings can initialize)
+            try {
+                // Force re-initialization to pick up OpenAI provider for embeddings
+                await this.plugin.retriever.initialize();
+
+                // Check if embeddings are ready now
+                if (!this.plugin.retriever.isReady()) {
+                    // Check if we have OpenAI provider
+                    const hasOpenAI = this.plugin.settings.llmConfigs.some(c => c.provider === 'openai' && c.enabled);
+                    if (!hasOpenAI) {
+                        warnings.push('RAG needs OpenAI provider for embeddings');
+                    } else if (!this.getStatus().chunksIngested) {
+                        warnings.push('RAG needs chunks ingested');
                     } else {
-                        console.log('✓ RAG Retriever already ready');
+                        warnings.push('RAG embeddings initialization issue - check console');
                     }
-                } catch (error: any) {
-                    errors.push(`RAG initialization failed: ${error.message}`);
-                    console.error('RAG initialization error:', error);
                 }
+
+                console.log('✓ RAG Retriever initialized');
+            } catch (error: any) {
+                errors.push(`RAG initialization failed: ${error.message}`);
             }
 
-            // Phase 3: LLM Manager
-            if (!this.plugin.llmManager) {
-                errors.push('LLM Manager not found');
-            } else {
-                if (!this.plugin.keyManager?.hasMasterPassword()) {
-                    warnings.push('Master password not set - LLM providers cannot be initialized');
+            // 4. Initialize Agent Manager
+            try {
+                if (this.plugin.settings.agents.length === 0) {
+                    warnings.push('No agents configured');
                 } else {
-                    try {
-                        if (!this.plugin.llmManager.isReady() || force) {
-                            await this.plugin.llmManager.initialize();
-                            console.log('✓ LLM Manager initialized');
+                    // Always try to initialize agents if they're configured
+                    await this.plugin.agentManager.initialize();
+
+                    const agentStats = this.plugin.agentManager.getStats();
+                    if (agentStats.initializedAgents === 0) {
+                        if (!this.plugin.llmManager.isReady()) {
+                            warnings.push('Agents need LLM providers initialized first');
+                        } else if (!this.plugin.retriever.isReady()) {
+                            warnings.push('Agents need RAG system ready first');
                         } else {
-                            console.log('✓ LLM Manager already ready');
+                            errors.push('No agents initialized successfully');
                         }
-                    } catch (error: any) {
-                        errors.push(`LLM initialization failed: ${error.message}`);
-                        console.error('LLM initialization error:', error);
+                    } else if (agentStats.initializedAgents < agentStats.enabledAgents) {
+                        warnings.push(`Only ${agentStats.initializedAgents}/${agentStats.enabledAgents} agents initialized`);
                     }
+                    console.log('✓ Agent Manager initialized');
                 }
+            } catch (error: any) {
+                errors.push(`Agent initialization failed: ${error.message}`);
             }
 
-            // Phase 4: Agent Manager
-            if (!this.plugin.agentManager) {
-                errors.push('Agent Manager not found');
+            const success = errors.length === 0;
+
+            if (success) {
+                new Notice('✅ All systems initialized!');
             } else {
-                // Check prerequisites for agent manager
-                if (!this.plugin.retriever?.isReady()) {
-                    warnings.push('RAG system not ready - Agent Manager cannot initialize');
-                } else if (!this.plugin.llmManager?.isReady()) {
-                    warnings.push('LLM system not ready - Agent Manager cannot initialize');
-                } else {
-                    try {
-                        if (!this.plugin.agentManager.isReady() || force) {
-                            await this.plugin.agentManager.initialize();
-                            console.log('✓ Agent Manager initialized');
-                        } else {
-                            console.log('✓ Agent Manager already ready');
-                        }
-                    } catch (error: any) {
-                        errors.push(`Agent Manager initialization failed: ${error.message}`);
-                        console.error('Agent Manager initialization error:', error);
-                    }
-                }
+                new Notice(`⚠️ Initialization completed with ${errors.length} error(s)`);
             }
 
-            const status = this.getStatus();
-
-            if (errors.length === 0 && warnings.length === 0) {
-                new Notice('✅ All systems initialized successfully!');
-                return {
-                    success: true,
-                    status,
-                    errors: [],
-                    warnings: []
-                };
-            } else if (errors.length === 0) {
-                new Notice(`⚠️ Systems initialized with ${warnings.length} warning(s)`, 5000);
-                return {
-                    success: true,
-                    status,
-                    errors: [],
-                    warnings
-                };
-            } else {
-                new Notice(`❌ Initialization failed with ${errors.length} error(s)`, 8000);
-                return {
-                    success: false,
-                    status,
-                    errors,
-                    warnings
-                };
-            }
+            return { success, errors, warnings };
 
         } finally {
             this.initializing = false;
@@ -183,145 +248,284 @@ export class InitializationManager {
     }
 
     /**
-     * Initialize only missing components
+     * Initialize only what's missing
      */
     async initializeMissing(): Promise<InitializationResult> {
-        const status = this.getStatus();
-        const errors: string[] = [];
-        const warnings: string[] = [];
-
-        if (status.overall) {
-            new Notice('✓ All systems already initialized');
+        if (this.initializing) {
             return {
-                success: true,
-                status,
-                errors: [],
+                success: false,
+                errors: ['Initialization already in progress'],
                 warnings: []
             };
         }
 
-        new Notice('🔄 Initializing missing components...');
+        this.initializing = true;
+        const errors: string[] = [];
+        const warnings: string[] = [];
 
-        // Only initialize what's missing
         try {
-            if (!status.retriever && this.plugin.retriever) {
-                await this.plugin.retriever.initialize();
-            }
+            const status = this.getStatus();
+            new Notice('🔍 Checking what needs initialization...');
 
-            if (!status.llmManager && this.plugin.llmManager) {
-                if (this.plugin.keyManager?.hasMasterPassword()) {
+            let didSomething = false;
+
+            // Re-initialize LLM Manager if providers are configured but not all initialized
+            if (status.llmProvidersConfigured && status.llmProvidersInitialized < status.providerCount) {
+                try {
                     await this.plugin.llmManager.initialize();
-                } else {
-                    warnings.push('Cannot initialize LLM - master password not set');
+                    console.log('✓ LLM Manager re-initialized');
+                    didSomething = true;
+
+                    // Also re-initialize RAG to pick up embeddings
+                    await this.plugin.retriever.initialize();
+                    console.log('✓ RAG Retriever re-initialized for embeddings');
+                } catch (error: any) {
+                    errors.push(`LLM initialization failed: ${error.message}`);
                 }
             }
 
-            if (!status.agentManager && this.plugin.agentManager) {
-                if (this.plugin.retriever?.isReady() && this.plugin.llmManager?.isReady()) {
+            // If RAG is not ready but we have OpenAI, re-initialize it
+            if (!status.retriever && status.llmManager) {
+                const hasOpenAI = this.plugin.settings.llmConfigs.some(c => c.provider === 'openai' && c.enabled);
+                if (hasOpenAI) {
+                    try {
+                        await this.plugin.retriever.initialize();
+                        console.log('✓ RAG Retriever re-initialized for embeddings');
+                        didSomething = true;
+                    } catch (error: any) {
+                        errors.push(`RAG initialization failed: ${error.message}`);
+                    }
+                }
+            }
+
+            // Re-initialize Agent Manager if agents are configured but not all initialized
+            if (status.agentsConfigured && status.agentsInitialized < status.agentCount) {
+                try {
                     await this.plugin.agentManager.initialize();
-                } else {
-                    warnings.push('Cannot initialize Agent Manager - dependencies not ready');
+                    console.log('✓ Agent Manager re-initialized');
+                    didSomething = true;
+
+                    // Check if it worked
+                    const newAgentStats = this.plugin.agentManager.getStats();
+                    if (newAgentStats.initializedAgents === 0) {
+                        if (!this.plugin.llmManager.isReady()) {
+                            warnings.push('Agents need LLM providers ready - configure and initialize LLM first');
+                        } else if (!this.plugin.retriever.isReady()) {
+                            warnings.push('Agents need RAG system ready - add OpenAI provider and ingest chunks');
+                        }
+                    }
+                } catch (error: any) {
+                    errors.push(`Agent initialization failed: ${error.message}`);
                 }
             }
 
-            const newStatus = this.getStatus();
-
-            if (newStatus.overall) {
-                new Notice('✅ Missing components initialized!');
-                return { success: true, status: newStatus, errors: [], warnings };
-            } else {
-                return { success: false, status: newStatus, errors, warnings };
+            if (!didSomething) {
+                warnings.push('Nothing to initialize - all configured components are already initialized');
             }
 
+            const success = errors.length === 0;
+
+            if (success && didSomething) {
+                new Notice('✅ Missing components initialized!');
+            } else if (!success) {
+                new Notice(`⚠️ Some components failed to initialize`);
+            } else {
+                new Notice('ℹ️ Nothing needed initialization');
+            }
+
+            return { success, errors, warnings };
+
+        } finally {
+            this.initializing = false;
+        }
+    }
+
+    /**
+     * Re-initialize LLM providers
+     */
+    async reinitializeLLM(): Promise<InitializationResult> {
+        const errors: string[] = [];
+        const warnings: string[] = [];
+
+        try {
+            new Notice('🔄 Re-initializing LLM providers...');
+            await this.plugin.llmManager.initialize();
+
+            // Also re-initialize RAG embeddings now that LLM is ready
+            await this.plugin.retriever.initialize();
+            console.log('✓ RAG embeddings re-initialized');
+
+            const stats = this.plugin.llmManager.getStats();
+            if (stats.initializedProviders > 0) {
+                new Notice(`✅ ${stats.initializedProviders} LLM provider(s) initialized`);
+
+                // Also try to initialize agents now that LLM is ready
+                if (this.plugin.settings.agents.length > 0 && this.plugin.retriever.isReady()) {
+                    await this.plugin.agentManager.initialize();
+                    const agentStats = this.plugin.agentManager.getStats();
+                    if (agentStats.initializedAgents > 0) {
+                        new Notice(`✅ Also initialized ${agentStats.initializedAgents} agent(s)`);
+                    }
+                }
+
+                return { success: true, errors, warnings };
+            } else {
+                errors.push('No providers initialized');
+                new Notice('⚠️ No LLM providers initialized');
+                return { success: false, errors, warnings };
+            }
         } catch (error: any) {
             errors.push(error.message);
-            return {
-                success: false,
-                status: this.getStatus(),
-                errors,
-                warnings
-            };
+            new Notice(`❌ LLM initialization failed: ${error.message}`);
+            return { success: false, errors, warnings };
         }
     }
 
     /**
-     * Wait for system to be ready (with timeout)
+     * Re-initialize agents
      */
-    async waitForReady(timeoutMs: number = 10000): Promise<boolean> {
-        const startTime = Date.now();
+    async reinitializeAgents(): Promise<InitializationResult> {
+        const errors: string[] = [];
+        const warnings: string[] = [];
 
-        while (Date.now() - startTime < timeoutMs) {
-            if (this.isFullyInitialized()) {
-                return true;
+        try {
+            // Check dependencies first
+            if (!this.plugin.llmManager.isReady()) {
+                errors.push('LLM system not ready - configure and initialize LLM providers first');
+                new Notice('❌ Cannot initialize agents - LLM not ready');
+                return { success: false, errors, warnings };
             }
 
-            // Wait 100ms before checking again
-            await new Promise(resolve => setTimeout(resolve, 100));
+            if (!this.plugin.retriever.isReady()) {
+                // Try to initialize retriever first
+                await this.plugin.retriever.initialize();
+
+                if (!this.plugin.retriever.isReady()) {
+                    errors.push('RAG system not ready - add OpenAI provider and ingest chunks');
+                    new Notice('❌ Cannot initialize agents - RAG not ready');
+                    return { success: false, errors, warnings };
+                }
+            }
+
+            new Notice('🔄 Re-initializing agents...');
+            await this.plugin.agentManager.initialize();
+
+            const stats = this.plugin.agentManager.getStats();
+            if (stats.initializedAgents > 0) {
+                new Notice(`✅ ${stats.initializedAgents} agent(s) initialized`);
+                return { success: true, errors, warnings };
+            } else {
+                errors.push('No agents initialized');
+                new Notice('⚠️ No agents initialized');
+                return { success: false, errors, warnings };
+            }
+        } catch (error: any) {
+            errors.push(error.message);
+            new Notice(`❌ Agent initialization failed: ${error.message}`);
+            return { success: false, errors, warnings };
+        }
+    }
+
+    /**
+     * Smart chunk ingestion - only if needed
+     */
+    async ingestChunksIfNeeded(): Promise<boolean> {
+        const status = this.getStatus();
+
+        if (status.chunksIngested) {
+            console.log(`Chunks already ingested (${status.chunkCount} chunks)`);
+            new Notice(`✓ Chunks already loaded (${status.chunkCount} chunks)`);
+            return false;
         }
 
-        return false;
+        console.log('No chunks found, ingesting...');
+        new Notice('📚 Ingesting RAG chunks...');
+
+        try {
+            await this.plugin.retriever.ingestChunks();
+            const newStatus = this.getStatus();
+            new Notice(`✓ Ingested ${newStatus.chunkCount} chunks`);
+            return true;
+        } catch (error: any) {
+            new Notice(`✗ Ingestion failed: ${error.message}`);
+            throw error;
+        }
     }
 
     /**
-     * Get initialization requirements
+     * Check if system is ready
      */
-    getRequirements(): {
-        requirement: string;
-        met: boolean;
-        message: string;
-    }[] {
-        return [
-            {
-                requirement: 'Master Password',
-                met: this.plugin.keyManager?.hasMasterPassword() || false,
-                message: this.plugin.keyManager?.hasMasterPassword()
-                    ? 'Master password is set'
-                    : 'Set master password in settings'
-            },
-            {
-                requirement: 'OpenAI API Key',
-                met: this.plugin.settings.llmConfigs.some(c => c.provider === 'openai'),
-                message: this.plugin.settings.llmConfigs.some(c => c.provider === 'openai')
-                    ? 'OpenAI provider configured'
-                    : 'Configure OpenAI provider for embeddings'
-            },
-            {
-                requirement: 'LLM Provider',
-                met: this.plugin.settings.llmConfigs.some(c => c.enabled),
-                message: this.plugin.settings.llmConfigs.some(c => c.enabled)
-                    ? `${this.plugin.settings.llmConfigs.filter(c => c.enabled).length} provider(s) configured`
-                    : 'Configure at least one LLM provider'
-            },
-            {
-                requirement: 'RAG Chunks',
-                met: (this.plugin.retriever?.getStats()?.totalChunks || 0) > 0,
-                message: (this.plugin.retriever?.getStats()?.totalChunks || 0) > 0
-                    ? `${this.plugin.retriever?.getStats()?.totalChunks} chunks indexed`
-                    : 'Ingest chunks in RAG Configuration section'
-            },
-            {
-                requirement: 'Agent Configuration',
-                met: this.plugin.settings.agents.length > 0,
-                message: this.plugin.settings.agents.length > 0
-                    ? `${this.plugin.settings.agents.length} agent(s) configured`
-                    : 'Create at least one agent'
+    isReady(): boolean {
+        return this.getStatus().overall;
+    }
+
+    /**
+     * Check if initialization is in progress
+     */
+    isInitializing(): boolean {
+        return this.initializing;
+    }
+
+    /**
+     * Get friendly status message
+     */
+    getStatusMessage(): string {
+        const status = this.getStatus();
+
+        if (status.overall) {
+            return '✓ System ready';
+        }
+
+        const requirements = this.getRequirements();
+        const unmet = requirements.filter(r => !r.met);
+
+        if (unmet.length > 0) {
+            return `⚠ Setup required: ${unmet.map(r => r.requirement).join(', ')}`;
+        }
+
+        return '⚠ Some components need re-initialization';
+    }
+
+    /**
+     * Diagnose issues and provide solutions
+     */
+    diagnose(): string[] {
+        const status = this.getStatus();
+        const issues: string[] = [];
+
+        // Check for configured but not initialized
+        if (status.llmProvidersConfigured && status.llmProvidersInitialized < status.providerCount) {
+            issues.push(`${status.providerCount - status.llmProvidersInitialized} LLM provider(s) not initialized - click "Re-initialize LLM"`);
+        }
+
+        if (status.agentsConfigured && status.agentsInitialized < status.agentCount) {
+            const reason = !status.llmManager ? ' (LLM not ready)' : !status.retriever ? ' (RAG not ready)' : '';
+            issues.push(`${status.agentCount - status.agentsInitialized} agent(s) not initialized${reason} - click "Re-initialize Agents"`);
+        }
+
+        // Check for missing configuration
+        if (!status.llmProvidersConfigured) {
+            issues.push('No LLM providers configured - add one in LLM Providers section');
+        }
+
+        if (!status.chunksIngested) {
+            issues.push('No chunks ingested - click "Ingest Chunks" in RAG Configuration');
+        }
+
+        if (!status.agentsConfigured) {
+            issues.push('No agents configured - create one in AI Agents section');
+        }
+
+        // Check RAG system specifically
+        if (status.llmManager && !status.retriever) {
+            const hasOpenAI = this.plugin.settings.llmConfigs.some(c => c.provider === 'openai' && c.enabled);
+            if (!hasOpenAI) {
+                issues.push('RAG system needs an OpenAI provider for embeddings - click "Re-initialize LLM"');
+            } else {
+                issues.push('RAG embeddings not initialized - click "Initialize Missing"');
             }
-        ];
-    }
+        }
 
-    /**
-     * Check if prerequisites are met
-     */
-    hasPrerequisites(): boolean {
-        return this.getRequirements().every(req => req.met);
-    }
-
-    /**
-     * Get missing prerequisites
-     */
-    getMissingPrerequisites(): string[] {
-        return this.getRequirements()
-            .filter(req => !req.met)
-            .map(req => req.requirement);
+        return issues;
     }
 }
