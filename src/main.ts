@@ -4,10 +4,10 @@
  * Complete implementation including Phase 5: Agent System
  */
 
-import { Plugin, Notice, Modal } from 'obsidian';
-import { PluginSettings, AgentConfig, AgentResponse, Message } from './types';
+import { Plugin, Notice, Modal, App } from 'obsidian';
+import { PluginSettings, Message } from './types';
 import { DEFAULT_SETTINGS, mergeSettings, validateSettings } from './settings';
-import { PLUGIN_NAME, SUCCESS } from './constants';
+import { PLUGIN_NAME } from './constants';
 
 // Import modules
 import { KeyManager } from './encryption/keyManager';
@@ -151,7 +151,7 @@ export default class RiskManagementPlugin extends Plugin {
                 try {
                     await this.llmManager.initialize();
                     console.log('✓ LLMManager initialized');
-                } catch (error) {
+                } catch {
                     console.warn('LLM Manager initialization skipped (master password may be needed)');
                 }
             } else {
@@ -195,9 +195,9 @@ export default class RiskManagementPlugin extends Plugin {
             id: 'open-settings',
             name: 'Open Settings',
             callback: () => {
-                // @ts-ignore - Obsidian internal API
+                // @ts-expect-error - Obsidian internal API
                 this.app.setting.open();
-                // @ts-ignore - Obsidian internal API
+                // @ts-expect-error - Obsidian internal API
                 this.app.setting.openTabById(this.manifest.id);
             },
         });
@@ -432,7 +432,7 @@ class AgentSelectorModal extends Modal {
     private onSelect: (agentId: string) => void;
 
     constructor(
-        app: any,
+        app: App,
         agents: Array<{ id: string; name: string; description: string }>,
         onSelect: (agentId: string) => void
     ) {
@@ -489,7 +489,7 @@ class AgentQueryModal extends Modal {
     private plugin: RiskManagementPlugin;
     private agentId: string;
 
-    constructor(app: any, plugin: RiskManagementPlugin, agentId: string) {
+    constructor(app: App, plugin: RiskManagementPlugin, agentId: string) {
         super(app);
         this.plugin = plugin;
         this.agentId = agentId;
@@ -572,8 +572,9 @@ class AgentQueryModal extends Modal {
                     });
                 }
 
-            } catch (error: any) {
-                new Notice(`Error: ${error.message}`);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                new Notice(`Error: ${errorMessage}`);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Ask';

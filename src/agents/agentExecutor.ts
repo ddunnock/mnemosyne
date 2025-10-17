@@ -5,7 +5,6 @@
  * Coordinates retrieval, context building, and LLM interaction
  */
 
-import { Notice } from 'obsidian';
 import { RAGRetriever } from '../rag/retriever';
 import { LLMManager } from '../llm/llmManager';
 import {
@@ -83,7 +82,8 @@ export class AgentExecutor {
                 usage: llmResponse.usage,
                 executionTime
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             console.error('Agent execution failed:', error);
 
             // Provide helpful error messages
@@ -95,7 +95,7 @@ export class AgentExecutor {
                 throw error;
             }
 
-            throw new Error(`Agent execution failed: ${error.message}`);
+            throw new Error(`Agent execution failed: ${errorMessage}`);
         }
     }
 
@@ -133,10 +133,7 @@ export class AgentExecutor {
                 this.config.retrievalSettings.scoreThreshold  // ✅ NEW: Pass the threshold!
             );
 
-            console.log(
-                `Retrieved ${chunks.length} chunks for agent "${this.config.name}"`,
-                chunks.map(c => ({ id: c.chunk_id, score: c.score }))
-            );
+            // Retrieved chunks for agent processing
 
             return chunks;
         } catch (error) {
@@ -230,7 +227,7 @@ export class AgentExecutor {
     private buildNoteContextMessage(noteContext: {
         notePath: string;
         noteContent: string;
-        frontmatter?: Record<string, any>;
+        frontmatter?: Record<string, unknown>;
     }): Message | null {
         const parts: string[] = [
             '**Current Note Context:**',
@@ -264,7 +261,7 @@ export class AgentExecutor {
      * Build message from additional context
      */
     private buildAdditionalContextMessage(
-        additionalContext: Record<string, any>
+        additionalContext: Record<string, unknown>
     ): Message | null {
         if (Object.keys(additionalContext).length === 0) {
             return null;
@@ -354,7 +351,10 @@ export class AgentExecutor {
         description: string;
         llmProvider: string;
         llmModel: string;
-        retrievalSettings: any;
+        retrievalSettings: {
+            topK: number;
+            scoreThreshold: number;
+        };
         enabled: boolean;
     } {
         return {

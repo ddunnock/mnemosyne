@@ -8,8 +8,7 @@ import { BaseLLMProvider } from './base';
 import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
 import { LLMError } from '../types';
 
-// @ts-ignore - Node.js module
-const https = require('https');
+import * as https from 'https';
 
 export class AnthropicProvider extends BaseLLMProvider {
     readonly name = 'Anthropic Claude';
@@ -27,7 +26,16 @@ export class AnthropicProvider extends BaseLLMProvider {
         try {
             const { systemMessage, userMessages } = this.formatMessagesForClaude(messages);
 
-            const body: any = {
+            interface AnthropicRequestBody {
+                model: string;
+                max_tokens: number;
+                temperature: number;
+                messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+                system?: string;
+                stop_sequences?: string[];
+            }
+
+            const body: AnthropicRequestBody = {
                 model: this.model,
                 max_tokens: mergedOptions.maxTokens,
                 temperature: mergedOptions.temperature,
@@ -55,24 +63,42 @@ export class AnthropicProvider extends BaseLLMProvider {
 
             const json = JSON.parse(responseText);
 
+            interface AnthropicContentBlock {
+                type: string;
+                text: string;
+            }
+
+            interface AnthropicResponse {
+                content?: AnthropicContentBlock[];
+                usage?: {
+                    input_tokens?: number;
+                    output_tokens?: number;
+                };
+                model?: string;
+                stop_reason?: string;
+            }
+
+            const response = json as AnthropicResponse;
+            
             // Extract text content
-            const content = json.content
-                ?.filter((block: any) => block.type === 'text')
-                .map((block: any) => block.text)
+            const content = response.content
+                ?.filter((block) => block.type === 'text')
+                .map((block) => block.text)
                 .join('') || '';
 
             return {
                 content,
                 usage: {
-                    promptTokens: json.usage?.input_tokens || 0,
-                    completionTokens: json.usage?.output_tokens || 0,
-                    totalTokens: (json.usage?.input_tokens || 0) + (json.usage?.output_tokens || 0)
+                    promptTokens: response.usage?.input_tokens || 0,
+                    completionTokens: response.usage?.output_tokens || 0,
+                    totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
                 },
-                model: json.model,
-                finishReason: json.stop_reason || 'complete'
+                model: response.model || this.model,
+                finishReason: response.stop_reason || 'complete'
             };
-        } catch (error: any) {
-            throw new LLMError(`Anthropic chat failed: ${error.message}`, {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new LLMError(`Anthropic chat failed: ${errorMessage}`, {
                 originalError: error,
                 provider: 'anthropic',
                 model: this.model
@@ -117,10 +143,10 @@ export class AnthropicProvider extends BaseLLMProvider {
                 rejectUnauthorized: false // Handle SSL certificate issues
             };
 
-            const req = https.request(requestOptions, (res: any) => {
+            const req = https.request(requestOptions, (res) => {
                 let data = '';
 
-                res.on('data', (chunk: any) => {
+                res.on('data', (chunk) => {
                     data += chunk;
                 });
 
@@ -133,8 +159,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 });
             });
 
-            req.on('error', (err: any) => {
-                console.error('HTTPS request error:', err.message);
+            req.on('error', (err: Error) => {
                 if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
                     reject(new Error('SSL certificate verification failed. This may be due to corporate firewall or certificate issues.'));
                 } else {
@@ -191,7 +216,6 @@ export class AnthropicProvider extends BaseLLMProvider {
      */
     async test(): Promise<boolean> {
         try {
-            console.log('Testing Anthropic connection...');
 
             const response = await this.chat([
                 { role: 'user', content: 'Respond with just "OK"' }
@@ -199,15 +223,11 @@ export class AnthropicProvider extends BaseLLMProvider {
 
             const isOk = response.content.toLowerCase().includes('ok');
 
-            if (isOk) {
-                console.log('✓ Anthropic connection test passed');
-            } else {
-                console.warn('⚠ Anthropic test returned unexpected response:', response.content);
-            }
+            // Connection test completed silently
 
             return isOk;
-        } catch (error: any) {
-            console.error('✗ Anthropic test failed:', error.message);
+        } catch {
+            // Test failed silently
             return false;
         }
     }

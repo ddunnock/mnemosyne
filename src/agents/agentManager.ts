@@ -35,34 +35,24 @@ export class AgentManager {
      * Initialize all configured agents
      */
     async initialize(): Promise<void> {
-        try {
-            console.log('Initializing Agent Manager...');
+        // Clear existing agents
+        this.agents.clear();
 
-            // Clear existing agents
-            this.agents.clear();
-
-            // Create executor for each enabled agent
-            for (const config of this.plugin.settings.agents) {
-                if (!config.enabled) {
-                    console.log(`Skipping disabled agent: ${config.name}`);
-                    continue;
-                }
-
-                try {
-                    this.createAgent(config);
-                    console.log(`✓ Initialized agent: ${config.name}`);
-                } catch (error: any) {
-                    console.error(`✗ Failed to initialize agent ${config.name}:`, error);
-                    new Notice(`Failed to initialize agent ${config.name}: ${error.message}`);
-                }
+        // Create executor for each enabled agent
+        for (const config of this.plugin.settings.agents) {
+            if (!config.enabled) {
+                continue;
             }
 
-            this.initialized = true;
-            console.log(`✓ Agent Manager initialized with ${this.agents.size} agents`);
-        } catch (error: any) {
-            console.error('Failed to initialize Agent Manager:', error);
-            throw error;
+            try {
+                this.createAgent(config);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                new Notice(`Failed to initialize agent ${config.name}: ${errorMessage}`);
+            }
         }
+
+        this.initialized = true;
     }
 
     /**
@@ -88,9 +78,6 @@ export class AgentManager {
         // Create executor if enabled
         if (config.enabled) {
             this.createAgent(config);
-            console.log(`✓ Added and initialized agent: ${config.name}`);
-        } else {
-            console.log(`✓ Added disabled agent: ${config.name}`);
         }
 
         // ✅ FIXED: Don't test immediately - let user test manually when ready
@@ -144,7 +131,6 @@ export class AgentManager {
 
         // Check system readiness
         if (!this.retriever.isReady()) {
-            console.warn('RAG system not ready, skipping agent tests');
             for (const [id] of this.agents.entries()) {
                 results.set(id, false);
             }
@@ -183,7 +169,6 @@ export class AgentManager {
         // Check if vector store has data
         const stats = this.retriever.getStats();
         if (!stats || stats.totalChunks === 0) {
-            console.warn('Agent Manager: Vector store is empty');
             return false;
         }
 
@@ -206,7 +191,10 @@ export class AgentManager {
 
     getAllAgents(): Array<{ id: string; config: AgentConfig; executor: AgentExecutor }> {
         return Array.from(this.agents.entries()).map(([id, executor]) => {
-            const config = this.plugin.settings.agents.find(a => a.id === id)!;
+            const config = this.plugin.settings.agents.find(a => a.id === id);
+            if (!config) {
+                throw new Error(`Agent config not found: ${id}`);
+            }
             return { id, config, executor };
         });
     }
@@ -234,14 +222,8 @@ export class AgentManager {
             throw new Error(`Agent not found: ${agentId}`);
         }
 
-        try {
-            const response = await agent.execute(query, context);
-            console.log(`Agent "${agent.getConfig().name}" executed successfully`);
-            return response;
-        } catch (error: any) {
-            console.error(`Agent execution failed for ${agentId}:`, error);
-            throw error;
-        }
+        const response = await agent.execute(query, context);
+        return response;
     }
 
     async executeAgentByName(
@@ -275,8 +257,6 @@ export class AgentManager {
         await this.plugin.saveSettings();
 
         await this.reloadAgent(agentId);
-
-        console.log(`✓ Updated agent: ${updatedConfig.name}`);
     }
 
     async deleteAgent(agentId: string): Promise<void> {
@@ -286,8 +266,6 @@ export class AgentManager {
         await this.plugin.saveSettings();
 
         this.agents.delete(agentId);
-
-        console.log(`✓ Deleted agent: ${agentId}`);
     }
 
     async toggleAgent(agentId: string, enabled: boolean): Promise<void> {
@@ -302,10 +280,8 @@ export class AgentManager {
 
         if (enabled) {
             this.createAgent(config);
-            console.log(`✓ Enabled agent: ${config.name}`);
         } else {
             this.agents.delete(agentId);
-            console.log(`✓ Disabled agent: ${config.name}`);
         }
     }
 
@@ -319,7 +295,6 @@ export class AgentManager {
 
         if (config.enabled) {
             this.createAgent(config);
-            console.log(`✓ Reloaded agent: ${config.name}`);
         }
     }
 
@@ -416,12 +391,10 @@ export class AgentManager {
         this.plugin.settings.defaultAgentId = agentId;
         await this.plugin.saveSettings();
 
-        console.log(`✓ Set default agent: ${agent.getConfig().name}`);
     }
 
     cleanup(): void {
         this.agents.clear();
         this.initialized = false;
-        console.log('Agent Manager cleaned up');
     }
 }

@@ -148,11 +148,12 @@ export abstract class BaseLLMProvider implements ILLMProvider {
         for (let i = 0; i < maxRetries; i++) {
             try {
                 return await fn();
-            } catch (error: any) {
-                lastError = error;
+            } catch (error: unknown) {
+                const err = error as Error;
+                lastError = err;
 
                 // Check if it's a rate limit error
-                if (error.status === 429 || error.message?.includes('rate limit')) {
+                if ((err as any).status === 429 || err.message?.includes('rate limit')) {
                     const delay = baseDelay * Math.pow(2, i);
                     console.warn(`Rate limited, retrying in ${delay}ms...`);
                     await this.delay(delay);
@@ -160,11 +161,11 @@ export abstract class BaseLLMProvider implements ILLMProvider {
                 }
 
                 // For other errors, throw immediately
-                throw error;
+                throw err;
             }
         }
 
-        throw lastError!;
+        throw lastError;
     }
 
     /**
@@ -187,11 +188,11 @@ export abstract class BaseLLMProvider implements ILLMProvider {
  * Factory function to create provider from config
  */
 export function createProvider(
-    provider: 'anthropic' | 'openai' | 'custom',
-    apiKey: string,
-    model: string,
-    temperature?: number,
-    maxTokens?: number
+    _provider: 'anthropic' | 'openai' | 'custom',
+    _apiKey: string,
+    _model: string,
+    _temperature?: number,
+    _maxTokens?: number
 ): ILLMProvider {
     // Import will be done dynamically to avoid circular dependencies
     // This is just the interface - actual implementation in llmManager.ts

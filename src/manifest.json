@@ -1,10 +1,11 @@
 {
-  "id": "rag-agent-manager",
-  "name": "RAG Agent Manager",
+  "id": "mnemosyne",
+  "name": "Mnemosyne",
   "version": "0.1.0",
   "minAppVersion": "1.4.0",
-  "description": "RAG-enhanced AI Agent for use in DataviewJS queries/forms with multi-LLM support and encrypted API keys",
+  "description": "Professional AI agent platform for Obsidian with local and cloud AI support, advanced RAG, and specialized knowledge assistants",
   "author": "David Dunnock",
   "authorUrl": "https://github.com/ddunnock",
+  "fundingUrl": "https://buymeacoffee.com/ddunnock",
   "isDesktopOnly": false
 }

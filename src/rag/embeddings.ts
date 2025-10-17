@@ -95,7 +95,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
                     input: batch,
                 });
 
-                results.push(...response.data.map(d => d.embedding));
+results.push(...response.data.map((d: { embedding: number[] }) => d.embedding));
             }
 
             return results;

@@ -1,44 +1,79 @@
 {
-  "name": "rag-agent-manager",
-  "version": "0.1.0",
-  "description": "RAG-enhanced AI Agent plugin for Obsidian with multi-LLM support",
+  "name": "mnemosyne",
+  "version": "1.0.0",
+  "description": "Professional AI agent platform for Obsidian with local AI, advanced RAG, and specialized knowledge assistants",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ddunnock/mnemosyne.git"
+  },
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "lint": "eslint src --ext .ts",
-    "format": "prettier --write 'src/**/*.ts'"
+    "build": "tsc --noEmit && node esbuild.config.mjs production",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "type-check": "tsc --noEmit",
+    "prepare": "husky install",
+    "version": "npm run build && git add -A src"
   },
   "keywords": [
     "obsidian",
     "plugin",
-    "rag",
     "ai",
-    "llm",
     "agents",
-    "knowledge-management"
+    "rag",
+    "llm",
+    "local-ai",
+    "ollama",
+    "professional",
+    "knowledge-management",
+    "react",
+    "tailwind"
   ],
-  "author": "Your Name",
+  "author": "David Dunnock",
   "license": "MIT",
   "devDependencies": {
-    "@types/crypto-js": "^4.2.2",
-    "@types/node": "^20.10.0",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0",
-    "builtin-modules": "^3.3.0",
-    "esbuild": "^0.19.8",
-    "eslint": "^8.54.0",
+    "@types/jest": "^29.5.5",
+    "@types/node": "^16.11.6",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "autoprefixer": "^10.4.16",
+    "builtin-modules": "3.3.0",
+    "esbuild": "0.17.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "husky": "^8.0.3",
+    "jest": "^29.6.4",
+    "lint-staged": "^13.2.3",
     "obsidian": "latest",
-    "prettier": "^3.1.0",
-    "tslib": "^2.6.2",
-    "typescript": "^5.3.2"
+    "postcss": "^8.4.31",
+    "prettier": "^2.8.8",
+    "tailwindcss": "^3.3.3",
+    "ts-jest": "^29.1.1",
+    "tslib": "2.4.0",
+    "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "crypto-js": "^4.2.0",
-    "openai": "^6.3.0"
+    "openai": "^6.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
-  "optionalDependencies": {
-    "@xenova/transformers": "^2.17.1"
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{md,css}": [
+      "prettier --write"
+    ]
   }
 }
