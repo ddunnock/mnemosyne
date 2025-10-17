@@ -156,3 +156,15 @@ embeddings-cache/
 # Temporary test files
 test-*.json
 *.tmp
+
+# Documentation and Notes Management
+# Exclude all markdown files from root by default
+/*.md
+
+# But include essential project documentation
+!/README.md
+!/CONTRIBUTING.md
+!/SECURITY.md
+!/LICENSE.md
+!/CHANGELOG.md
+!/CODE_OF_CONDUCT.md
