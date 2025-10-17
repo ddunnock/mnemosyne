@@ -143,7 +143,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
         maxRetries: number = 3,
         baseDelay: number = 1000
     ): Promise<T> {
-        let lastError: Error;
+        let lastError: Error | null = null;
 
         for (let i = 0; i < maxRetries; i++) {
             try {
@@ -165,7 +165,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
             }
         }
 
-        throw lastError;
+        throw lastError || new Error('Max retries exceeded');
     }
 
     /**

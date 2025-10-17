@@ -235,7 +235,10 @@ export interface AgentExecutorInfo {
     description: string;
     llmProvider: string;
     llmModel: string;
-    retrievalSettings: RetrievalSettings;
+    retrievalSettings: {
+        topK: number;
+        scoreThreshold: number;
+    };
     enabled: boolean;
 }
 

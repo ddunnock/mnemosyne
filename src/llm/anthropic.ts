@@ -151,15 +151,15 @@ export class AnthropicProvider extends BaseLLMProvider {
                 });
 
                 res.on('end', () => {
-                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                    if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                         resolve(data);
                     } else {
-                        reject(new Error(`Anthropic API error ${res.statusCode}: ${data}`));
+                        reject(new Error(`Anthropic API error ${res.statusCode || 'unknown'}: ${data}`));
                     }
                 });
             });
 
-            req.on('error', (err: Error) => {
+            req.on('error', (err: Error & { code?: string }) => {
                 if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
                     reject(new Error('SSL certificate verification failed. This may be due to corporate firewall or certificate issues.'));
                 } else {
