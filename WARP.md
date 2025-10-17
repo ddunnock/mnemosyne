@@ -377,11 +377,136 @@ ln -s $(pwd) ~/.obsidian/vaults/test-vault/.obsidian/plugins/mnemosyne
 ## 🤝 Contributing
 
 ### Development Workflow
-1. **Fork & Clone**: Fork repository and clone locally
-2. **Feature Branch**: Create feature branch (`feature/amazing-feature`)
-3. **Development**: Implement changes with tests
-4. **Quality Checks**: Run linting, tests, and type checking
-5. **Pull Request**: Submit PR with detailed description
+
+#### 🚨 CRITICAL: Git Branch Strategy (ALWAYS FOLLOW)
+
+**⚠️ NEVER COMMIT DIRECTLY TO MAIN**
+
+All development must follow this workflow:
+
+1. **Create Feature Branch**: 
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b feature/descriptive-feature-name
+   ```
+
+2. **Development**: Implement changes with tests
+   ```bash
+   # Make your changes
+   npm run lint
+   npm run type-check
+   npm run test
+   ```
+
+3. **Commit with Standards**: Follow conventional commit format
+   ```bash
+   git add .
+   git commit -m "type: short description
+   
+   - Detailed bullet point about change
+   - Another important detail
+   - Breaking change note if applicable"
+   ```
+
+4. **Push and PR**: 
+   ```bash
+   git push origin feature/descriptive-feature-name
+   # Create PR in GitHub UI
+   # Wait for CI checks to pass
+   # Review with GitHub Copilot
+   # Merge when ready
+   ```
+
+5. **Cleanup**: 
+   ```bash
+   git checkout main
+   git pull origin main
+   git branch -d feature/descriptive-feature-name
+   ```
+
+#### 📝 Commit Message Standards (MANDATORY)
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+**Format:**
+```
+type(scope): short description (50 chars max)
+
+- Detailed explanation of what changed
+- Why the change was necessary
+- Impact on users/developers
+- Breaking changes (if any)
+
+Closes #123
+```
+
+**Required Types:**
+- `feat:` - New features
+- `fix:` - Bug fixes  
+- `docs:` - Documentation changes
+- `style:` - Code formatting (no logic changes)
+- `refactor:` - Code restructuring (no feature changes)
+- `test:` - Adding or updating tests
+- `chore:` - Build/dependency updates
+- `ci:` - CI/CD changes
+- `perf:` - Performance improvements
+
+**Optional Scopes:**
+- `agents`, `rag`, `ui`, `security`, `llm`, `encryption`
+
+**Examples:**
+```
+feat(agents): add Ollama local AI provider support
+
+- Implement OllamaProvider class with chat and streaming
+- Add model discovery and health checks
+- Include local embedding generation capability
+- Update agent templates to support local models
+
+Closes #45
+```
+
+```
+fix(security): resolve API key exposure in logs
+
+- Sanitize API keys in all log outputs
+- Add key masking utility function
+- Update error messages to hide sensitive data
+- Add unit tests for sanitization
+
+Security: Prevents accidental key exposure
+```
+
+```
+docs: update README with new installation steps
+
+- Add Ollama setup instructions
+- Update system requirements
+- Fix broken links to documentation
+- Add troubleshooting section
+```
+
+#### 🛡️ Quality Gates (MUST PASS)
+
+Before any commit:
+```bash
+# These must ALL pass:
+npm run lint          # ESLint checks
+npm run type-check    # TypeScript validation  
+npm run test          # Unit tests
+npm run build         # Build verification
+```
+
+GitHub Actions will enforce these on all PRs.
+
+#### 🚫 What NOT to Do
+- ❌ Direct commits to `main` branch
+- ❌ Generic commit messages ("fix stuff", "updates")
+- ❌ Committing without running quality checks
+- ❌ Large commits that change multiple unrelated things
+- ❌ Commits with failing tests or linting errors
+- ❌ Force pushing to shared branches
 
 ### Code Standards
 - **TypeScript**: Strict typing required, no explicit `any`
@@ -389,6 +514,7 @@ ln -s $(pwd) ~/.obsidian/vaults/test-vault/.obsidian/plugins/mnemosyne
 - **Testing**: Unit tests for new features (Jest + RTL)
 - **Documentation**: Update relevant docs and JSDoc comments
 - **Accessibility**: WCAG compliance for UI components
+- **Git Flow**: Feature branches only, conventional commits mandatory
 
 ---
 
