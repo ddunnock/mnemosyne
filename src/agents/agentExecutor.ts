@@ -12,7 +12,8 @@ import {
     AgentExecutionContext,
     AgentResponse,
     Message,
-    RetrievedChunk
+    RetrievedChunk,
+    MetadataFilters
 } from '../types';
 import { RAGError, LLMError } from '../types';
 
@@ -129,7 +130,7 @@ export class AgentExecutor {
             const chunks = await this.retriever.retrieve(
                 searchQuery,
                 this.config.retrievalSettings.topK,
-                this.config.metadataFilters,
+                this.config.metadataFilters as MetadataFilters,
                 this.config.retrievalSettings.scoreThreshold  // ✅ NEW: Pass the threshold!
             );
 

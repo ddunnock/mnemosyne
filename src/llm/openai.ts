@@ -96,7 +96,11 @@ export class OpenAIProvider extends BaseLLMProvider {
                     promptTokens: response.usage.prompt_tokens,
                     completionTokens: response.usage.completion_tokens,
                     totalTokens: response.usage.total_tokens
-                } : undefined,
+                } : {
+                    promptTokens: 0,
+                    completionTokens: 0,
+                    totalTokens: 0
+                },
                 model: response.model,
                 finishReason: choice.finish_reason
             };

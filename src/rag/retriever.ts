@@ -87,6 +87,9 @@ export class RAGRetriever {
         }
 
         try {
+            if (!openAIConfig.encryptedApiKey) {
+                throw new Error('No encrypted API key found for OpenAI provider');
+            }
             const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
             const apiKey = this.plugin.keyManager.decrypt(encryptedData);
 

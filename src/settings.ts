@@ -4,8 +4,8 @@
  * Default settings and validation - Updated for Phase 5
  */
 
-import { PluginSettings } from './types';
-import { SearchStrategy } from './constants';
+import { PluginSettings, ChunkingConfig } from './types';
+import { SearchStrategy, DEFAULT_CHUNKING_CONFIG } from './constants';
 
 /**
  * Default plugin settings
@@ -13,26 +13,57 @@ import { SearchStrategy } from './constants';
 export const DEFAULT_SETTINGS: PluginSettings = {
     // Security
     isEncryptionEnabled: true,
-    lastPasswordChangeDate: undefined,
+    masterPassword: undefined,
+    encryptedApiKeys: undefined,
+    encryptionSalt: undefined,
 
-    // LLM Configurations (Phase 4)
-    llmConfigs: [],
+    // AI Providers
+    llmProviders: [],
+    defaultLLMProvider: undefined,
 
-    // Agent Configurations (Phase 5)
-    agents: [],
+    // Local AI Settings
+    useLocalAI: false,
+    ollamaBaseUrl: 'http://localhost:11434',
+    ollamaModel: 'llama3.2',
+    localEmbeddingModel: 'Xenova/all-MiniLM-L6-v2',
 
-    // Default Agent (Phase 5)
-    defaultAgentId: undefined,
-
-    // RAG Configuration (Phase 3)
-    vectorDbPath: 'vector-store-index.json',
+    // RAG Configuration
+    vectorStorePath: 'vector-store-index.json',
     embeddingModel: 'text-embedding-3-small',
     chunkSize: 500,
     chunkOverlap: 50,
 
-    // Feature flags
+    // Enhanced Chunking
+    chunkingConfig: DEFAULT_CHUNKING_CONFIG,
+
+    // Vault Integration
+    autoIngestFolders: [],
+    excludePatterns: [],
+    ingestOnModify: true,
+    lastProcessedTimestamp: undefined,
+
+    // Agent System
+    agents: [],
+    defaultAgent: undefined,
+    defaultAgentId: undefined,
+    
+    // LLM System (compatibility)
+    llmConfigs: [],
+    
+    // Additional settings
+    vectorDbPath: 'vector-store-index.json',
     enableLogging: false,
-    enableCaching: false
+    enableCaching: false,
+
+    // UI Preferences
+    chatHistoryRetention: 100,
+    showSourceCitations: true,
+    enableStreaming: true,
+
+    // Performance
+    maxConcurrentRequests: 5,
+    cacheEmbeddings: true,
+    maxCacheSize: 100
 };
 
 /**

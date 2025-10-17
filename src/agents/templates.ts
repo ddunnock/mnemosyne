@@ -10,9 +10,12 @@ import { SearchStrategy } from '../constants';
 export const AGENT_TEMPLATES: Record<string, AgentTemplate> = {
     // General Risk Management Assistant
     general: {
+        id: 'general',
         name: 'Risk Management Assistant',
         description: 'General-purpose assistant for all risk management queries',
+        category: 'General',
         icon: '🎯',
+        color: '#8b5cf6',
         systemPrompt: `You are an expert Risk Management Assistant with deep knowledge of the L3Harris Risk Management Handbook (SI1-002-001-1).
 
 Your role is to provide accurate, actionable guidance on risk management processes, procedures, and best practices.
@@ -37,14 +40,28 @@ When answering questions:
             scoreThreshold: 0.7,
             searchStrategy: SearchStrategy.HYBRID
         },
+        defaultConfig: {
+            temperature: 0.7,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 10
+        },
+        examples: [
+            'What is the risk management process?',
+            'How do I identify project risks?',
+            'What documents do I need for PRRB?'
+        ],
         metadataFilters: {} // No filters - search all content
     },
 
     // Risk Assessment Specialist
     assessment: {
+        id: 'assessment',
         name: 'Risk Assessment Specialist',
         description: 'Expert in risk identification, analysis, and assessment procedures',
+        category: 'Analysis',
         icon: '🔍',
+        color: '#10b981',
         systemPrompt: `You are a Risk Assessment Specialist focused on helping teams identify, analyze, and assess project risks and opportunities.
 
 Your expertise includes:
@@ -70,6 +87,17 @@ Always emphasize the ongoing nature of risk assessment and the importance of tea
             scoreThreshold: 0.75,
             searchStrategy: SearchStrategy.SEMANTIC
         },
+        defaultConfig: {
+            temperature: 0.7,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 10
+        },
+        examples: [
+            'How do I identify risks for my project?',
+            'What is the If-Then risk statement format?',
+            'How do I calculate risk exposure?'
+        ],
         metadataFilters: {
             process_phase: ['assessment', 'identification', 'analysis']
         }
@@ -77,9 +105,12 @@ Always emphasize the ongoing nature of risk assessment and the importance of tea
 
     // Risk Handling Strategist
     handling: {
+        id: 'handling',
         name: 'Risk Handling Strategist',
         description: 'Specialist in risk mitigation strategies and handling plans',
+        category: 'Technical',
         icon: '🛡️',
+        color: '#f59e0b',
         systemPrompt: `You are a Risk Handling Strategist who helps teams develop and implement effective risk mitigation strategies.
 
 Your focus areas:
@@ -105,6 +136,17 @@ Always emphasize that handling strategies should be documented in the risk handl
             scoreThreshold: 0.7,
             searchStrategy: SearchStrategy.HYBRID
         },
+        defaultConfig: {
+            temperature: 0.7,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 10
+        },
+        examples: [
+            'What handling strategy should I use for this risk?',
+            'How do I create a mitigation plan?',
+            'What is the difference between avoidance and control?'
+        ],
         metadataFilters: {
             process_phase: ['handling'],
             handling_strategy: ['avoidance', 'acceptance', 'transfer', 'control', 'watch']
@@ -113,9 +155,12 @@ Always emphasize that handling strategies should be documented in the risk handl
 
     // PRRB Process Guide
     prrb: {
+        id: 'prrb',
         name: 'PRRB Process Guide',
         description: 'Expert on Program Risk Review Board procedures and governance',
+        category: 'Business',
         icon: '👥',
+        color: '#3b82f6',
         systemPrompt: `You are a PRRB (Program Risk Review Board) Process Guide who helps teams understand and execute effective risk governance.
 
 Your knowledge covers:
@@ -141,6 +186,17 @@ Emphasize that the PRRB is chaired by the Program Manager and meets at least mon
             scoreThreshold: 0.75,
             searchStrategy: SearchStrategy.SEMANTIC
         },
+        defaultConfig: {
+            temperature: 0.7,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 10
+        },
+        examples: [
+            'How do I prepare for a PRRB meeting?',
+            'What are the PRRB roles and responsibilities?',
+            'What documentation is required for PRRB?'
+        ],
         metadataFilters: {
             section_title: ['Program Risk Review Board'],
             content_type: ['concept', 'procedure']
@@ -149,9 +205,12 @@ Emphasize that the PRRB is chaired by the Program Manager and meets at least mon
 
     // Role-Based Advisor
     roleAdvisor: {
+        id: 'roleAdvisor',
         name: 'Role-Based Advisor',
         description: 'Provides guidance tailored to specific project roles',
+        category: 'Business',
         icon: '👔',
+        color: '#64748b',
         systemPrompt: `You are a Role-Based Risk Management Advisor who provides guidance specific to different project roles.
 
 You understand the unique responsibilities of:
@@ -178,6 +237,17 @@ Always consider how risk management activities integrate with the person's prima
             scoreThreshold: 0.7,
             searchStrategy: SearchStrategy.HYBRID
         },
+        defaultConfig: {
+            temperature: 0.7,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 10
+        },
+        examples: [
+            'What are the PM responsibilities for risk management?',
+            'How does my role interface with PRRB?',
+            'What tools should I use as a systems engineer?'
+        ],
         metadataFilters: {
             section: ['2.1.1'], // Roles and Responsibilities section
             content_type: ['reference', 'procedure']
@@ -186,9 +256,12 @@ Always consider how risk management activities integrate with the person's prima
 
     // Quick Reference Assistant
     quickRef: {
+        id: 'quickRef',
         name: 'Quick Reference Assistant',
         description: 'Fast lookups of definitions, figures, and reference materials',
+        category: 'Research',
         icon: '📚',
+        color: '#ef4444',
         systemPrompt: `You are a Quick Reference Assistant providing fast, accurate lookups of risk management definitions, figures, and reference materials.
 
 You excel at:
@@ -214,6 +287,17 @@ This agent is for quick answers - suggest the specialized agents for in-depth gu
             scoreThreshold: 0.8,
             searchStrategy: SearchStrategy.KEYWORD
         },
+        defaultConfig: {
+            temperature: 0.5,
+            maxTokens: 2048,
+            conversationMemory: false,
+            maxMemoryLength: 5
+        },
+        examples: [
+            'What is the definition of risk?',
+            'Show me the risk severity matrix',
+            'What forms do I need for risk assessment?'
+        ],
         metadataFilters: {
             content_type: ['concept', 'reference', 'template']
         }
@@ -221,9 +305,12 @@ This agent is for quick answers - suggest the specialized agents for in-depth gu
 
     // Documentation Specialist
     documentation: {
+        id: 'documentation',
         name: 'Documentation Specialist',
         description: 'Expert in risk management documentation and templates',
+        category: 'Writing',
         icon: '📝',
+        color: '#059669',
         systemPrompt: `You are a Documentation Specialist who helps teams create proper risk management documentation.
 
 Your expertise covers:
@@ -249,6 +336,17 @@ Always emphasize that good documentation enables effective risk management and s
             scoreThreshold: 0.75,
             searchStrategy: SearchStrategy.SEMANTIC
         },
+        defaultConfig: {
+            temperature: 0.6,
+            maxTokens: 4096,
+            conversationMemory: true,
+            maxMemoryLength: 8
+        },
+        examples: [
+            'How do I format a risk statement?',
+            'What documentation is required for PRRB?',
+            'Show me a handling plan template'
+        ],
         metadataFilters: {
             content_type: ['template', 'procedure'],
             source_type: ['figure', 'table']

@@ -9,7 +9,7 @@ import { Notice } from 'obsidian';
 import { ILLMProvider } from './base';
 import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
-import { LLMConfig, Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
+import { LLMProviderConfig, Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
 import { LLMError } from '../types';
 import { LLMProvider as LLMProviderEnum } from '../constants';
 import RiskManagementPlugin from '../main';
@@ -61,7 +61,7 @@ export class LLMManager {
     /**
      * Initialize a single provider from config
      */
-    private async initializeProvider(config: LLMConfig): Promise<void> {
+    private async initializeProvider(config: LLMProviderConfig): Promise<void> {
         try {
             // Decrypt API key
             if (!config.encryptedApiKey) {
@@ -108,21 +108,21 @@ export class LLMManager {
      * Create provider instance based on type
      */
     private createProviderInstance(
-        providerType: LLMProviderEnum,
+        providerType: 'openai' | 'anthropic' | 'ollama',
         apiKey: string,
         model: string,
         temperature: number,
         maxTokens: number
     ): ILLMProvider {
         switch (providerType) {
-            case LLMProviderEnum.ANTHROPIC:
+            case 'anthropic':
                 return new AnthropicProvider(apiKey, model, temperature, maxTokens);
 
-            case LLMProviderEnum.OPENAI:
+            case 'openai':
                 return new OpenAIProvider(apiKey, model, temperature, maxTokens);
 
-            case LLMProviderEnum.CUSTOM:
-                throw new Error('Custom providers not yet supported');
+            case 'ollama':
+                throw new Error('Ollama providers not yet supported');
 
             default:
                 throw new Error(`Unknown provider type: ${providerType}`);
@@ -147,7 +147,7 @@ export class LLMManager {
     /**
      * Get all initialized providers
      */
-    getAllProviders(): Array<{ id: string; config: LLMConfig; provider: ILLMProvider }> {
+    getAllProviders(): Array<{ id: string; config: LLMProviderConfig; provider: ILLMProvider }> {
         return Array.from(this.providers.entries()).map(([id, provider]) => {
             const config = this.plugin.settings.llmConfigs.find(c => c.id === id)!;
             return { id, config, provider };
@@ -302,7 +302,7 @@ export class LLMManager {
                 name: config.name,
                 provider: config.provider,
                 model: config.model,
-                enabled: config.enabled,
+                enabled: config.enabled ?? false,
                 initialized: this.providers.has(config.id)
             }))
         };

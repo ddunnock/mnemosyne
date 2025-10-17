@@ -231,20 +231,24 @@ export class VectorStore {
     ): VectorEntry[] {
         return entries.filter(entry => {
             for (const [key, values] of Object.entries(filters)) {
-                if (!values || values.length === 0) continue;
+                if (!values) continue;
+                
+                // Convert values to array for consistent handling
+                const filterValues = Array.isArray(values) ? values : [values];
+                if (filterValues.length === 0) continue;
 
                 const metadataValue = entry.metadata[key];
 
                 // Handle array metadata fields
                 if (Array.isArray(metadataValue)) {
                     // Check if any filter value exists in the metadata array
-                    const hasMatch = values.some(filterValue =>
-                        metadataValue.includes(filterValue)
+                    const hasMatch = filterValues.some((filterValue: string | number | boolean) =>
+                        metadataValue.includes(String(filterValue))
                     );
                     if (!hasMatch) return false;
                 } else {
                     // Handle single value metadata fields
-                    if (!values.includes(String(metadataValue))) {
+                    if (!filterValues.map(String).includes(String(metadataValue))) {
                         return false;
                     }
                 }
@@ -306,8 +310,12 @@ export class VectorStore {
             const docId = entry.metadata.document_id;
             const contentType = entry.metadata.content_type;
 
-            documentCounts[docId] = (documentCounts[docId] || 0) + 1;
-            contentTypeCounts[contentType] = (contentTypeCounts[contentType] || 0) + 1;
+            if (docId) {
+                documentCounts[docId] = (documentCounts[docId] || 0) + 1;
+            }
+            if (contentType) {
+                contentTypeCounts[contentType] = (contentTypeCounts[contentType] || 0) + 1;
+            }
         }
 
         // Estimate memory usage

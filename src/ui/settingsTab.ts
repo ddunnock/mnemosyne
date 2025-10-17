@@ -6,7 +6,7 @@
 
 import { App, PluginSettingTab, Setting, Notice, TextComponent, DropdownComponent, Modal } from 'obsidian';
 import RiskManagementPlugin from '../main';
-import { LLMConfig, AgentConfig } from '../types';
+import { LLMProviderConfig, AgentConfig } from '../types';
 import { LLMProvider } from '../constants';
 import { AgentBuilderModal } from './agentBuilderModal';
 import { InitializationManager } from '../utils/initializationManager';
@@ -321,8 +321,10 @@ export class RiskManagementSettingTab extends PluginSettingTab {
             // Test decryption if we have any configs
             if (this.plugin.settings.llmConfigs.length > 0) {
                 const testConfig = this.plugin.settings.llmConfigs[0];
-                const encrypted = JSON.parse(testConfig.encryptedApiKey);
-                this.plugin.keyManager.decrypt(encrypted);
+                if (testConfig.encryptedApiKey) {
+                    const encrypted = JSON.parse(testConfig.encryptedApiKey);
+                    this.plugin.keyManager.decrypt(encrypted);
+                }
             }
 
             return true;
@@ -467,13 +469,13 @@ export class RiskManagementSettingTab extends PluginSettingTab {
     /**
      * Display individual LLM provider card
      */
-    private displayLLMProviderCard(containerEl: HTMLElement, config: LLMConfig, index: number): void {
+    private displayLLMProviderCard(containerEl: HTMLElement, config: LLMProviderConfig, index: number): void {
         const card = containerEl.createDiv({ cls: 'llm-provider-card' });
         card.style.padding = '15px';
         card.style.marginBottom = '15px';
         card.style.border = '1px solid var(--background-modifier-border)';
         card.style.borderRadius = '8px';
-        card.style.backgroundColor = config.enabled
+        card.style.backgroundColor = (config.enabled ?? false)
             ? 'var(--background-secondary)'
             : 'var(--background-primary)';
 
@@ -490,15 +492,15 @@ export class RiskManagementSettingTab extends PluginSettingTab {
         title.style.fontSize = '1.1em';
 
         const statusBadge = headerRow.createSpan({
-            text: config.enabled ? '✓ Enabled' : '○ Disabled'
+            text: (config.enabled ?? false) ? '✓ Enabled' : '○ Disabled'
         });
         statusBadge.style.padding = '4px 12px';
         statusBadge.style.borderRadius = '12px';
         statusBadge.style.fontSize = '0.85em';
-        statusBadge.style.backgroundColor = config.enabled
+        statusBadge.style.backgroundColor = (config.enabled ?? false)
             ? 'rgba(40, 167, 69, 0.2)'
             : 'rgba(108, 117, 125, 0.2)';
-        statusBadge.style.color = config.enabled ? '#28a745' : '#6c757d';
+        statusBadge.style.color = (config.enabled ?? false) ? '#28a745' : '#6c757d';
 
         // Details
         const detailsDiv = card.createDiv();
@@ -529,9 +531,9 @@ export class RiskManagementSettingTab extends PluginSettingTab {
                     }).open();
                 }))
             .addButton(btn => btn
-                .setButtonText(config.enabled ? 'Disable' : 'Enable')
+                .setButtonText((config.enabled ?? false) ? 'Disable' : 'Enable')
                 .onClick(async () => {
-                    config.enabled = !config.enabled;
+                    config.enabled = !(config.enabled ?? false);
                     await this.plugin.saveSettings();
                     await this.plugin.llmManager.initialize();
                     new Notice(`Provider ${config.enabled ? 'enabled' : 'disabled'}`);
@@ -774,14 +776,14 @@ export class RiskManagementSettingTab extends PluginSettingTab {
  */
 class LLMConfigModal extends Modal {
     private plugin: RiskManagementPlugin;
-    private config: LLMConfig | null;
-    private onSave: (config: LLMConfig) => void;
+    private config: LLMProviderConfig | null;
+    private onSave: (config: LLMProviderConfig) => void;
 
     constructor(
         app: App,
         plugin: RiskManagementPlugin,
-        config: LLMConfig | null,
-        onSave: (config: LLMConfig) => void
+        config: LLMProviderConfig | null,
+        onSave: (config: LLMProviderConfig) => void
     ) {
         super(app);
         this.plugin = plugin;
@@ -875,10 +877,10 @@ class LLMConfigModal extends Modal {
                         }
 
                         const now = Date.now();
-                        const newConfig: LLMConfig = {
+                        const newConfig: LLMProviderConfig = {
                             id: this.config?.id || this.plugin.generateId(),
                             name,
-                            provider,
+                            provider: provider as 'openai' | 'anthropic' | 'ollama',
                             model,
                             encryptedApiKey: encryptedApiKey!,
                             temperature,

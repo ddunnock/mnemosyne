@@ -126,12 +126,13 @@ export abstract class BaseLLMProvider implements ILLMProvider {
     /**
      * Merge options with defaults
      */
-    protected mergeOptions(options?: ChatOptions): Required<ChatOptions> {
+    protected mergeOptions(options?: ChatOptions): { temperature: number; maxTokens: number; stopSequences: string[]; stream: boolean; systemPrompt?: string } {
         return {
             temperature: options?.temperature ?? this.temperature,
             maxTokens: options?.maxTokens ?? this.maxTokens,
             stopSequences: options?.stopSequences ?? [],
-            stream: options?.stream ?? false
+            stream: options?.stream ?? false,
+            systemPrompt: options?.systemPrompt
         };
     }
 

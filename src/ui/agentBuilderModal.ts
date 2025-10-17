@@ -197,7 +197,22 @@ export class AgentBuilderModal extends Modal {
             metadataFilters: template.metadataFilters,
             enabled: true,
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            // Required Behavior properties
+            conversationMemory: true,
+            maxMemoryLength: 10,
+            showSources: true,
+            enableStreaming: true,
+            // Required Metadata properties
+            category: template.category || 'General',
+            tags: [],
+            icon: template.icon,
+            color: template.color,
+            isBuiltIn: false,
+            createdDate: new Date().toISOString(),
+            // Optional properties
+            temperature: 0.7,
+            maxTokens: 4096
         };
 
         // Reload modal with template data
@@ -364,7 +379,7 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
                 dropdown.addOption(SearchStrategy.KEYWORD, 'Keyword (metadata only)');
                 dropdown.addOption(SearchStrategy.HYBRID, 'Hybrid (both)');
 
-                if (this.agent) {
+                if (this.agent && this.agent.retrievalSettings.searchStrategy) {
                     dropdown.setValue(this.agent.retrievalSettings.searchStrategy);
                 } else {
                     dropdown.setValue(SearchStrategy.HYBRID);
@@ -494,7 +509,22 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
                 metadataFilters,
                 enabled: this.agent?.enabled ?? true,
                 createdAt: this.agent?.createdAt || now,
-                updatedAt: now
+                updatedAt: now,
+                // Required Behavior properties
+                conversationMemory: this.agent?.conversationMemory ?? true,
+                maxMemoryLength: this.agent?.maxMemoryLength ?? 10,
+                showSources: this.agent?.showSources ?? true,
+                enableStreaming: this.agent?.enableStreaming ?? true,
+                // Required Metadata properties
+                category: this.agent?.category ?? 'General',
+                tags: this.agent?.tags ?? [],
+                icon: this.agent?.icon,
+                color: this.agent?.color,
+                isBuiltIn: this.agent?.isBuiltIn ?? false,
+                createdDate: this.agent?.createdDate ?? new Date().toISOString(),
+                // Optional properties
+                temperature: this.agent?.temperature ?? 0.7,
+                maxTokens: this.agent?.maxTokens ?? 4096
             };
 
             // Save

@@ -100,7 +100,10 @@ export function createAgentCard(
     if (config.metadataFilters && Object.keys(config.metadataFilters).length > 0) {
         metaContainer.createSpan({ text: 'Filters:' }).style.fontWeight = '500';
         const filterText = Object.entries(config.metadataFilters)
-            .map(([key, values]) => `${key}: ${values?.join(', ') || 'none'}`)
+            .map(([key, values]) => {
+                const valueStr = Array.isArray(values) ? values.join(', ') : String(values);
+                return `${key}: ${valueStr || 'none'}`;
+            })
             .join(' | ');
         metaContainer.createSpan({ text: filterText });
     }
