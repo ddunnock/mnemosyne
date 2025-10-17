@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 
 // Mock Obsidian API
-global.require = jest.fn();
+(global as any).require = jest.fn();
 
 // Mock Obsidian classes and objects
 const mockApp = {
@@ -30,26 +30,50 @@ const mockApp = {
     }
 };
 
-global.app = mockApp;
+(global as any).app = mockApp;
 
-// Mock Plugin class
+// Mock Plugin class with proper inheritance
 class MockPlugin {
     app: typeof mockApp;
     manifest: Record<string, unknown>;
-
+    
+    // Plugin properties
+    description = 'Mock Plugin';
+    filename = 'mock-plugin';
+    length = 0;
+    name = 'MockPlugin';
+    
     constructor(app: typeof mockApp, manifest: Record<string, unknown>) {
         this.app = app;
         this.manifest = manifest;
     }
 
+    // Plugin lifecycle methods
+    onload(): void | Promise<void> { return Promise.resolve(); }
+    onunload(): void | Promise<void> { return Promise.resolve(); }
+    
+    // Plugin utility methods
     addCommand(): void {}
     addSettingTab(): void {}
     addRibbonIcon(): void {}
+    addStatusBarItem(): HTMLElement { return document.createElement('div'); }
+    registerView(): void {}
+    registerHoverLinkSource(): void {}
+    registerMarkdownCodeBlockProcessor(): void {}
+    registerMarkdownPostProcessor(): void {}
+    registerObsidianProtocolHandler(): void {}
+    registerEditorExtension(): void {}
+    registerEvent(): void {}
+    registerDomEvent(): void {}
+    registerInterval(): number { return 0; }
+    
+    // Data methods
     loadData(): Promise<unknown> { return Promise.resolve({}); }
     saveData(): Promise<void> { return Promise.resolve(); }
 }
 
-global.Plugin = MockPlugin;
+// Type assertion to satisfy TypeScript
+(global as any).Plugin = MockPlugin;
 
 // Mock Modal class
 class MockModal {
@@ -58,7 +82,7 @@ class MockModal {
     close(): void {}
 }
 
-global.Modal = MockModal;
+(global as any).Modal = MockModal;
 
 // Mock Notice
-global.Notice = jest.fn();
+(global as any).Notice = jest.fn();
