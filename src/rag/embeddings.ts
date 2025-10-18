@@ -133,30 +133,63 @@ results.push(...response.data.map((d: { embedding: number[] }) => d.embedding));
      */
     static validateEmbedding(embedding: number[], expectedDimension: number): boolean {
         if (!Array.isArray(embedding)) return false;
-        if (embedding.length !== expectedDimension) return false;
-        if (!embedding.every(n => typeof n === 'number' && !isNaN(n))) return false;
-        return true;
-    }
-
-    /**
+        if (embedding.length !== expectedDim    /**
      * Calculate cosine similarity between two embeddings
+     * Optimized version with proper edge case handling
      */
     static cosineSimilarity(a: number[], b: number[]): number {
         if (a.length !== b.length) {
             throw new Error('Embeddings must have same dimension');
         }
 
+        if (a.length === 0) {
+            return 0;
+        }
+
         let dotProduct = 0;
         let normA = 0;
         let normB = 0;
 
+        // Single loop for better performance
         for (let i = 0; i < a.length; i++) {
-            dotProduct += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
+            const ai = a[i];
+            const bi = b[i];
+            
+            // Check for NaN or Infinity values
+            if (!isFinite(ai) || !isFinite(bi)) {
+                console.warn('Non-finite values detected in embedding vectors');
+                return 0;
+            }
+            
+            dotProduct += ai * bi;
+            normA += ai * ai;
+            normB += bi * bi;
         }
 
-        const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+        // Handle edge cases where one or both vectors are zero
+        if (normA === 0 || normB === 0) {
+            return 0;
+        }
+
+        const sqrtNormA = Math.sqrt(normA);
+        const sqrtNormB = Math.sqrt(normB);
+        
+        // Avoid division by zero
+        if (sqrtNormA === 0 || sqrtNormB === 0) {
+            return 0;
+        }
+
+        const similarity = dotProduct / (sqrtNormA * sqrtNormB);
+
+        // Clamp to [-1, 1] to handle floating point errors
+        // Also check for NaN or Infinity
+        if (!isFinite(similarity)) {
+            console.warn('Non-finite similarity value calculated');
+            return 0;
+        }
+
+        return Math.max(-1, Math.min(1, similarity));
+    }Math.sqrt(normA) * Math.sqrt(normB));
 
         // Clamp to [-1, 1] to handle floating point errors
         return Math.max(-1, Math.min(1, similarity));

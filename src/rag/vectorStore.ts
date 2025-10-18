@@ -114,14 +114,7 @@ export class VectorStore {
             this.index.entries[existingIndex] = entry;
         } else {
             // Add new
-            this.index.entries.push(entry);
-            this.index.totalChunks++;
-        }
-
-        this.index.updatedAt = Date.now();
-    }
-
-    /**
+            this.index.entr    /**
      * Insert multiple chunks in batch
      */
     async insertBatch(entries: Array<{
@@ -136,7 +129,34 @@ export class VectorStore {
             this.index = this.createEmptyIndex(entries[0].embedding.length);
         }
 
+        // Track initial count to properly calculate new entries
+        const initialCount = this.index.entries.length;
+        const existingIds = new Set(this.index.entries.map(e => e.id));
+
+        // Process all entries in batch
         for (const entry of entries) {
+            const vectorEntry: VectorEntry = {
+                id: entry.chunkId,
+                embedding: entry.embedding,
+                content: entry.content,
+                metadata: entry.metadata
+            };
+
+            const existingIndex = this.index.entries.findIndex(e => e.id === entry.chunkId);
+            if (existingIndex >= 0) {
+                // Update existing entry
+                this.index.entries[existingIndex] = vectorEntry;
+            } else {
+                // Add new entry
+                this.index.entries.push(vectorEntry);
+            }
+        }
+
+        // Update total count based on actual new entries added
+        const newEntriesCount = this.index.entries.length - initialCount;
+        this.index.totalChunks = this.index.entries.length;
+        this.index.updatedAt = Date.now();
+    }r (const entry of entries) {
             await this.insert(entry.chunkId, entry.content, entry.embedding, entry.metadata);
         }
     }
@@ -317,20 +337,7 @@ export class VectorStore {
 
         return {
             totalChunks: this.index.totalChunks,
-            embeddingModel: this.index.embeddingModel,
-            dimension: this.index.dimension,
-            createdAt: new Date(this.index.createdAt),
-            updatedAt: new Date(this.index.updatedAt),
-            memoryUsage,
-            documentCounts,
-            contentTypeCounts
-        };
-    }
-
-    /**
-     * Save index to disk
-     */
-    async save(): Promise<void> {
+            embeddingModel: this.i    async save(): Promise<void> {
         if (!this.index) {
             // Create empty index if none exists
             this.index = this.createEmptyIndex(1536); // Default dimension
@@ -338,8 +345,17 @@ export class VectorStore {
         }
 
         try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+            // Use the plugin's data directory instead of hardcoded path
+            const pluginDir = this.app.vault.configDir + '/plugins/' + this.app.plugins.plugins['rag-agent-manager']?.manifest?.id || 'rag-agent-manager';
             const indexFile = `${pluginDir}/${this.indexPath}`;
+
+            // Ensure the directory exists
+            try {
+                await this.app.vault.adapter.mkdir(pluginDir, true);
+            } catch (mkdirError) {
+                // Directory might already exist, which is fine
+                console.log('Plugin directory already exists or could not be created');
+            }
 
             const indexData = JSON.stringify(this.index, null, 2);
             await this.app.vault.adapter.write(indexFile, indexData);
@@ -348,14 +364,25 @@ export class VectorStore {
         } catch (error) {
             throw new RAGError('Failed to save vector store index', error);
         }
-    }
-    /**
+    }}`;
+
+            cons    /**
      * Load index from disk
      */
     async load(): Promise<void> {
         try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+            // Use the plugin's data directory instead of hardcoded path
+            const pluginDir = this.app.vault.configDir + '/plugins/' + this.app.plugins.plugins['rag-agent-manager']?.manifest?.id || 'rag-agent-manager';
             const indexFile = `${pluginDir}/${this.indexPath}`;
+
+            const indexData = await this.app.vault.adapter.read(indexFile);
+            this.index = JSON.parse(indexData);
+
+            console.log(`Vector store loaded: ${this.index?.totalChunks || 0} chunks`);
+        } catch (error) {
+            throw new RAGError('Failed to load vector store index', error);
+        }
+    }}`;
 
             const indexData = await this.app.vault.adapter.read(indexFile);
             this.index = JSON.parse(indexData);
