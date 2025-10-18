@@ -183,7 +183,16 @@ export default class RiskManagementPlugin extends Plugin {
      * Generate unique ID
      */
     generateId(): string {
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Use crypto.randomUUID if available (modern browsers/Node), fallback to enhanced method
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        
+        // Enhanced fallback with higher precision timestamp and better randomness
+        const timestamp = Date.now().toString(36);
+        const randomPart1 = Math.random().toString(36).slice(2, 11);
+        const randomPart2 = Math.random().toString(36).slice(2, 11);
+        return `${timestamp}-${randomPart1}-${randomPart2}`;
     }
 
     /**
