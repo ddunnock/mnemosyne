@@ -114,14 +114,7 @@ export class VectorStore {
             this.index.entries[existingIndex] = entry;
         } else {
             // Add new
-            this.index.entries.push(entry);
-            this.index.totalChunks++;
-        }
-
-        this.index.updatedAt = Date.now();
-    }
-
-    /**
+            this.index.entr    /**
      * Insert multiple chunks in batch
      */
     async insertBatch(entries: Array<{
@@ -136,7 +129,40 @@ export class VectorStore {
             this.index = this.createEmptyIndex(entries[0].embedding.length);
         }
 
+        // Process all entries in a single batch operation
+        const startTime = Date.now();
+        let addedCount = 0;
+        let updatedCount = 0;
+
         for (const entry of entries) {
+            // Check if chunk already exists
+            const existingIndex = this.index.entries.findIndex(e => e.id === entry.chunkId);
+
+            const vectorEntry: VectorEntry = {
+                id: entry.chunkId,
+                embedding: entry.embedding,
+                content: entry.content,
+                metadata: entry.metadata
+            };
+
+            if (existingIndex >= 0) {
+                // Update existing
+                this.index.entries[existingIndex] = vectorEntry;
+                updatedCount++;
+            } else {
+                // Add new
+                this.index.entries.push(vectorEntry);
+                addedCount++;
+            }
+        }
+
+        // Update totals and timestamp once for the entire batch
+        this.index.totalChunks = this.index.entries.length;
+        this.index.updatedAt = Date.now();
+
+        const processingTime = Date.now() - startTime;
+        console.log(`Batch insert completed: ${addedCount} added, ${updatedCount} updated in ${processingTime}ms`);
+    }r (const entry of entries) {
             await this.insert(entry.chunkId, entry.content, entry.embedding, entry.metadata);
         }
     }
@@ -323,22 +349,8 @@ export class VectorStore {
             updatedAt: new Date(this.index.updatedAt),
             memoryUsage,
             documentCounts,
-            contentTypeCounts
-        };
-    }
-
-    /**
-     * Save index to disk
-     */
-    async save(): Promise<void> {
-        if (!this.index) {
-            // Create empty index if none exists
-            this.index = this.createEmptyIndex(1536); // Default dimension
-            console.warn('Creating empty index to save');
-        }
-
-        try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+            content        try {
+            const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
 
             const indexData = JSON.stringify(this.index, null, 2);
@@ -347,15 +359,20 @@ export class VectorStore {
             console.log(`Vector store saved: ${this.index.totalChunks} chunks`);
         } catch (error) {
             throw new RAGError('Failed to save vector store index', error);
-        }
-    }
-    /**
-     * Load index from disk
-     */
-    async load(): Promise<void> {
-        try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+        }exPath}`;
+
+            const indexData = JSON.stringify(this.index, null, 2);
+            await th        try {
+            const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
+
+            const indexData = await this.app.vault.adapter.read(indexFile);
+            this.index = JSON.parse(indexData);
+
+            console.log(`Vector store loaded: ${this.index?.totalChunks || 0} chunks`);
+        } catch (error) {
+            throw new RAGError('Failed to load vector store index', error);
+        }is.indexPath}`;
 
             const indexData = await this.app.vault.adapter.read(indexFile);
             this.index = JSON.parse(indexData);

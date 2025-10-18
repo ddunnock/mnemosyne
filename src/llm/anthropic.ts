@@ -129,16 +129,14 @@ export class AnthropicProvider extends BaseLLMProvider {
         url: string,
         method: string,
         headers: Record<string, string>,
-        body?: string
-    ): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const urlObj = new URL(url);
-
-            const requestOptions = {
+                    const requestOptions = {
                 hostname: urlObj.hostname,
                 port: urlObj.port || 443,
                 path: urlObj.pathname + urlObj.search,
                 method: method,
+                headers: headers,
+                rejectUnauthorized: true // Enable SSL certificate verification for security
+            }; method: method,
                 headers: headers,
                 rejectUnauthorized: false // Handle SSL certificate issues
             };
@@ -154,14 +152,17 @@ export class AnthropicProvider extends BaseLLMProvider {
                     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                         resolve(data);
                     } else {
-                        reject(new Error(`Anthropic API error ${res.statusCode || 'unknown'}: ${data}`));
-                    }
-                });
-            });
-
-            req.on('error', (err: Error & { code?: string }) => {
+                              req.on('error', (err: Error & { code?: string }) => {
                 if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-                    reject(new Error('SSL certificate verification failed. This may be due to corporate firewall or certificate issues.'));
+                    reject(new Error('SSL certificate verification failed. Please check your network configuration or contact your system administrator.'));
+                } else if (err.code === 'CERT_HAS_EXPIRED') {
+                    reject(new Error('SSL certificate has expired. Please update your system certificates.'));
+                } else if (err.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
+                    reject(new Error('Self-signed certificate detected. This is not allowed for security reasons.'));
+                } else {
+                    reject(err);
+                }
+            });is may be due to corporate firewall or certificate issues.'));
                 } else {
                     reject(err);
                 }
