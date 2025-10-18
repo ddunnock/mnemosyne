@@ -1,7 +1,7 @@
 // Agent Management UI Component - Modern vanilla TypeScript implementation
 
 import { AgentConfig } from '../../../types/index';
-import { App, Modal, Notice } from 'obsidian';
+import { App, Notice } from 'obsidian';
 
 export interface AgentManagementState {
   agents: AgentConfig[];
@@ -201,7 +201,10 @@ export class AgentManagement {
       ? 'background: rgba(72, 187, 120, 0.1); color: var(--text-success);' 
       : 'background: var(--background-modifier-border); color: var(--text-muted);';
       
-    const modelDisplay = agent.llmConfig?.model || 'No model';
+    // Find LLM config by ID to get model name
+    const llmConfig = this.plugin?.settings?.llmConfigs?.find((c: any) => c.id === agent.llmId);
+    const modelDisplay = llmConfig?.model || 'Unknown model';
+    
     const descriptionPreview = agent.description 
       ? (agent.description.length > 100 ? agent.description.substring(0, 100) + '...' : agent.description)
       : 'No description';
@@ -286,8 +289,8 @@ export class AgentManagement {
               <span style="color: var(--text-normal); margin-left: 6px;">${modelDisplay}</span>
             </div>
             <div>
-              <span style="color: var(--text-muted); font-weight: 500;">Type:</span>
-              <span style="color: var(--text-normal); margin-left: 6px;">${agent.type || 'General'}</span>
+              <span style="color: var(--text-muted); font-weight: 500;">Retrieval:</span>
+              <span style="color: var(--text-normal); margin-left: 6px;">Top ${agent.retrievalSettings.topK}</span>
             </div>
           </div>
         </div>
@@ -309,7 +312,7 @@ export class AgentManagement {
         const agentId = actionButton?.getAttribute('data-agent-id');
         
         if (action) {
-          await this.handleAgentAction(action, agentId);
+          await this.handleAgentAction(action, agentId || undefined);
         }
       });
     });
@@ -351,7 +354,7 @@ export class AgentManagement {
         default:
           console.warn(`Unknown agent action: ${action}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Agent action failed:', error);
       new Notice(`Error: ${error.message}`);
     }
@@ -412,441 +415,5 @@ export class AgentManagement {
 
   destroy(): void {
     this.container = null;
-  }
-}
-
-// Agent Management Component for Settings UI
-
-import { AgentConfig } from '../../../types';
-import { AgentBuilderModal } from '../../agentBuilderModal';
-
-export interface AgentManagementState {
-  agents: AgentConfig[];
-  hasProviders: boolean;
-  isEnabled: boolean;
-}
-
-export class AgentManagement {
-  private state: AgentManagementState;
-  private onUpdate: (field: string, value: any) => void;
-  private onAction: (action: string, data?: any) => Promise<void>;
-  private plugin: any;
-  private app: any;
-
-  constructor(
-    state: AgentManagementState,
-    onUpdate: (field: string, value: any) => void,
-    onAction: (action: string, data?: any) => Promise<void>,
-    plugin: any,
-    app: any
-  ) {
-    this.state = state;
-    this.onUpdate = onUpdate;
-    this.onAction = onAction;
-    this.plugin = plugin;
-    this.app = app;
-  }
-
-  render(): string {
-    return `
-      <div class="settings-card agent-management fade-in">
-        <div class="card-header">
-          <p class="card-description">Manage AI agents for specialized tasks and workflows</p>
-          ${this.renderStatusChip()}
-        </div>
-        
-        <div class="agent-controls">
-          ${this.renderAgentsList()}
-          ${this.renderActionButtons()}
-        </div>
-      </div>
-    `;
-  }
-  
-  private renderStatusChip(): string {
-    let status = 'disabled';
-    let statusText = 'Disabled';
-    let icon = '🔴';
-    
-    if (!this.state.isEnabled) {
-      status = 'disabled';
-      statusText = 'Plugin Disabled';
-      icon = '🔴';
-    } else if (!this.state.hasProviders) {
-      status = 'error';
-      statusText = 'No AI Providers';
-      icon = '❌';
-    } else if (this.state.agents.length === 0) {
-      status = 'connecting';
-      statusText = 'No Agents';
-      icon = '⚡';
-    } else {
-      const enabledAgents = this.state.agents.filter(a => a.enabled).length;
-      status = 'ready';
-      statusText = `${enabledAgents}/${this.state.agents.length} Active`;
-      icon = '✅';
-    }
-    
-    const chipStyles = {
-      ready: 'background: rgba(72, 187, 120, 0.1); color: var(--text-success); border: 1px solid rgba(72, 187, 120, 0.3);',
-      error: 'background: rgba(245, 101, 101, 0.1); color: var(--text-error); border: 1px solid rgba(245, 101, 101, 0.3);',
-      disabled: 'background: var(--background-modifier-border); color: var(--text-muted); border: 1px solid var(--background-modifier-border);',
-      connecting: 'background: rgba(59, 130, 246, 0.1); color: var(--interactive-accent); border: 1px solid rgba(59, 130, 246, 0.3);'
-    };
-    
-    const chipStyle = chipStyles[status as keyof typeof chipStyles] || chipStyles.disabled;
-    
-    return `
-      <div class="status-chip" style="${chipStyle} display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px;">
-        ${icon} ${statusText}
-      </div>
-    `;
-  }
-
-  private renderAgentsList(): string {
-    if (!this.state.isEnabled) {
-      return `
-        <div class="empty-state" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
-          <div style="font-size: 48px; margin-bottom: 16px;">🚀</div>
-          <h3 style="margin-bottom: 8px;">Enable Mnemosyne</h3>
-          <p>Enable Mnemosyne in Quick Setup to start managing agents.</p>
-        </div>
-      `;
-    }
-
-    if (!this.state.hasProviders) {
-      return `
-        <div class="empty-state" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
-          <div style="font-size: 48px; margin-bottom: 16px;">🤖</div>
-          <h3 style="margin-bottom: 8px;">Setup AI Provider First</h3>
-          <p>Configure an AI provider in Quick Setup before creating agents.</p>
-        </div>
-      `;
-    }
-
-    if (this.state.agents.length === 0) {
-      return `
-        <div class="empty-state" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
-          <div style="font-size: 48px; margin-bottom: 16px;">🎯</div>
-          <h3 style="margin-bottom: 8px;">No Agents Created</h3>
-          <p>Create your first AI agent to get started with specialized assistance.</p>
-        </div>
-      `;
-    }
-
-    const agentsHTML = this.state.agents.map(agent => this.renderAgentCard(agent)).join('');
-    
-    return `
-      <div class="agents-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px;">
-        ${agentsHTML}
-      </div>
-    `;
-  }
-
-  private renderAgentCard(agent: AgentConfig): string {
-    const enabledClass = agent.enabled ? 'enabled' : 'disabled';
-    const statusIcon = agent.enabled ? '✅' : '⏸️';
-    const statusText = agent.enabled ? 'Active' : 'Disabled';
-    
-    // Get provider info
-    const provider = this.getProviderInfo(agent.llmId);
-    
-    return `
-      <div class="agent-card ${enabledClass}" data-agent-id="${agent.id}" style="
-        background: var(--background-secondary);
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 12px;
-        padding: 16px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-      ">
-        <div class="agent-header" style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 12px;">
-          <div style="flex: 1;">
-            <h4 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 600; color: var(--text-normal);">
-              ${this.escapeHtml(agent.name)}
-            </h4>
-            <div class="agent-status" style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;">
-              <span class="status-badge" style="
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                padding: 2px 8px;
-                border-radius: 12px;
-                background: ${agent.enabled ? 'rgba(72, 187, 120, 0.1)' : 'rgba(156, 163, 175, 0.1)'};
-                color: ${agent.enabled ? 'var(--text-success)' : 'var(--text-muted)'};
-                border: 1px solid ${agent.enabled ? 'rgba(72, 187, 120, 0.3)' : 'rgba(156, 163, 175, 0.3)'};
-              ">
-                ${statusIcon} ${statusText}
-              </span>
-            </div>
-          </div>
-          <div class="agent-menu" style="margin-left: 12px;">
-            <button class="agent-menu-btn" data-action="toggle-menu" data-agent-id="${agent.id}" style="
-              background: none;
-              border: none;
-              cursor: pointer;
-              font-size: 16px;
-              padding: 4px;
-              border-radius: 4px;
-              color: var(--text-muted);
-              transition: all 0.2s ease;
-            ">⋮</button>
-          </div>
-        </div>
-        
-        <div class="agent-description" style="
-          color: var(--text-muted);
-          font-size: 14px;
-          line-height: 1.4;
-          margin-bottom: 12px;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        ">
-          ${this.escapeHtml(agent.description)}
-        </div>
-        
-        <div class="agent-meta" style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 12px;
-          color: var(--text-faint);
-        ">
-          <div class="provider-info">
-            <span style="
-              background: var(--background-primary);
-              padding: 2px 6px;
-              border-radius: 4px;
-              border: 1px solid var(--background-modifier-border);
-            ">
-              ${provider}
-            </span>
-          </div>
-          <div class="agent-actions" style="display: flex; gap: 8px;">
-            <button class="agent-action-btn" data-action="test-agent" data-agent-id="${agent.id}" style="
-              background: none;
-              border: none;
-              cursor: pointer;
-              font-size: 12px;
-              color: var(--text-muted);
-              padding: 4px 8px;
-              border-radius: 4px;
-              transition: all 0.2s ease;
-            ">🧪 Test</button>
-            <button class="agent-action-btn" data-action="edit-agent" data-agent-id="${agent.id}" style="
-              background: none;
-              border: none;
-              cursor: pointer;
-              font-size: 12px;
-              color: var(--text-muted);
-              padding: 4px 8px;
-              border-radius: 4px;
-              transition: all 0.2s ease;
-            ">✏️ Edit</button>
-            <button class="agent-action-btn" data-action="toggle-agent" data-agent-id="${agent.id}" style="
-              background: none;
-              border: none;
-              cursor: pointer;
-              font-size: 12px;
-              color: var(--text-muted);
-              padding: 4px 8px;
-              border-radius: 4px;
-              transition: all 0.2s ease;
-            ">${agent.enabled ? '⏸️' : '▶️'} ${agent.enabled ? 'Disable' : 'Enable'}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  private renderActionButtons(): string {
-    if (!this.state.isEnabled || !this.state.hasProviders) {
-      return '';
-    }
-
-    return `
-      <div class="agent-actions-bar" style="
-        display: flex;
-        gap: 12px;
-        justify-content: flex-start;
-        padding-top: 16px;
-        border-top: 1px solid var(--background-modifier-border);
-      ">
-        <button class="btn btn-primary" data-action="create-agent" style="
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        ">
-          <span>🎯</span>
-          Create Agent
-        </button>
-        
-        <button class="btn btn-secondary" data-action="import-template" style="
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        ">
-          <span>📋</span>
-          From Template
-        </button>
-        
-        ${this.state.agents.length > 0 ? `
-          <button class="btn btn-outline" data-action="test-all-agents" style="
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-          ">
-            <span>🧪</span>
-            Test All
-          </button>
-        ` : ''}
-      </div>
-    `;
-  }
-
-  private getProviderInfo(llmId: string): string {
-    // This would normally look up the provider from settings
-    // For now, return a placeholder
-    return 'AI Provider';
-  }
-
-  private escapeHtml(unsafe: string): string {
-    return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  attachEvents(container: HTMLElement): void {
-    // Create Agent button
-    const createBtn = container.querySelector('[data-action="create-agent"]');
-    if (createBtn) {
-      createBtn.addEventListener('click', async () => {
-        await this.handleCreateAgent();
-      });
-    }
-
-    // Import Template button
-    const templateBtn = container.querySelector('[data-action="import-template"]');
-    if (templateBtn) {
-      templateBtn.addEventListener('click', async () => {
-        await this.handleImportTemplate();
-      });
-    }
-
-    // Test All button
-    const testAllBtn = container.querySelector('[data-action="test-all-agents"]');
-    if (testAllBtn) {
-      testAllBtn.addEventListener('click', async () => {
-        await this.handleTestAllAgents();
-      });
-    }
-
-    // Agent action buttons
-    const agentActionBtns = container.querySelectorAll('.agent-action-btn');
-    agentActionBtns.forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const target = e.target as HTMLElement;
-        const action = target.getAttribute('data-action');
-        const agentId = target.getAttribute('data-agent-id');
-        
-        if (action && agentId) {
-          await this.handleAgentAction(action, agentId);
-        }
-      });
-    });
-
-    // Agent card hover effects
-    const agentCards = container.querySelectorAll('.agent-card');
-    agentCards.forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        (card as HTMLElement).style.borderColor = 'var(--interactive-hover)';
-        (card as HTMLElement).style.transform = 'translateY(-2px)';
-        (card as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-      });
-
-      card.addEventListener('mouseleave', () => {
-        (card as HTMLElement).style.borderColor = 'var(--background-modifier-border)';
-        (card as HTMLElement).style.transform = 'translateY(0)';
-        (card as HTMLElement).style.boxShadow = 'none';
-      });
-
-      // Click to edit
-      card.addEventListener('click', (e) => {
-        if (!(e.target as HTMLElement).closest('.agent-action-btn')) {
-          const agentId = card.getAttribute('data-agent-id');
-          if (agentId) {
-            this.handleAgentAction('edit-agent', agentId);
-          }
-        }
-      });
-    });
-  }
-
-  private async handleCreateAgent(): Promise<void> {
-    const modal = new AgentBuilderModal(
-      this.app,
-      this.plugin,
-      null,
-      async (config: AgentConfig) => {
-        await this.onAction('create-agent', config);
-      }
-    );
-    modal.open();
-  }
-
-  private async handleImportTemplate(): Promise<void> {
-    // Show template selection modal
-    await this.handleCreateAgent(); // For now, same as create - template selection is built in
-  }
-
-  private async handleTestAllAgents(): Promise<void> {
-    await this.onAction('test-all-agents');
-  }
-
-  private async handleAgentAction(action: string, agentId: string): Promise<void> {
-    const agent = this.state.agents.find(a => a.id === agentId);
-    if (!agent) return;
-
-    switch (action) {
-      case 'edit-agent':
-        const modal = new AgentBuilderModal(
-          this.app,
-          this.plugin,
-          agent,
-          async (config: AgentConfig) => {
-            await this.onAction('update-agent', { id: agentId, config });
-          }
-        );
-        modal.open();
-        break;
-      
-      case 'test-agent':
-        await this.onAction('test-agent', { agentId });
-        break;
-      
-      case 'toggle-agent':
-        await this.onAction('toggle-agent', { agentId, enabled: !agent.enabled });
-        break;
-        
-      case 'delete-agent':
-        if (confirm(`Are you sure you want to delete "${agent.name}"?`)) {
-          await this.onAction('delete-agent', { agentId });
-        }
-        break;
-    }
-  }
-
-  update(newState: Partial<AgentManagementState>): void {
-    this.state = { ...this.state, ...newState };
-  }
-
-  getState(): AgentManagementState {
-    return this.state;
   }
 }
