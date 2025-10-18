@@ -172,11 +172,9 @@ export function createResponseCard(
     const infoDiv = header.createDiv();
     infoDiv.style.fontSize = '0.9em';
     infoDiv.style.color = 'var(--text-muted)';
-    infoDiv.innerHTML = `
-        <strong>Agent:</strong> ${response.agentUsed} |
-        <strong>Model:</strong> ${response.llmProvider} (${response.model}) |
-        <strong>Time:</strong> ${response.executionTime}ms
-    `;
+    // Avoid innerHTML to prevent injection from user-controlled strings
+    const infoText = `Agent: ${response.agentUsed} | Model: ${response.llmProvider} (${response.model}) | Time: ${response.executionTime}ms`;
+    infoDiv.setText(infoText);
 
     // Usage stats (if available)
     if (response.usage) {
@@ -184,20 +182,16 @@ export function createResponseCard(
         usageDiv.style.fontSize = '0.85em';
         usageDiv.style.color = 'var(--text-muted)';
         usageDiv.style.marginTop = '5px';
-        usageDiv.innerHTML = `
-            <strong>Tokens:</strong> ${response.usage.totalTokens}
-            (${response.usage.promptTokens} prompt + ${response.usage.completionTokens} completion)
-        `;
+        const usageText = `Tokens: ${response.usage.totalTokens} (${response.usage.promptTokens} prompt + ${response.usage.completionTokens} completion)`;
+        usageDiv.setText(usageText);
     }
 
     // Answer content
     const contentDiv = card.createDiv({ cls: 'response-content' });
     contentDiv.style.marginBottom = '15px';
 
-    // Render markdown (simplified - you might want to use a proper markdown renderer)
-    contentDiv.innerHTML = response.answer
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n/g, '<br>');
+    // Render markdown safely (bold + line breaks only)
+    contentDiv.innerHTML = renderSafeMarkdown(response.answer);
 
     // Sources section
     if (response.sources.length > 0) {
@@ -214,17 +208,37 @@ export function createResponseCard(
         sourcesList.style.fontSize = '0.85em';
         sourcesList.style.color = 'var(--text-muted)';
 
-        response.sources.forEach((source, index) => {
+        response.sources.forEach((source) => {
             const li = sourcesList.createEl('li');
-            li.innerHTML = `
-                <strong>${source.document_title}</strong> -
-                Section ${source.section}${source.section_title ? ': ' + source.section_title : ''}
-                (Page ${source.page_reference})
-            `;
+            const title = source.document_title || 'Untitled';
+            const sectionTitle = source.section_title ? `: ${source.section_title}` : '';
+            const text = `${title} - Section ${source.section}${sectionTitle} (Page ${source.page_reference})`;
+            li.setText(text);
         });
     }
 
     return card;
+}
+
+/**
+ * Very small, safe markdown renderer supporting:
+ * - **bold**
+ * - line breaks (\n)
+ * All content is HTML-escaped first to prevent XSS.
+ */
+function renderSafeMarkdown(raw: string): string {
+    const escaped = escapeHtml(raw);
+    const withBold = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    return withBold.replace(/\n/g, '<br>');
+}
+
+function escapeHtml(input: string): string {
+    return input
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 /**

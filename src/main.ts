@@ -183,7 +183,30 @@ export default class RiskManagementPlugin extends Plugin {
      * Generate unique ID
      */
     generateId(): string {
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Prefer cryptographically strong UUIDs when available
+        try {
+            // @ts-ignore - crypto may be available in browser/Electron context
+            if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+                return (crypto as any).randomUUID();
+            }
+            // Fallback: use secure random bytes
+            // @ts-ignore - window.crypto may exist in runtime
+            const cryptoObj: Crypto | undefined = (typeof window !== 'undefined' ? window.crypto : undefined) as any;
+            if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+                const bytes = new Uint8Array(16);
+                cryptoObj.getRandomValues(bytes);
+                // Format as UUIDv4-like string
+                bytes[6] = (bytes[6] & 0x0f) | 0x40;
+                bytes[8] = (bytes[8] & 0x3f) | 0x80;
+                const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0'));
+                return `${hex[0]}${hex[1]}${hex[2]}${hex[3]}-${hex[4]}${hex[5]}-${hex[6]}${hex[7]}-${hex[8]}${hex[9]}-${hex[10]}${hex[11]}${hex[12]}${hex[13]}${hex[14]}${hex[15]}`;
+            }
+        } catch {
+            // ignore and fall back below
+        }
+        // Last resort fallback (non-crypto)
+        const random = Math.random().toString(36).slice(2);
+        return `${Date.now()}-${random}`;
     }
 
     /**
@@ -568,7 +591,10 @@ class AgentQueryModal extends Modal {
                     const sourcesList = responseDiv.createEl('ul');
                     response.sources.forEach(source => {
                         const li = sourcesList.createEl('li');
-                        li.textContent = `${source.documentTitle} - ${source.section}`;
+                        // Use correct metadata keys from ChunkMetadata
+                        const title = (source as any).document_title || (source as any).documentTitle || 'Untitled';
+                        const section = (source as any).section || '';
+                        li.textContent = `${title} - ${section}`;
                     });
                 }
 
