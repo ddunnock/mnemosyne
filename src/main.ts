@@ -11,7 +11,7 @@ import { PLUGIN_NAME } from './constants';
 
 // Import modules
 import { KeyManager } from './encryption/keyManager';
-import { RiskManagementSettingTab } from './ui/settingsTab';
+import { MnemosyneSettingTab } from './ui/settingsTab';
 import { RAGRetriever } from './rag/retriever';
 import { LLMManager } from './llm/llmManager';
 import { InitializationManager } from './utils/initializationManager';
@@ -52,7 +52,7 @@ export default class RiskManagementPlugin extends Plugin {
         });
 
         // Add settings tab
-        this.addSettingTab(new RiskManagementSettingTab(this.app, this));
+        this.addSettingTab(new MnemosyneSettingTab(this.app, this));
 
         // Register commands
         this.registerCommands();
