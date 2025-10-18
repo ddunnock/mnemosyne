@@ -89,12 +89,12 @@ export class VectorStore {
     /**
      * Insert a single chunk with its embedding
      */
-    async insert(
+    insert(
         chunkId: string,
         content: string,
         embedding: number[],
         metadata: ChunkMetadata
-    ): Promise<void> {
+    ): void {
         if (!this.index) {
             this.index = this.createEmptyIndex(embedding.length);
         }
@@ -124,12 +124,12 @@ export class VectorStore {
     /**
      * Insert multiple chunks in batch
      */
-    async insertBatch(entries: Array<{
+    insertBatch(entries: Array<{
         chunkId: string;
         content: string;
         embedding: number[];
         metadata: ChunkMetadata;
-    }>): Promise<void> {
+    }>): void {
         if (!entries || entries.length === 0) return;
 
         if (!this.index) {
@@ -137,15 +137,15 @@ export class VectorStore {
         }
 
         for (const entry of entries) {
-            await this.insert(entry.chunkId, entry.content, entry.embedding, entry.metadata);
+            this.insert(entry.chunkId, entry.content, entry.embedding, entry.metadata);
         }
     }
 
     /**
      * Upsert entry (insert or update)
      */
-    async upsert(entry: VectorEntry): Promise<void> {
-        await this.insert(entry.id, entry.content, entry.embedding, entry.metadata);
+    upsert(entry: VectorEntry): void {
+        this.insert(entry.id, entry.content, entry.embedding, entry.metadata);
     }
 
     /**

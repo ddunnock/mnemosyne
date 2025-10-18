@@ -108,14 +108,14 @@ export class ChunkIngestor {
             console.log(`Loaded ${totalChunks} chunks from ${files.length} files`);
 
             // Ingest chunks in batches
-            const batchSize = 10; // ← REDUCE from 10 to 5
+            const batchSize = 10;
 
             for (let i = 0; i < allChunks.length; i += batchSize) {
                 const batch = allChunks.slice(i, i + batchSize);
 
                 // Add delay between batches to respect rate limits
                 if (i > 0) {
-                    await this.delay(200); // ← ADD 2 second delay between batches
+                    await this.delay(2000); // 2 second delay to avoid API rate limits
                 }
 
                 // Report progress
@@ -246,7 +246,7 @@ export class ChunkIngestor {
                     }
 
                     // Insert into vector store
-                    await this.vectorStore.insert(
+                    this.vectorStore.insert(
                         chunk.chunk_id,
                         chunk.content,
                         embedding,
@@ -311,7 +311,7 @@ export class ChunkIngestor {
             const embedding = await this.embeddings.generateEmbedding(chunk.content);
 
             // Add to vector store
-            await this.vectorStore.insert(
+            this.vectorStore.insert(
                 chunk.chunk_id,
                 chunk.content,
                 embedding,

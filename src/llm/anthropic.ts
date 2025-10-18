@@ -140,7 +140,7 @@ export class AnthropicProvider extends BaseLLMProvider {
                 path: urlObj.pathname + urlObj.search,
                 method: method,
                 headers: headers,
-                rejectUnauthorized: false // Handle SSL certificate issues
+                // SSL certificate verification enabled by default for security
             };
 
             const req = https.request(requestOptions, (res) => {
