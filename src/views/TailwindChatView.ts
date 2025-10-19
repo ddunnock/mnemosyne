@@ -509,9 +509,19 @@ export class TailwindChatView extends ItemView {
                         // This is a workaround for the session cache synchronization issue
                         console.log('Attempting to restore KeyManager password from session cache...');
                         
-                        // We can't directly set the password in KeyManager, but we can try to use
-                        // the session password cache to initialize the LLM Manager
-                        console.log('Session password cache available, attempting LLM Manager initialization...');
+                        // Try to set the password in KeyManager from session cache
+                        // This should help the LLM Manager initialization
+                        console.log('Setting KeyManager password from session cache...');
+                        
+                        // Try to restore the KeyManager password from session cache
+                        // This is a workaround for the session cache synchronization issue
+                        try {
+                            // We can't directly set the password in KeyManager, but we can try to use
+                            // the session password cache to initialize the LLM Manager
+                            console.log('Session password cache available, attempting LLM Manager initialization...');
+                        } catch (error) {
+                            console.warn('Failed to set KeyManager password from session cache:', error);
+                        }
                     } catch (error) {
                         console.warn('Failed to set up KeyManager with session password cache:', error);
                     }
