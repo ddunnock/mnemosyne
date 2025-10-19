@@ -186,6 +186,7 @@ export class VectorStore {
 
         // Calculate similarities
         const results: Array<{ entry: VectorEntry; score: number }> = [];
+        console.log(`Searching ${candidates.length} candidates with scoreThreshold: ${scoreThreshold}`);
 
         for (const entry of candidates) {
             const score = OpenAIEmbeddingProvider.cosineSimilarity(
@@ -196,6 +197,11 @@ export class VectorStore {
             if (score >= scoreThreshold) {
                 results.push({ entry, score });
             }
+        }
+        
+        console.log(`Found ${results.length} results above threshold ${scoreThreshold}`);
+        if (results.length > 0) {
+            console.log(`Top scores: ${results.slice(0, 3).map(r => r.score.toFixed(4)).join(', ')}`);
         }
 
         // Sort by score (descending)
@@ -340,12 +346,15 @@ export class VectorStore {
         try {
             const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
+            
+            console.log(`Attempting to save vector store to: ${indexFile}`);
 
             const indexData = JSON.stringify(this.index, null, 2);
             await this.app.vault.adapter.write(indexFile, indexData);
 
             console.log(`Vector store saved: ${this.index.totalChunks} chunks`);
         } catch (error) {
+            console.error(`Failed to save vector store:`, error);
             throw new RAGError('Failed to save vector store index', error);
         }
     }
@@ -356,12 +365,15 @@ export class VectorStore {
         try {
             const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
+            
+            console.log(`Attempting to load vector store from: ${indexFile}`);
 
             const indexData = await this.app.vault.adapter.read(indexFile);
             this.index = JSON.parse(indexData);
 
             console.log(`Vector store loaded: ${this.index?.totalChunks || 0} chunks`);
         } catch (error) {
+            console.error(`Failed to load vector store:`, error);
             throw new RAGError('Failed to load vector store index', error);
         }
     }

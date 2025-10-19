@@ -249,7 +249,7 @@ Guidelines:
         isPermanent: true, // Mark as permanent so it can't be deleted
         retrievalSettings: {
             topK: 5,
-            scoreThreshold: 0.7,
+            scoreThreshold: 0.3,  // Lowered from 0.7 to be more permissive
             searchStrategy: SearchStrategy.HYBRID
         },
         metadataFilters: {},
