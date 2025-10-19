@@ -497,6 +497,22 @@ export class TailwindChatView extends ItemView {
             if (!keyManagerReady && !sessionPasswordReady) {
                 console.log('Neither KeyManager nor session password ready - cannot initialize LLM providers');
                 
+                // Try to restore password from session cache if it exists but wasn't detected
+                if (this.plugin.sessionPasswordCache) {
+                    console.log('Session password cache exists but was not detected - attempting to restore KeyManager');
+                    try {
+                        console.log('Attempting to restore KeyManager from session cache...');
+                        if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
+                            console.log('Attempting to initialize LLM Manager with session password cache...');
+                            await this.plugin.llmManager.initialize();
+                            console.log('LLM Manager initialized with session password cache');
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('Failed to initialize LLM Manager with session password cache:', error);
+                    }
+                }
+                
                 // First, try to restore password from KeyManager if it exists
                 if (this.plugin.keyManager) {
                     console.log('Attempting to restore password from KeyManager...');
@@ -525,6 +541,9 @@ export class TailwindChatView extends ItemView {
                             } catch (error) {
                                 console.warn('Failed to initialize LLM Manager with existing KeyManager password:', error);
                             }
+                        } else {
+                            console.log('KeyManager does not have password - this explains why we need to prompt again');
+                            console.log('This suggests the KeyManager password was cleared or not properly stored');
                         }
                     } catch (error) {
                         console.warn('Failed to check KeyManager password:', error);
