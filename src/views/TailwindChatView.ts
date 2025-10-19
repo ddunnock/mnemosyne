@@ -506,8 +506,25 @@ export class TailwindChatView extends ItemView {
                         console.log('KeyManager has password:', hasPassword);
                         
                         if (hasPassword) {
-                            // Try to get the password from KeyManager and set it in session cache
-                            console.log('KeyManager has password but session cache is empty - this is a session cache issue');
+                            // KeyManager has password but session cache is empty - try to restore it
+                            console.log('KeyManager has password but session cache is empty - attempting to restore session cache');
+                            
+                            // Try to restore the password from KeyManager to session cache
+                            // This is a workaround for the session cache synchronization issue
+                            try {
+                                // We can't directly get the password from KeyManager, but we can try to initialize
+                                // the LLM Manager directly since KeyManager is ready
+                                if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
+                                    console.log('Attempting to initialize LLM Manager with existing KeyManager password...');
+                                    await this.plugin.llmManager.initialize();
+                                    console.log('LLM Manager initialized with existing KeyManager password');
+                                    
+                                    // If successful, we don't need to prompt for password
+                                    return;
+                                }
+                            } catch (error) {
+                                console.warn('Failed to initialize LLM Manager with existing KeyManager password:', error);
+                            }
                         }
                     } catch (error) {
                         console.warn('Failed to check KeyManager password:', error);
