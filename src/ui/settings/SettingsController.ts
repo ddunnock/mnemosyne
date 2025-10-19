@@ -2226,6 +2226,11 @@ export class MnemosyneSettingsController {
                 onSuccess: async (password) => {
                     // Verify that the password is actually set in KeyManager
                     if (this.keyManager.hasMasterPassword()) {
+                        // Cache the password in the plugin's session cache for persistence
+                        if (this.plugin.sessionPasswordCache !== undefined) {
+                            this.plugin.sessionPasswordCache = password;
+                            console.log('✓ Master password cached for session persistence');
+                        }
                         resolve(true);
                     } else {
                         console.error('Password verification succeeded but KeyManager does not have password');
