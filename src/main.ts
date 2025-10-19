@@ -71,7 +71,7 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Add ribbon icon with custom Mnemosyne SVG
         const ribbonIcon = this.addRibbonIcon('brain', 'Mnemosyne - AI Knowledge Assistant', async () => {
-            await this.openAgentPalette();
+            await this.openTailwindChatView();
         });
         
         // Set custom SVG icon (24px version for ribbon)
@@ -594,6 +594,15 @@ export default class RiskManagementPlugin extends Plugin {
      * Open Tailwind chat view
      */
     private async openTailwindChatView(): Promise<void> {
+        // Ensure master password is available for chat functionality
+        if (this.settings.masterPassword?.isSet && !this.keyManager.hasMasterPassword()) {
+            const passwordAvailable = await this.ensureMasterPasswordSession();
+            if (!passwordAvailable) {
+                new Notice('Master password is required to use chat. Please configure it in Security settings.');
+                return;
+            }
+        }
+
         // Check if chat view is already open
         const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TAILWIND_CHAT);
         if (existingLeaves.length > 0) {
