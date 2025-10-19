@@ -486,27 +486,42 @@ export class TailwindChatView extends ItemView {
      */
     private async attemptAutoInitialization(): Promise<void> {
         try {
-            console.log('Attempting automatic initialization...');
+            console.log('=== Attempting Automatic Initialization ===');
+            
+            // First, ensure KeyManager is ready (needed for LLM providers)
+            if (this.plugin.keyManager && !this.plugin.keyManager.isReady()) {
+                console.log('KeyManager not ready - cannot initialize LLM providers');
+                return;
+            }
             
             // Try to initialize LLM Manager if not ready
             if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
                 console.log('Initializing LLM Manager...');
                 await this.plugin.llmManager.initialize();
+                console.log('LLM Manager initialization completed');
+            } else {
+                console.log('LLM Manager already ready');
             }
             
             // Try to initialize Agent Manager if not ready
             if (this.plugin.agentManager && !this.plugin.agentManager.isReady()) {
                 console.log('Initializing Agent Manager...');
                 await this.plugin.agentManager.initialize();
+                console.log('Agent Manager initialization completed');
+            } else {
+                console.log('Agent Manager already ready');
             }
             
             // Try to initialize RAG Retriever if not ready
             if (this.plugin.ragRetriever && !this.plugin.ragRetriever.isReady()) {
                 console.log('Initializing RAG Retriever...');
                 await this.plugin.ragRetriever.initialize();
+                console.log('RAG Retriever initialization completed');
+            } else {
+                console.log('RAG Retriever already ready');
             }
             
-            console.log('Automatic initialization completed');
+            console.log('=== Automatic initialization completed ===');
         } catch (error) {
             console.warn('Automatic initialization failed:', error);
         }
@@ -522,30 +537,48 @@ export class TailwindChatView extends ItemView {
     }> {
         const missingComponents: string[] = [];
         
+        // Debug: Check each component
+        console.log('=== Initialization Status Check ===');
+        
         // Check if LLM Manager is ready
-        if (!this.plugin.llmManager || !this.plugin.llmManager.isReady()) {
+        const llmManagerReady = this.plugin.llmManager && this.plugin.llmManager.isReady();
+        console.log('LLM Manager ready:', llmManagerReady);
+        if (!llmManagerReady) {
             missingComponents.push('LLM Provider');
         }
         
         // Check if Agent Manager is ready
-        if (!this.plugin.agentManager || !this.plugin.agentManager.isReady()) {
+        const agentManagerReady = this.plugin.agentManager && this.plugin.agentManager.isReady();
+        console.log('Agent Manager ready:', agentManagerReady);
+        if (!agentManagerReady) {
             missingComponents.push('Agent Manager');
         }
         
         // Check if RAG Retriever is ready (optional but good to check)
-        if (this.plugin.ragRetriever && !this.plugin.ragRetriever.isReady()) {
+        const ragRetrieverReady = !this.plugin.ragRetriever || this.plugin.ragRetriever.isReady();
+        console.log('RAG Retriever ready:', ragRetrieverReady);
+        if (!ragRetrieverReady) {
             missingComponents.push('RAG System');
         }
         
         // Check if agents exist
+        console.log('Agents count:', this.agents.length);
         if (this.agents.length === 0) {
             missingComponents.push('Agents');
         }
         
-        // Check if LLM providers exist
+        // Check if LLM providers exist in settings
         const llmProviders = this.plugin.settings.llmConfigs || [];
+        console.log('LLM Providers in settings:', llmProviders.length);
         if (llmProviders.length === 0) {
             missingComponents.push('LLM Providers');
+        }
+        
+        // Check if KeyManager is ready (needed for LLM providers)
+        const keyManagerReady = this.plugin.keyManager && this.plugin.keyManager.isReady();
+        console.log('KeyManager ready:', keyManagerReady);
+        if (!keyManagerReady) {
+            missingComponents.push('Master Password');
         }
         
         const isReady = missingComponents.length === 0;
