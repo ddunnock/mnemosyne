@@ -1,10 +1,14 @@
 /**
- * Agent Builder Modal
+ * Agent Builder Modal - Complete Implementation
  *
- * UI for creating and editing RAG agents
+ * Modal for creating and editing AI agents with full configuration options
+ *
+ * Note: If you see TypeScript errors about CSS variables (e.g., var(--background-secondary)),
+ * add the css-variables.d.ts file to your project's src/types/ directory to suppress them.
+ * The CSS variables work correctly at runtime in Obsidian.
  */
 
-import { App, Modal, Setting, Notice, TextComponent, DropdownComponent } from 'obsidian';
+import { App, Modal, Setting, Notice, TextComponent, DropdownComponent, TextAreaComponent } from 'obsidian';
 import RiskManagementPlugin from '../main';
 import { AgentConfig, MetadataFilters } from '../types';
 import { SearchStrategy } from '../constants';
@@ -17,9 +21,9 @@ export class AgentBuilderModal extends Modal {
 
     // Form fields
     private nameInput: TextComponent;
-    private descriptionInput: HTMLTextAreaElement;
+    private descriptionTextarea: HTMLTextAreaElement;
     private llmSelect: DropdownComponent;
-    private systemPromptInput: HTMLTextAreaElement;
+    private systemPromptTextarea: HTMLTextAreaElement;
     private topKInput: TextComponent;
     private thresholdInput: TextComponent;
     private strategySelect: DropdownComponent;
@@ -42,10 +46,15 @@ export class AgentBuilderModal extends Modal {
         contentEl.empty();
         contentEl.addClass('agent-builder-modal');
 
+        // Add custom styles
+        this.addCustomStyles();
+
         // Title
-        contentEl.createEl('h2', {
+        const titleEl = contentEl.createEl('h2', {
             text: this.agent ? 'Edit Agent' : 'Create New Agent'
         });
+        titleEl.style.marginTop = '0';
+        titleEl.style.marginBottom = '20px';
 
         // Template selector (only for new agents)
         if (!this.agent) {
@@ -72,74 +81,122 @@ export class AgentBuilderModal extends Modal {
     }
 
     /**
+     * Add custom modal styles
+     */
+    private addCustomStyles() {
+        const { contentEl } = this;
+
+        // Set modal width
+        const modalEl = contentEl.closest('.modal') as HTMLElement;
+        if (modalEl) {
+            modalEl.style.width = '700px';
+            modalEl.style.maxWidth = '90vw';
+        }
+
+        // Add scrolling to content
+        contentEl.style.maxHeight = '80vh';
+        contentEl.style.overflowY = 'auto';
+    }
+
+    /**
      * Template selector for new agents
      */
     private createTemplateSelector(containerEl: HTMLElement) {
-        const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
-        section.style.padding = '15px';
+        const section = containerEl.createDiv({ cls: 'modal-section template-section' });
+        section.style.marginBottom = '25px';
+        section.style.padding = '20px';
         section.style.backgroundColor = 'var(--background-secondary)';
         section.style.borderRadius = '8px';
+        section.style.border = '1px solid var(--background-modifier-border)';
 
-        section.createEl('h3', { text: '🎯 Start from a Template' });
+        const header = section.createEl('h3', { text: '🎯 Start from a Template' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '10px';
 
         const desc = section.createDiv({ cls: 'setting-item-description' });
+        desc.style.marginBottom = '15px';
+        desc.style.color = 'var(--text-muted)';
         desc.setText(
             'Choose a pre-configured template or start from scratch. Templates provide optimized prompts and settings for specific use cases.'
         );
 
-        const templatesDiv = section.createDiv();
-        templatesDiv.style.display = 'grid';
-        templatesDiv.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-        templatesDiv.style.gap = '10px';
-        templatesDiv.style.marginTop = '15px';
+        // Template grid
+        const templateGrid = section.createDiv({ cls: 'template-grid' });
+        templateGrid.style.display = 'grid';
+        templateGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+        templateGrid.style.gap = '12px';
 
-        // Add "Blank" option
-        const blankCard = this.createTemplateCard(templatesDiv, {
+        // Get all templates
+        const templates = getAllTemplates();
+
+        // Add "Blank" template first
+        this.createTemplateCard(templateGrid, {
             id: 'blank',
             name: 'Blank Agent',
-            description: 'Start with an empty configuration',
-            icon: '📄'
+            description: 'Start from scratch with a blank template',
+            icon: '📝',
+            systemPrompt: '',
+            retrievalSettings: {
+                topK: 5,
+                scoreThreshold: 0.7,
+                searchStrategy: SearchStrategy.HYBRID
+            }
         });
 
-        // Add template cards
-        getAllTemplates().forEach(({ id, template }) => {
-            this.createTemplateCard(templatesDiv, {
+        // Add all other templates
+        templates.forEach(({ id, template }) => {
+            this.createTemplateCard(templateGrid, {
                 id,
                 name: template.name,
                 description: template.description,
-                icon: template.icon || '🤖'
+                icon: template.icon,
+                systemPrompt: template.systemPrompt,
+                retrievalSettings: template.retrievalSettings,
+                metadataFilters: template.metadataFilters
             });
         });
     }
 
     /**
-     * Create a template selection card
+     * Create a template card
      */
     private createTemplateCard(
         container: HTMLElement,
-        template: { id: string; name: string; description: string; icon?: string }
+        template: {
+            id: string;
+            name: string;
+            description: string;
+            icon?: string;
+            systemPrompt?: string;
+            retrievalSettings?: any;
+            metadataFilters?: any;
+        }
     ): HTMLElement {
         const card = container.createDiv({ cls: 'template-card' });
-        card.style.border = '1px solid var(--background-modifier-border)';
+        card.style.border = '2px solid var(--background-modifier-border)';
         card.style.borderRadius = '8px';
-        card.style.padding = '15px';
+        card.style.padding = '16px';
         card.style.cursor = 'pointer';
-        card.style.transition = 'all 0.2s';
+        card.style.transition = 'all 0.2s ease';
+        card.style.textAlign = 'center';
 
-        card.onmouseover = () => {
+        // Hover effects
+        card.addEventListener('mouseenter', () => {
             card.style.borderColor = 'var(--interactive-accent)';
             card.style.backgroundColor = 'var(--background-modifier-hover)';
-        };
+            card.style.transform = 'translateY(-2px)';
+        });
 
-        card.onmouseout = () => {
+        card.addEventListener('mouseleave', () => {
             card.style.borderColor = 'var(--background-modifier-border)';
             card.style.backgroundColor = '';
-        };
+            card.style.transform = 'translateY(0)';
+        });
 
-        card.onclick = () => {
+        // Click handler
+        card.addEventListener('click', () => {
             this.loadTemplate(template.id);
-        };
+        });
 
         // Icon
         if (template.icon) {
@@ -150,13 +207,15 @@ export class AgentBuilderModal extends Modal {
 
         // Name
         const name = card.createDiv({ text: template.name });
-        name.style.fontWeight = 'bold';
-        name.style.marginBottom = '5px';
+        name.style.fontWeight = '600';
+        name.style.marginBottom = '6px';
+        name.style.fontSize = '14px';
 
         // Description
         const desc = card.createDiv({ text: template.description });
-        desc.style.fontSize = '0.85em';
+        desc.style.fontSize = '12px';
         desc.style.color = 'var(--text-muted)';
+        desc.style.lineHeight = '1.4';
 
         return card;
     }
@@ -180,7 +239,7 @@ export class AgentBuilderModal extends Modal {
 
         // Create agent config from template
         const now = Date.now();
-        const defaultLLM = this.plugin.settings.llmConfigs.find(c => c.enabled);
+        const defaultLLM = this.plugin.settings.llmConfigs.find((c: any) => c.enabled);
 
         if (!defaultLLM) {
             new Notice('Please configure an LLM provider first');
@@ -210,9 +269,11 @@ export class AgentBuilderModal extends Modal {
      */
     private createBasicInfoSection(containerEl: HTMLElement) {
         const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
+        section.style.marginBottom = '25px';
 
-        section.createEl('h3', { text: 'Basic Information' });
+        const header = section.createEl('h3', { text: 'Basic Information' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '15px';
 
         // Name
         new Setting(section)
@@ -220,9 +281,11 @@ export class AgentBuilderModal extends Modal {
             .setDesc('A descriptive name for this agent')
             .addText(text => {
                 this.nameInput = text;
-                text.setPlaceholder('e.g., Risk Assessment Specialist');
+                text.setPlaceholder('e.g., Research Analyst');
                 text.inputEl.style.width = '100%';
-                if (this.agent) text.setValue(this.agent.name);
+                if (this.agent) {
+                    text.setValue(this.agent.name);
+                }
             });
 
         // Description
@@ -230,13 +293,22 @@ export class AgentBuilderModal extends Modal {
             .setName('Description')
             .setDesc('Brief description of what this agent does');
 
-        this.descriptionInput = descSetting.controlEl.createEl('textarea', {
-            placeholder: 'e.g., Expert in risk identification and analysis procedures'
+        this.descriptionTextarea = descSetting.controlEl.createEl('textarea', {
+            placeholder: 'e.g., Expert in analyzing research papers and providing comprehensive summaries'
         });
-        this.descriptionInput.style.width = '100%';
-        this.descriptionInput.style.minHeight = '60px';
-        this.descriptionInput.style.resize = 'vertical';
-        if (this.agent) this.descriptionInput.value = this.agent.description;
+        this.descriptionTextarea.style.width = '100%';
+        this.descriptionTextarea.style.minHeight = '80px';
+        this.descriptionTextarea.style.resize = 'vertical';
+        this.descriptionTextarea.style.padding = '8px';
+        this.descriptionTextarea.style.borderRadius = '4px';
+        this.descriptionTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.descriptionTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.descriptionTextarea.style.color = 'var(--text-normal)';
+        this.descriptionTextarea.style.fontFamily = 'var(--font-text)';
+
+        if (this.agent) {
+            this.descriptionTextarea.value = this.agent.description;
+        }
     }
 
     /**
@@ -244,9 +316,11 @@ export class AgentBuilderModal extends Modal {
      */
     private createLLMSection(containerEl: HTMLElement) {
         const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
+        section.style.marginBottom = '25px';
 
-        section.createEl('h3', { text: 'LLM Provider' });
+        const header = section.createEl('h3', { text: 'LLM Provider' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '15px';
 
         new Setting(section)
             .setName('Provider')
@@ -255,12 +329,13 @@ export class AgentBuilderModal extends Modal {
                 this.llmSelect = dropdown;
 
                 // Add options
-                const enabledProviders = this.plugin.settings.llmConfigs.filter(c => c.enabled);
+                const enabledProviders = this.plugin.settings.llmConfigs.filter((c: any) => c.enabled);
 
                 if (enabledProviders.length === 0) {
                     dropdown.addOption('', 'No providers configured');
+                    dropdown.setDisabled(true);
                 } else {
-                    enabledProviders.forEach(config => {
+                    enabledProviders.forEach((config: any) => {
                         dropdown.addOption(
                             config.id,
                             `${config.name} (${config.provider} - ${config.model})`
@@ -269,6 +344,8 @@ export class AgentBuilderModal extends Modal {
 
                     if (this.agent) {
                         dropdown.setValue(this.agent.llmId);
+                    } else if (enabledProviders.length > 0) {
+                        dropdown.setValue(enabledProviders[0].id);
                     }
                 }
             });
@@ -279,34 +356,45 @@ export class AgentBuilderModal extends Modal {
      */
     private createSystemPromptSection(containerEl: HTMLElement) {
         const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
+        section.style.marginBottom = '25px';
 
-        section.createEl('h3', { text: 'System Prompt' });
+        const header = section.createEl('h3', { text: 'System Prompt' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '10px';
 
         const desc = section.createDiv({ cls: 'setting-item-description' });
-        desc.style.marginBottom = '10px';
+        desc.style.marginBottom = '12px';
+        desc.style.color = 'var(--text-muted)';
         desc.innerHTML = `
             Define how the agent should behave and respond. The prompt must include <code>{context}</code>
             where retrieved knowledge will be inserted.
         `;
 
-        this.systemPromptInput = section.createEl('textarea', {
+        this.systemPromptTextarea = section.createEl('textarea', {
             placeholder: 'You are an expert assistant...\n\nContext: {context}\n\nProvide detailed, actionable guidance...'
         });
-        this.systemPromptInput.style.width = '100%';
-        this.systemPromptInput.style.minHeight = '200px';
-        this.systemPromptInput.style.resize = 'vertical';
-        this.systemPromptInput.style.fontFamily = 'monospace';
+        this.systemPromptTextarea.style.width = '100%';
+        this.systemPromptTextarea.style.minHeight = '200px';
+        this.systemPromptTextarea.style.resize = 'vertical';
+        this.systemPromptTextarea.style.padding = '12px';
+        this.systemPromptTextarea.style.borderRadius = '4px';
+        this.systemPromptTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.systemPromptTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.systemPromptTextarea.style.color = 'var(--text-normal)';
+        this.systemPromptTextarea.style.fontFamily = 'var(--font-monospace)';
+        this.systemPromptTextarea.style.fontSize = '13px';
+        this.systemPromptTextarea.style.lineHeight = '1.6';
 
         if (this.agent) {
-            this.systemPromptInput.value = this.agent.systemPrompt;
+            this.systemPromptTextarea.value = this.agent.systemPrompt;
         } else {
-            this.systemPromptInput.value = `You are a helpful assistant with access to the Risk Management Handbook.
+            // Default system prompt
+            this.systemPromptTextarea.value = `You are a helpful AI assistant with access to the user's knowledge base.
 
 Context from knowledge base:
 {context}
 
-Provide clear, accurate, and actionable guidance based on the retrieved context.`;
+Please provide detailed, accurate, and helpful responses based on the context provided. Always cite your sources when referencing specific information from the knowledge base.`;
         }
     }
 
@@ -315,20 +403,24 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
      */
     private createRetrievalSection(containerEl: HTMLElement) {
         const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
+        section.style.marginBottom = '25px';
 
-        section.createEl('h3', { text: 'Retrieval Settings' });
+        const header = section.createEl('h3', { text: 'Retrieval Settings' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '15px';
 
         // Top K
         new Setting(section)
-            .setName('Top K')
-            .setDesc('Number of chunks to retrieve (1-20)')
+            .setName('Top K Results')
+            .setDesc('Number of relevant chunks to retrieve (1-20)')
             .addText(text => {
                 this.topKInput = text;
                 text.setPlaceholder('5');
                 text.inputEl.type = 'number';
                 text.inputEl.min = '1';
                 text.inputEl.max = '20';
+                text.inputEl.style.width = '100px';
+
                 if (this.agent) {
                     text.setValue(String(this.agent.retrievalSettings.topK));
                 } else {
@@ -339,14 +431,16 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
         // Score Threshold
         new Setting(section)
             .setName('Score Threshold')
-            .setDesc('Minimum similarity score (0.0 - 1.0)')
+            .setDesc('Minimum similarity score (0-1, lower is more lenient)')
             .addText(text => {
                 this.thresholdInput = text;
                 text.setPlaceholder('0.7');
                 text.inputEl.type = 'number';
                 text.inputEl.min = '0';
                 text.inputEl.max = '1';
-                text.inputEl.step = '0.05';
+                text.inputEl.step = '0.1';
+                text.inputEl.style.width = '100px';
+
                 if (this.agent) {
                     text.setValue(String(this.agent.retrievalSettings.scoreThreshold));
                 } else {
@@ -357,7 +451,7 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
         // Search Strategy
         new Setting(section)
             .setName('Search Strategy')
-            .setDesc('How to search for relevant chunks')
+            .setDesc('How to retrieve relevant content')
             .addDropdown(dropdown => {
                 this.strategySelect = dropdown;
                 dropdown.addOption(SearchStrategy.SEMANTIC, 'Semantic (embeddings only)');
@@ -377,26 +471,41 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
      */
     private createFiltersSection(containerEl: HTMLElement) {
         const section = containerEl.createDiv({ cls: 'modal-section' });
-        section.style.marginBottom = '20px';
+        section.style.marginBottom = '25px';
 
-        section.createEl('h3', { text: 'Metadata Filters (Optional)' });
+        const header = section.createEl('h3', { text: 'Metadata Filters (Optional)' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '10px';
 
         const desc = section.createDiv({ cls: 'setting-item-description' });
-        desc.style.marginBottom = '10px';
+        desc.style.marginBottom = '12px';
+        desc.style.color = 'var(--text-muted)';
         desc.innerHTML = `
-            Filter retrieved chunks by metadata. Enter JSON format. Example:<br>
-            <code>{ "process_phase": ["assessment", "identification"], "content_type": ["procedure"] }</code>
+            Filter retrieved chunks by metadata fields. Enter JSON format. Leave empty for no filtering.<br><br>
+            <strong>Example:</strong><br>
+            <code style="display: block; padding: 8px; background-color: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 4px; margin-top: 4px; font-family: var(--font-monospace);">
+{
+  "content_type": ["research", "documentation"],
+  "tags": ["important", "reference"]
+}
+            </code>
         `;
 
         this.filtersTextarea = section.createEl('textarea', {
-            placeholder: '{\n  "process_phase": ["assessment"],\n  "content_type": ["procedure", "concept"]\n}'
+            placeholder: '{\n  "content_type": ["research"],\n  "tags": ["important"]\n}'
         });
         this.filtersTextarea.style.width = '100%';
-        this.filtersTextarea.style.minHeight = '100px';
+        this.filtersTextarea.style.minHeight = '120px';
         this.filtersTextarea.style.resize = 'vertical';
-        this.filtersTextarea.style.fontFamily = 'monospace';
+        this.filtersTextarea.style.padding = '12px';
+        this.filtersTextarea.style.borderRadius = '4px';
+        this.filtersTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.filtersTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.filtersTextarea.style.color = 'var(--text-normal)';
+        this.filtersTextarea.style.fontFamily = 'var(--font-monospace)';
+        this.filtersTextarea.style.fontSize = '13px';
 
-        if (this.agent?.metadataFilters) {
+        if (this.agent?.metadataFilters && Object.keys(this.agent.metadataFilters).length > 0) {
             this.filtersTextarea.value = JSON.stringify(this.agent.metadataFilters, null, 2);
         }
     }
@@ -406,23 +515,29 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
      */
     private createActionsSection(containerEl: HTMLElement) {
         const actions = containerEl.createDiv({ cls: 'modal-actions' });
-        actions.style.marginTop = '20px';
+        actions.style.marginTop = '30px';
         actions.style.display = 'flex';
         actions.style.gap = '10px';
         actions.style.justifyContent = 'flex-end';
+        actions.style.paddingTop = '20px';
+        actions.style.borderTop = '1px solid var(--background-modifier-border)';
 
-        new Setting(actions)
-            .addButton(btn =>
-                btn
-                    .setButtonText('Cancel')
-                    .onClick(() => this.close())
-            )
-            .addButton(btn =>
-                btn
-                    .setButtonText('Save')
-                    .setCta()
-                    .onClick(() => this.save())
-            );
+        // Cancel button
+        const cancelBtn = actions.createEl('button', { text: 'Cancel' });
+        cancelBtn.style.padding = '8px 20px';
+        cancelBtn.style.cursor = 'pointer';
+        cancelBtn.addEventListener('click', () => {
+            this.close();
+        });
+
+        // Save button
+        const saveBtn = actions.createEl('button', { text: this.agent ? 'Save Changes' : 'Create Agent' });
+        saveBtn.addClass('mod-cta');
+        saveBtn.style.padding = '8px 20px';
+        saveBtn.style.cursor = 'pointer';
+        saveBtn.addEventListener('click', () => {
+            this.save();
+        });
     }
 
     /**
@@ -434,6 +549,7 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
             const name = this.nameInput.getValue().trim();
             if (!name) {
                 new Notice('Please enter an agent name');
+                this.nameInput.inputEl.focus();
                 return;
             }
 
@@ -443,37 +559,50 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
                 return;
             }
 
-            const systemPrompt = this.systemPromptInput.value.trim();
+            const systemPrompt = this.systemPromptTextarea.value.trim();
             if (!systemPrompt) {
                 new Notice('Please enter a system prompt');
+                this.systemPromptTextarea.focus();
                 return;
             }
 
             if (!systemPrompt.includes('{context}')) {
                 new Notice('System prompt must include {context} placeholder');
+                this.systemPromptTextarea.focus();
                 return;
             }
 
             const topK = parseInt(this.topKInput.getValue());
             if (isNaN(topK) || topK < 1 || topK > 20) {
                 new Notice('Top K must be between 1 and 20');
+                this.topKInput.inputEl.focus();
                 return;
             }
 
             const threshold = parseFloat(this.thresholdInput.getValue());
             if (isNaN(threshold) || threshold < 0 || threshold > 1) {
                 new Notice('Score threshold must be between 0 and 1');
+                this.thresholdInput.inputEl.focus();
                 return;
             }
 
             // Parse metadata filters
-            let metadataFilters: MetadataFilters = {};
+            let metadataFilters: MetadataFilters | undefined = undefined;
             const filtersText = this.filtersTextarea.value.trim();
             if (filtersText) {
                 try {
-                    metadataFilters = JSON.parse(filtersText);
+                    const parsed = JSON.parse(filtersText);
+                    // Validate it's an object
+                    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                        metadataFilters = parsed as MetadataFilters;
+                    } else {
+                        new Notice('Metadata filters must be a JSON object');
+                        this.filtersTextarea.focus();
+                        return;
+                    }
                 } catch (error) {
                     new Notice('Invalid JSON in metadata filters');
+                    this.filtersTextarea.focus();
                     return;
                 }
             }
@@ -483,7 +612,7 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
             const config: AgentConfig = {
                 id: this.agent?.id || this.plugin.generateId(),
                 name,
-                description: this.descriptionInput.value.trim(),
+                description: this.descriptionTextarea.value.trim(),
                 llmId,
                 systemPrompt,
                 retrievalSettings: {
@@ -497,11 +626,15 @@ Provide clear, accurate, and actionable guidance based on the retrieved context.
                 updatedAt: now
             };
 
-            // Save
+            // Call the save callback
             this.onSave(config);
-            new Notice(`Agent "${name}" saved successfully`);
+
+            // Show success message
+            new Notice(this.agent ? 'Agent updated successfully' : 'Agent created successfully');
+
+            // Close modal
             this.close();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error saving agent:', error);
             new Notice(`Error: ${error.message}`);
         }
