@@ -12,7 +12,7 @@
     "preserve:data": "./preserve-data.sh cleanup",
     "backup:data": "./preserve-data.sh backup",
     "restore:data": "./preserve-data.sh restore",
-    "build": "npm run build:tailwind && npm run build:svelte && tsc --noEmit && node esbuild.config.mjs production && npm run copy:manifest && npm run copy:assets",
+    "build": "npm run backup:data && npm run build:tailwind && npm run build:svelte && tsc --noEmit && node esbuild.config.mjs production && npm run copy:manifest && npm run copy:assets && npm run restore:data",
     "copy:manifest": "cp src/manifest.json dist/manifest.json",
     "copy:assets": "cp -r assets dist/",
     "build:tailwind": "cp src/styles.css dist/styles.css",
