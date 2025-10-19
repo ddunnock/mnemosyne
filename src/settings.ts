@@ -4,7 +4,7 @@
  * Default settings and validation - Updated for Phase 5
  */
 
-import { PluginSettings } from './types';
+import { PluginSettings, AgentConfig } from './types';
 import { SearchStrategy } from './constants';
 
 /**
@@ -30,6 +30,30 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     chunkSize: 500,
     chunkOverlap: 50,
 
+    // Auto Ingestion Configuration
+    autoIngestion: {
+        enabled: false, // disabled by default for safety
+        debounceDelay: 2000, // 2 seconds after file stops changing
+        batchSize: 10, // process max 10 files at once
+        maxFileSize: 5, // max 5MB files
+        processingInterval: 5000, // 5 seconds between batches
+        retryAttempts: 3, // retry failed files 3 times
+        excludePatterns: [
+            '**/.obsidian/**',
+            '**/node_modules/**',
+            '**/.git/**',
+            '**/.DS_Store',
+            '**/Thumbs.db',
+            '**/*.tmp',
+            '**/*.temp'
+        ],
+        includeFileTypes: ['.md', '.txt'], // only markdown and text files by default
+        maxQueueSize: 100, // max 100 files in queue
+        logLevel: 'minimal', // minimal logging by default
+        enabledFolders: [], // empty = watch all folders
+        ignoreHiddenFiles: true // ignore hidden files by default
+    },
+
     // Feature flags
     enableLogging: false,
     enableCaching: false
@@ -46,6 +70,11 @@ export function mergeSettings(loadedSettings: Partial<PluginSettings>): PluginSe
         // Ensure arrays exist
         llmConfigs: loadedSettings.llmConfigs || [],
         agents: loadedSettings.agents || [], // Phase 5
+        // Ensure autoIngestion config exists with defaults
+        autoIngestion: {
+            ...DEFAULT_SETTINGS.autoIngestion,
+            ...(loadedSettings.autoIngestion || {})
+        }
     };
 }
 
@@ -156,6 +185,86 @@ export function migrateSettings(settings: any, fromVersion: string): PluginSetti
     }
 
     return settings as PluginSettings;
+}
+
+/**
+ * Create the permanent Mnemosyne Agent
+ * This agent cannot be deleted, only disabled
+ */
+export function createMnemosyneAgent(llmId?: string): AgentConfig {
+    return {
+        id: 'mnemosyne-agent-permanent',
+        name: 'Mnemosyne Agent',
+        description: 'The core Mnemosyne AI assistant. This agent provides general knowledge assistance and cannot be deleted, only disabled.',
+        systemPrompt: `You are Mnemosyne, the Greek goddess of memory and the AI assistant for this knowledge vault. You help users find, understand, and connect information from their personal knowledge base.
+
+Your role:
+- Answer questions using the context from the user's knowledge vault
+- Help users discover connections between different pieces of information
+- Provide thoughtful analysis and insights based on their stored knowledge
+- Be concise, helpful, and accurate in your responses
+
+Context from the user's knowledge vault:
+{context}
+
+Guidelines:
+- Always base your answers primarily on the provided context
+- If the context doesn't contain relevant information, say so clearly
+- Cite specific sources when referencing information from the context
+- Be conversational but professional
+- Help users think through complex topics by asking clarifying questions when appropriate`,
+        llmId: llmId || 'default-llm',
+        enabled: true,
+        isPermanent: true, // Mark as permanent so it can't be deleted
+        retrievalSettings: {
+            topK: 5,
+            scoreThreshold: 0.7,
+            searchStrategy: SearchStrategy.HYBRID
+        },
+        metadataFilters: {},
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+}
+
+/**
+ * Ensure the permanent Mnemosyne Agent exists in settings
+ */
+export function ensureMnemosyneAgent(settings: PluginSettings): void {
+    const mnemosyneAgentId = 'mnemosyne-agent-permanent';
+    
+    // Check if Mnemosyne agent already exists
+    const existingAgent = settings.agents.find(a => a.id === mnemosyneAgentId);
+    
+    if (!existingAgent) {
+        // Find the first available LLM provider
+        const defaultLlmId = settings.llmConfigs.find(c => c.enabled)?.id;
+        
+        // Create the permanent agent
+        const mnemosyneAgent = createMnemosyneAgent(defaultLlmId);
+        
+        // Add it to the beginning of the agents array
+        settings.agents.unshift(mnemosyneAgent);
+        
+        // Set as default agent if no default is set
+        if (!settings.defaultAgentId) {
+            settings.defaultAgentId = mnemosyneAgentId;
+        }
+        
+        console.log('Created permanent Mnemosyne Agent');
+    } else {
+        // Ensure existing agent is marked as permanent
+        existingAgent.isPermanent = true;
+        
+        // Update LLM ID if it's invalid
+        if (!settings.llmConfigs.find(c => c.id === existingAgent.llmId && c.enabled)) {
+            const defaultLlmId = settings.llmConfigs.find(c => c.enabled)?.id;
+            if (defaultLlmId) {
+                existingAgent.llmId = defaultLlmId;
+                console.log('Updated Mnemosyne Agent LLM provider');
+            }
+        }
+    }
 }
 
 /**

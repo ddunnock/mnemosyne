@@ -38,29 +38,54 @@ export class AgentManager {
         // Clear existing agents
         this.agents.clear();
 
+        console.log(`Initializing ${this.plugin.settings.agents.length} agents...`);
+
         // Create executor for each enabled agent
         for (const config of this.plugin.settings.agents) {
+            console.log(`Processing agent: ${config.name} (enabled: ${config.enabled}, permanent: ${config.isPermanent})`);
+            
             if (!config.enabled) {
+                console.log(`Skipping disabled agent: ${config.name}`);
                 continue;
             }
 
             try {
                 this.createAgent(config);
+                console.log(`✅ Successfully initialized agent: ${config.name}`);
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error(`❌ Failed to initialize agent ${config.name}:`, error);
                 new Notice(`Failed to initialize agent ${config.name}: ${errorMessage}`);
             }
         }
 
         this.initialized = true;
+        console.log(`Agent Manager initialization complete. ${this.agents.size} agents loaded.`);
     }
 
     /**
      * Create an agent executor from config
      */
     private createAgent(config: AgentConfig): void {
-        const executor = new AgentExecutor(config, this.retriever, this.llmManager);
-        this.agents.set(config.id, executor);
+        try {
+            console.log(`Creating agent executor for: ${config.name} (ID: ${config.id})`);
+            
+            // Validate dependencies
+            if (!this.retriever) {
+                throw new Error('RAG Retriever not available');
+            }
+            if (!this.llmManager) {
+                throw new Error('LLM Manager not available');
+            }
+            
+            const executor = new AgentExecutor(config, this.retriever, this.llmManager);
+            this.agents.set(config.id, executor);
+            
+            console.log(`✅ Agent executor created and stored: ${config.name}`);
+        } catch (error) {
+            console.error(`❌ Failed to create agent executor for ${config.name}:`, error);
+            throw error;
+        }
     }
 
     /**
@@ -268,6 +293,13 @@ export class AgentManager {
         this.agents.delete(agentId);
     }
 
+    /**
+     * Remove agent from memory only (used when settings are already saved)
+     */
+    removeAgentFromMemory(agentId: string): void {
+        this.agents.delete(agentId);
+    }
+
     async toggleAgent(agentId: string, enabled: boolean): Promise<void> {
         const config = this.plugin.settings.agents.find(a => a.id === agentId);
         if (!config) {
@@ -391,6 +423,40 @@ export class AgentManager {
         this.plugin.settings.defaultAgentId = agentId;
         await this.plugin.saveSettings();
 
+    }
+
+    /**
+     * Force reinitialize the permanent Mnemosyne agent
+     * Useful for debugging agent issues
+     */
+    async reinitializePermanentAgent(): Promise<boolean> {
+        const permanentAgentId = 'mnemosyne-agent-permanent';
+        const permanentAgent = this.plugin.settings.agents.find(a => a.id === permanentAgentId);
+        
+        if (!permanentAgent) {
+            console.error('❌ Permanent agent not found in settings');
+            return false;
+        }
+        
+        console.log('🔄 Reinitializing permanent agent...');
+        
+        try {
+            // Remove from memory if exists
+            this.agents.delete(permanentAgentId);
+            
+            // Recreate if enabled
+            if (permanentAgent.enabled) {
+                this.createAgent(permanentAgent);
+                console.log('✅ Permanent agent reinitialized successfully');
+                return true;
+            } else {
+                console.log('⚠️ Permanent agent is disabled, not creating executor');
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Failed to reinitialize permanent agent:', error);
+            return false;
+        }
     }
 
     cleanup(): void {
