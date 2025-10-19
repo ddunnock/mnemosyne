@@ -275,6 +275,13 @@ export class TailwindChatView extends ItemView {
             const message = textarea.value.trim();
             if (!message || !this.selectedAgentId) return;
 
+            // Check initialization status before sending
+            const initStatus = await this.checkInitializationStatus();
+            if (!initStatus.isReady) {
+                this.showInitializationMessage(initStatus);
+                return;
+            }
+
             this.addUserMessage(message);
             textarea.value = '';
             textarea.style.height = 'auto';
@@ -469,5 +476,102 @@ export class TailwindChatView extends ItemView {
     private getAgentName(agentId: string): string {
         const agent = this.agents.find(a => a.id === agentId);
         return agent ? agent.name : 'Unknown Agent';
+    }
+
+    /**
+     * Check if all required components are initialized
+     */
+    private async checkInitializationStatus(): Promise<{
+        isReady: boolean;
+        missingComponents: string[];
+        message: string;
+    }> {
+        const missingComponents: string[] = [];
+        
+        // Check if LLM Manager is ready
+        if (!this.plugin.llmManager || !this.plugin.llmManager.isReady()) {
+            missingComponents.push('LLM Provider');
+        }
+        
+        // Check if Agent Manager is ready
+        if (!this.plugin.agentManager || !this.plugin.agentManager.isReady()) {
+            missingComponents.push('Agent Manager');
+        }
+        
+        // Check if RAG Retriever is ready (optional but good to check)
+        if (this.plugin.ragRetriever && !this.plugin.ragRetriever.isReady()) {
+            missingComponents.push('RAG System');
+        }
+        
+        // Check if agents exist
+        if (this.agents.length === 0) {
+            missingComponents.push('Agents');
+        }
+        
+        // Check if LLM providers exist
+        const llmProviders = this.plugin.settings.llmConfigs || [];
+        if (llmProviders.length === 0) {
+            missingComponents.push('LLM Providers');
+        }
+        
+        const isReady = missingComponents.length === 0;
+        
+        let message = '';
+        if (!isReady) {
+            if (missingComponents.includes('LLM Providers')) {
+                message = 'No AI providers configured. Please set up an OpenAI or Anthropic API key in Settings.';
+            } else if (missingComponents.includes('Agents')) {
+                message = 'No agents available. Please configure agents in Settings.';
+            } else {
+                message = `System not ready. Missing: ${missingComponents.join(', ')}. Please check Settings.`;
+            }
+        }
+        
+        return {
+            isReady,
+            missingComponents,
+            message
+        };
+    }
+    
+    /**
+     * Show initialization message to user
+     */
+    private showInitializationMessage(status: {
+        isReady: boolean;
+        missingComponents: string[];
+        message: string;
+    }): void {
+        const messagesArea = this.containerEl.querySelector('#messages-area');
+        if (!messagesArea) return;
+        
+        // Clear existing messages
+        messagesArea.innerHTML = '';
+        
+        // Add initialization message
+        const initMessage = document.createElement('div');
+        initMessage.className = 'text-center py-8';
+        initMessage.innerHTML = `
+            <div class="text-6xl mb-4">⚠️</div>
+            <h3 class="text-lg font-semibold text-slate-100 mb-2">Setup Required</h3>
+            <p class="text-slate-60 mb-4">${status.message}</p>
+            <button 
+                id="open-settings-btn"
+                class="px-4 py-2 bg-primary text-slate-100 font-medium rounded-xl hover:bg-slate-20 hover:shadow-md transition-all"
+            >
+                Open Settings
+            </button>
+        `;
+        
+        messagesArea.appendChild(initMessage);
+        
+        // Add click handler for settings button
+        const settingsBtn = initMessage.querySelector('#open-settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                this.plugin.app.setting.open();
+                this.plugin.app.setting.openTabById('mnemosyne-settings');
+            });
+        }
     }
 }
