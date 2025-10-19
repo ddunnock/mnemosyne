@@ -503,7 +503,17 @@ export class TailwindChatView extends ItemView {
                 try {
                     await this.plugin.llmManager.initialize();
                     console.log('LLM Manager initialized successfully - password was available from settings');
-                    return;
+                    
+                    // Check if LLM Manager is actually ready after initialization
+                    const llmReadyAfterInit = this.plugin.llmManager.isReady();
+                    console.log('LLM Manager ready after initialization:', llmReadyAfterInit);
+                    
+                    if (llmReadyAfterInit) {
+                        console.log('LLM Manager is ready - no need to prompt for password');
+                        return;
+                    } else {
+                        console.log('LLM Manager not ready after initialization - will need to prompt for password');
+                    }
                 } catch (error) {
                     console.warn('LLM Manager initialization failed - password not available:', error);
                 }
