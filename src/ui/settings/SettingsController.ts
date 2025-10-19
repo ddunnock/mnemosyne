@@ -14,6 +14,7 @@ export interface MnemosyneSettings {
 
     // Agents
     agents: AgentConfig[];
+    defaultAgentId?: string;
 
     // Goddess Persona (placeholder for now)
     persona: {
@@ -137,7 +138,7 @@ export class MnemosyneSettingsController {
       <div class="mnemosyne-settings">
         <div class="settings-header">
           <h1 class="main-settings-title">
-            <svg viewBox="0 0 128 128" width="24" height="24" style="display: inline-block; vertical-align: middle; margin-right: 8px; color: var(--interactive-accent);">
+            <svg viewBox="0 0 128 128" width="28" height="28" style="display: inline-block; vertical-align: middle; margin-right: 8px; color: var(--interactive-accent);">
               <path d="M60.05,113.45c-.3,2.81-.36,5.59-.47,8.41-.04,1.04-.61,2.14.03,3.27,1.68.03,8.33,1.2,8.7-.86l-.65-10.81c38.47-1.92,63.45-43.68,47.07-78.73C97.52-3.12,44.98-8.81,19.68,24.08c-27.11,34.69-3.34,86.93,40.37,89.36ZM64.09,81.44c-.35.09-.4-.22-.57-.41-1.48-2.18-3.31-4.09-5.32-5.79-21.8-16.12,8.61-38.21,18.64-16.07,2.97,10.67-8.14,14.79-12.75,22.27ZM59.21,7.7c67.21-6.25,75.1,97.02,7.7,100.35v-16.36l13.93.14c1.41-.47,1.29-4.28.35-5.27h-13.8c6.85-10.41,19.34-15.52,14.65-30.76,8.75,4.94,13.57,16.15,14.03,25.89.44.75,4.33.72,4.72-.17.45-1.03.09-1.51.04-2.39-.75-15.75-11.9-28.28-26.61-32.97,8.37-4.06,13.82-13.02,12.94-22.46.07-4.1-4.7-1.94-7.05-1.31,4.7,24.71-34.29,27.36-32.75,2.29.1-1.05.96-1.93-.18-2.51-.94-.48-5.14-1.25-5.81-.55-.23.23-.49,1.29-.54,1.66-1.24,8.89,4.25,18.49,12.03,22.52.25.23.44.35.36.73-13.61,3.23-25.06,16.89-26.13,30.89-.05.76-.14,3.57.04,4.12.26.82,4.77,1.41,5.08-.71-.19-9.78,5.23-19.69,13.44-25.01-1.98,6.04-.64,12.27,3.08,17.31,3.53,4.98,9.2,7.88,11.57,13.45h-13.55c-1.31,0-.89,4.23-.61,5.13h14.65v16.36C-.08,105.81-2.2,12.67,59.21,7.7Z" fill="currentColor"/>
               <path d="M62.69,56.59c-10.77,3.15-2.17,18.62,5.92,10.56,3.74-4.53-.07-11.56-5.92-10.56Z" fill="#0A66FF"/>
             </svg>
@@ -240,23 +241,21 @@ export class MnemosyneSettingsController {
     private renderAgentManagement(): string {
         const agentManagementState: AgentManagementState = {
             agents: this.settings.agents,
-            isEnabled: this.settings.enabled,
+            defaultAgentId: this.settings.defaultAgentId,
         };
 
         this.agentManagement = new AgentManagement(
-            agentManagementState,
-            this.handleSettingUpdate.bind(this),
-            this.handleAgentAction.bind(this),
             this.plugin,
-            this.plugin.app,
-            this.settings.providers.length > 0
+            agentManagementState,
+            this.settings.providers.length > 0,
+            this.handleAgentAction.bind(this)
         );
 
-        // Return section with header outside the card
+        // Return section with header - actual rendering will happen in initializeComponents
         return `
       <div class="settings-section">
         <h3 class="section-title">🎯 Agent Management</h3>
-        ${this.agentManagement.render()}
+        <div class="agent-management-container"></div>
       </div>
     `;
     }
@@ -293,9 +292,10 @@ export class MnemosyneSettingsController {
 
         // Initialize Agent Management
         if (this.agentManagement) {
-            const agentManagementElement = this.container.querySelector('.agent-management');
-            if (agentManagementElement) {
-                this.agentManagement.attachEvents(agentManagementElement as HTMLElement);
+            const agentManagementContainer = this.container.querySelector('.agent-management-container') as HTMLElement;
+            if (agentManagementContainer) {
+                this.agentManagement.render(agentManagementContainer);
+                this.agentManagement.attachEventListeners(agentManagementContainer);
             }
         }
 
@@ -602,21 +602,17 @@ export class MnemosyneSettingsController {
     }
 
     private updateAgentManagement(): void {
-        if (this.agentManagement) {
+        if (this.agentManagement && this.container) {
             this.agentManagement.update({
                 agents: this.settings.agents,
-                isEnabled: this.settings.enabled,
+                defaultAgentId: this.settings.defaultAgentId,
             }, this.settings.providers.length > 0);
 
             // Re-render agent management section
-            const agentManagementElement = this.container?.querySelector('.agent-management');
-            if (agentManagementElement && agentManagementElement.parentElement) {
-                const newHTML = this.agentManagement.render();
-                agentManagementElement.outerHTML = newHTML;
-                const newElement = this.container?.querySelector('.agent-management');
-                if (newElement) {
-                    this.agentManagement.attachEvents(newElement as HTMLElement);
-                }
+            const agentManagementContainer = this.container.querySelector('.agent-management-container') as HTMLElement;
+            if (agentManagementContainer) {
+                this.agentManagement.render(agentManagementContainer);
+                this.agentManagement.attachEventListeners(agentManagementContainer);
             }
         }
     }

@@ -1,272 +1,282 @@
-// Agent Management UI Component - Modern vanilla TypeScript implementation
+/**
+ * Agent Management Component
+ *
+ * Manages the display and interaction with AI agents in the settings panel.
+ * This component renders agent cards and handles all agent-related actions
+ * including create, edit, delete, toggle, and test operations.
+ */
 
-import { AgentConfig } from '../../../types/index';
-import { App, Notice } from 'obsidian';
+import { Notice } from 'obsidian';
+import { AgentConfig } from '../../../types';
+import { AgentBuilderModal } from '../../agentBuilderModal';
+import RiskManagementPlugin from '../../../main';
 
 export interface AgentManagementState {
     agents: AgentConfig[];
-    isEnabled: boolean;
+    defaultAgentId?: string;
 }
 
 export class AgentManagement {
-    private state: AgentManagementState;
-    private onSettingUpdate: (field: string, value: any) => Promise<void>;
-    private onAgentAction: (action: string, data?: any) => Promise<void>;
-    private plugin: any;
-    private app: App;
     private container: HTMLElement | null = null;
+    private state: AgentManagementState;
     private hasProviders: boolean;
+    private plugin: RiskManagementPlugin;
+    private onAgentAction: (action: string, data?: any) => Promise<void>;
 
     constructor(
+        plugin: RiskManagementPlugin,
         initialState: AgentManagementState,
-        onSettingUpdate: (field: string, value: any) => Promise<void>,
-        onAgentAction: (action: string, data?: any) => Promise<void>,
-        plugin: any,
-        app: App,
-        hasProviders: boolean
+        hasProviders: boolean,
+        onAgentAction: (action: string, data?: any) => Promise<void>
     ) {
-        this.state = initialState;
-        this.onSettingUpdate = onSettingUpdate;
-        this.onAgentAction = onAgentAction;
         this.plugin = plugin;
-        this.app = app;
+        this.state = initialState;
         this.hasProviders = hasProviders;
+        this.onAgentAction = onAgentAction;
     }
 
-    render(): string {
-        const { agents, isEnabled } = this.state;
+    render(container: HTMLElement): HTMLElement {
+        container.empty();
 
-        // Agent list
-        const agentList = agents.length > 0
-            ? agents.map(agent => this.renderAgentCard(agent)).join('')
-            : this.renderEmptyState();
+        // Section header
+        const header = container.createDiv({ cls: 'settings-section-header' });
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.marginBottom = '15px';
 
-        return `
-      <div class="agent-management settings-card">
-        <div class="card-header">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-            <div>
-              <p class="card-description">Manage your AI assistants and specialized agents</p>
-              ${this.renderStatusChip()}
-            </div>
-          </div>
-          
-          <!-- Agent Actions -->
-          <div class="agent-actions" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
-            <button 
-              class="btn btn-primary" 
-              data-agent-action="create" 
-              ${!this.hasProviders ? 'disabled title="Configure an AI provider first"' : ''}
-            >
-              <span>✨</span>
-              Create Agent
-            </button>
-            <button 
-              class="btn btn-secondary" 
-              data-agent-action="import-templates" 
-              ${!this.hasProviders ? 'disabled title="Configure an AI provider first"' : ''}
-            >
-              <span>📚</span>
-              Import Templates
-            </button>
-            <button 
-              class="btn btn-outline" 
-              data-agent-action="test-all" 
-              ${agents.length === 0 || !isEnabled ? 'disabled title="Enable Mnemosyne and create agents first"' : ''}
-            >
-              <span>🧪</span>
-              Test All
-            </button>
-          </div>
-        </div>
-        
-        <!-- Agent List -->
-        <div class="agent-list" style="display: flex; flex-direction: column; gap: 12px;">
-          ${agentList}
-        </div>
-      </div>
-    `;
-    }
+        const titleDiv = header.createDiv();
+        titleDiv.createEl('h3', { text: '🤖 AI Agents', cls: 'settings-section-title' });
+        titleDiv.createDiv({
+            text: 'Configure specialized AI agents for different tasks',
+            cls: 'settings-section-description'
+        });
 
-    private renderStatusChip(): string {
-        const { agents, isEnabled } = this.state;
+        const headerActions = header.createDiv({ cls: 'header-actions' });
+        headerActions.style.display = 'flex';
+        headerActions.style.gap = '8px';
 
-        let status = 'disabled';
-        let statusText = 'Disabled';
-        let statusIcon = '⏸️';
+        // Create agent button
+        const createButton = headerActions.createEl('button', {
+            text: '+ Create Agent',
+            cls: 'mod-cta'
+        });
+        createButton.setAttribute('data-agent-action', 'create');
+        createButton.style.padding = '6px 12px';
+        createButton.style.cursor = 'pointer';
 
-        if (isEnabled) {
-            if (agents.length === 0) {
-                status = 'warning';
-                statusText = 'No agents';
-                statusIcon = '⚠️';
-            } else {
-                const enabledCount = agents.filter(a => a.enabled).length;
-                status = 'ready';
-                statusText = `${enabledCount} of ${agents.length} active`;
-                statusIcon = '✅';
-            }
-        }
+        // Import templates button
+        const importButton = headerActions.createEl('button', {
+            text: '📚 Import Templates'
+        });
+        importButton.setAttribute('data-agent-action', 'import-templates');
+        importButton.style.padding = '6px 12px';
+        importButton.style.cursor = 'pointer';
 
-        const chipStyles = {
-            ready: 'background: rgba(72, 187, 120, 0.1); color: var(--text-success); border: 1px solid rgba(72, 187, 120, 0.3);',
-            warning: 'background: rgba(251, 191, 36, 0.1); color: var(--text-warning); border: 1px solid rgba(251, 191, 36, 0.3);',
-            disabled: 'background: var(--background-modifier-border); color: var(--text-muted); border: 1px solid var(--background-modifier-border);',
-        };
+        // Content area
+        const contentArea = container.createDiv({ cls: 'agents-content' });
+        contentArea.style.marginTop = '20px';
 
-        const chipStyle = chipStyles[status as keyof typeof chipStyles] || chipStyles.disabled;
-
-        return `
-      <div class="status-chip" style="${chipStyle} display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px;">
-        ${statusIcon} ${statusText}
-      </div>
-    `;
-    }
-
-    private renderEmptyState(): string {
         if (!this.hasProviders) {
-            return `
-        <div class="empty-state" style="padding: 40px 24px; text-align: center; border: 1px dashed var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary);">
-          <div style="font-size: 48px; margin-bottom: 16px;">🤖</div>
-          <h4 style="font-size: 16px; font-weight: 600; color: var(--text-normal); margin-bottom: 8px;">
-            No AI Provider Configured
-          </h4>
-          <p style="color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
-            Configure an AI provider before creating agents. Set up OpenAI, Anthropic, or a local model to get started.
-          </p>
-          <button class="btn btn-primary" data-action="setup-provider">
-            <span>⚡</span>
-            Setup AI Provider
-          </button>
-        </div>
-      `;
+            this.renderEmptyState(contentArea, 'no-providers');
+        } else if (this.state.agents.length === 0) {
+            this.renderEmptyState(contentArea, 'no-agents');
+        } else {
+            this.renderAgentsList(contentArea);
         }
 
-        return `
-      <div class="empty-state" style="padding: 40px 24px; text-align: center; border: 1px dashed var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary);">
-        <div style="font-size: 48px; margin-bottom: 16px;">🎯</div>
-        <h4 style="font-size: 16px; font-weight: 600; color: var(--text-normal); margin-bottom: 8px;">
-          No Agents Yet
-        </h4>
-        <p style="color: var(--text-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto;">
-          Create your first AI agent to assist with specific tasks, or import pre-built templates to get started quickly.
-        </p>
-        <div style="display: flex; gap: 8px; justify-content: center;">
-          <button class="btn btn-primary" data-agent-action="create">
-            <span>✨</span>
-            Create Agent
-          </button>
-          <button class="btn btn-secondary" data-agent-action="import-templates">
-            <span>📚</span>
-            Import Templates
-          </button>
-        </div>
-      </div>
-    `;
+        return container;
     }
 
-    private renderAgentCard(agent: AgentConfig): string {
-        const enabledClass = agent.enabled ? 'agent-enabled' : 'agent-disabled';
-        const statusDot = agent.enabled
-            ? '<span style="display: inline-block; width: 8px; height: 8px; background: var(--text-success); border-radius: 50%; margin-right: 6px;"></span>'
-            : '<span style="display: inline-block; width: 8px; height: 8px; background: var(--text-muted); border-radius: 50%; margin-right: 6px;"></span>';
+    private renderEmptyState(container: HTMLElement, type: 'no-providers' | 'no-agents') {
+        const emptyState = container.createDiv({ cls: 'empty-state' });
+        emptyState.style.textAlign = 'center';
+        emptyState.style.padding = '40px 20px';
+        emptyState.style.color = 'var(--text-muted)';
 
-        const descriptionPreview = agent.systemPrompt.length > 150
-            ? agent.systemPrompt.substring(0, 150) + '...'
-            : agent.systemPrompt;
+        if (type === 'no-providers') {
+            emptyState.createEl('div', {
+                text: '⚠️',
+                cls: 'empty-state-icon'
+            }).style.fontSize = '48px';
 
-        const modelDisplay = this.getModelDisplayName(agent) || 'Default';
+            emptyState.createEl('h4', { text: 'No AI Providers Configured' });
+            emptyState.createEl('p', {
+                text: 'You need to configure at least one AI provider before creating agents.'
+            });
 
-        return `
-      <div class="agent-card ${enabledClass}" style="padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-primary); transition: all 0.2s ease;">
-        <div class="agent-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-            ${statusDot}
-            <h4 style="font-size: 15px; font-weight: 600; color: var(--text-normal); margin: 0;">
-              ${agent.name}
-            </h4>
-          </div>
-          
-          <div class="agent-actions" style="display: flex; gap: 6px;">
-            <button 
-              class="btn btn-outline" 
-              style="padding: 4px 8px; font-size: 12px;" 
-              data-agent-action="toggle" 
-              data-agent-id="${agent.id}"
-              title="${agent.enabled ? 'Disable' : 'Enable'} agent"
-            >
-              ${agent.enabled ? '⏸️' : '▶️'}
-            </button>
-            <button 
-              class="btn btn-outline" 
-              style="padding: 4px 8px; font-size: 12px;" 
-              data-agent-action="test" 
-              data-agent-id="${agent.id}"
-              title="Test agent"
-              ${!agent.enabled ? 'disabled' : ''}
-            >
-              🧪
-            </button>
-            <button 
-              class="btn btn-outline" 
-              style="padding: 4px 8px; font-size: 12px;" 
-              data-agent-action="edit" 
-              data-agent-id="${agent.id}"
-              title="Edit agent"
-            >
-              ✏️
-            </button>
-            <button 
-              class="btn btn-outline" 
-              style="padding: 4px 8px; font-size: 12px; color: var(--text-error);" 
-              data-agent-action="delete" 
-              data-agent-id="${agent.id}"
-              title="Delete agent"
-            >
-              🗑️
-            </button>
-          </div>
-        </div>
-        
-        <div class="agent-details">
-          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.4; margin-bottom: 8px;">
-            ${descriptionPreview}
-          </p>
-          
-          <div class="agent-meta" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;">
-            <div>
-              <span style="color: var(--text-muted); font-weight: 500;">Model:</span>
-              <span style="color: var(--text-normal); margin-left: 6px;">${modelDisplay}</span>
-            </div>
-            <div>
-              <span style="color: var(--text-muted); font-weight: 500;">Retrieval:</span>
-              <span style="color: var(--text-normal); margin-left: 6px;">Top ${agent.retrievalSettings.topK}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    }
+            const setupButton = emptyState.createEl('button', {
+                text: 'Setup AI Provider',
+                cls: 'mod-cta'
+            });
+            setupButton.setAttribute('data-action', 'setup-provider');
+            setupButton.style.marginTop = '15px';
+        } else {
+            emptyState.createEl('div', {
+                text: '🤖',
+                cls: 'empty-state-icon'
+            }).style.fontSize = '48px';
 
-    private getModelDisplayName(agent: AgentConfig): string {
-        // Get the LLM configuration from the plugin settings to resolve the model name
-        // Since AgentConfig uses llmId, we need to look up the corresponding LLM config
-        try {
-            const settings = this.plugin.settings;
-            if (settings && settings.llmConfigs) {
-                const llmConfig = settings.llmConfigs.find((config: any) => config.id === agent.llmId);
-                if (llmConfig) {
-                    return llmConfig.model || llmConfig.name || 'Unknown Model';
-                }
-            }
-            return agent.llmId || 'Unknown Model';
-        } catch (error) {
-            console.warn('Failed to resolve model name:', error);
-            return 'Unknown Model';
+            emptyState.createEl('h4', { text: 'No Agents Created Yet' });
+            emptyState.createEl('p', {
+                text: 'Create your first AI agent to get started. Choose from templates or build from scratch.'
+            });
         }
     }
 
-    attachEvents(container: HTMLElement): void {
+    private renderAgentsList(container: HTMLElement) {
+        const agentsList = container.createDiv({ cls: 'agents-list' });
+        agentsList.style.display = 'grid';
+        agentsList.style.gap = '12px';
+
+        this.state.agents.forEach(agent => {
+            this.renderAgentCard(agentsList, agent);
+        });
+
+        // Test all button
+        if (this.state.agents.length > 1) {
+            const testAllContainer = container.createDiv();
+            testAllContainer.style.marginTop = '20px';
+            testAllContainer.style.textAlign = 'right';
+
+            const testAllButton = testAllContainer.createEl('button', {
+                text: '🧪 Test All Agents'
+            });
+            testAllButton.setAttribute('data-agent-action', 'test-all');
+            testAllButton.style.padding = '8px 16px';
+            testAllButton.style.cursor = 'pointer';
+        }
+    }
+
+    private renderAgentCard(container: HTMLElement, agent: AgentConfig) {
+        const card = container.createDiv({ cls: 'agent-card' });
+        card.style.padding = '16px';
+        card.style.border = '1px solid var(--background-modifier-border)';
+        card.style.borderRadius = '8px';
+        card.style.backgroundColor = 'var(--background-secondary)';
+
+        // Header
+        const cardHeader = card.createDiv({ cls: 'agent-card-header' });
+        cardHeader.style.display = 'flex';
+        cardHeader.style.justifyContent = 'space-between';
+        cardHeader.style.alignItems = 'flex-start';
+        cardHeader.style.marginBottom = '10px';
+
+        const titleSection = cardHeader.createDiv();
+        const titleDiv = titleSection.createDiv();
+        titleDiv.style.display = 'flex';
+        titleDiv.style.alignItems = 'center';
+        titleDiv.style.gap = '8px';
+
+        const nameSpan = titleDiv.createEl('span', {
+            text: agent.name,
+            cls: 'agent-card-name'
+        });
+        nameSpan.style.fontWeight = '600';
+        nameSpan.style.fontSize = '1.1em';
+
+        if (agent.id === this.state.defaultAgentId) {
+            const defaultBadge = titleDiv.createSpan({
+                text: 'Default',
+                cls: 'agent-default-badge'
+            });
+            defaultBadge.style.padding = '2px 6px';
+            defaultBadge.style.fontSize = '0.75em';
+            defaultBadge.style.borderRadius = '3px';
+            defaultBadge.style.backgroundColor = 'var(--interactive-accent)';
+            defaultBadge.style.color = 'white';
+        }
+
+        const statusBadge = cardHeader.createSpan({
+            cls: `agent-status-badge ${agent.enabled ? 'enabled' : 'disabled'}`
+        });
+        statusBadge.setText(agent.enabled ? 'Enabled' : 'Disabled');
+        statusBadge.style.padding = '4px 8px';
+        statusBadge.style.borderRadius = '4px';
+        statusBadge.style.fontSize = '0.85em';
+        statusBadge.style.backgroundColor = agent.enabled
+            ? 'var(--interactive-success)'
+            : 'var(--background-modifier-error)';
+        statusBadge.style.color = 'white';
+
+        // Description
+        if (agent.description) {
+            const descDiv = card.createDiv({ cls: 'agent-card-description' });
+            descDiv.setText(agent.description);
+            descDiv.style.color = 'var(--text-muted)';
+            descDiv.style.fontSize = '0.9em';
+            descDiv.style.marginBottom = '10px';
+        }
+
+        // Metadata
+        const metaContainer = card.createDiv({ cls: 'agent-card-meta' });
+        metaContainer.style.display = 'grid';
+        metaContainer.style.gridTemplateColumns = 'auto 1fr';
+        metaContainer.style.gap = '8px';
+        metaContainer.style.fontSize = '0.85em';
+        metaContainer.style.color = 'var(--text-muted)';
+
+        // Retrieval settings
+        const topK = agent.retrievalSettings.topK;
+        const threshold = (agent.retrievalSettings.scoreThreshold * 100).toFixed(0);
+        const strategy = agent.retrievalSettings.searchStrategy;
+
+        metaContainer.createSpan({ text: 'Retrieval:' }).style.fontWeight = '500';
+        metaContainer.createSpan({
+            text: `Top ${topK} chunks, ${threshold}% threshold, ${strategy}`
+        });
+
+        // Filters (if any)
+        if (agent.metadataFilters && Object.keys(agent.metadataFilters).length > 0) {
+            metaContainer.createSpan({ text: 'Filters:' }).style.fontWeight = '500';
+            const filterText = Object.entries(agent.metadataFilters)
+                .map(([key, values]) => `${key}: ${values?.join(', ') || 'none'}`)
+                .join(' | ');
+            metaContainer.createSpan({ text: filterText });
+        }
+
+        // Actions
+        const actionsContainer = card.createDiv({ cls: 'agent-card-actions' });
+        actionsContainer.style.marginTop = '15px';
+        actionsContainer.style.display = 'flex';
+        actionsContainer.style.gap = '8px';
+        actionsContainer.style.flexWrap = 'wrap';
+
+        // Toggle button
+        const toggleBtn = actionsContainer.createEl('button', {
+            text: agent.enabled ? 'Disable' : 'Enable'
+        });
+        toggleBtn.setAttribute('data-agent-action', 'toggle');
+        toggleBtn.setAttribute('data-agent-id', agent.id);
+        toggleBtn.style.padding = '6px 12px';
+        toggleBtn.style.cursor = 'pointer';
+
+        // Test button
+        const testBtn = actionsContainer.createEl('button', { text: 'Test' });
+        testBtn.setAttribute('data-agent-action', 'test');
+        testBtn.setAttribute('data-agent-id', agent.id);
+        testBtn.style.padding = '6px 12px';
+        testBtn.style.cursor = 'pointer';
+
+        // Edit button
+        const editBtn = actionsContainer.createEl('button', { text: 'Edit' });
+        editBtn.setAttribute('data-agent-action', 'edit');
+        editBtn.setAttribute('data-agent-id', agent.id);
+        editBtn.style.padding = '6px 12px';
+        editBtn.style.cursor = 'pointer';
+
+        // Delete button
+        const deleteBtn = actionsContainer.createEl('button', {
+            text: 'Delete',
+            cls: 'mod-warning'
+        });
+        deleteBtn.setAttribute('data-agent-action', 'delete');
+        deleteBtn.setAttribute('data-agent-id', agent.id);
+        deleteBtn.style.padding = '6px 12px';
+        deleteBtn.style.cursor = 'pointer';
+    }
+
+    attachEventListeners(container: HTMLElement): void {
         this.container = container;
 
         // Agent action buttons
@@ -290,7 +300,7 @@ export class AgentManagement {
         if (setupProviderButton) {
             setupProviderButton.addEventListener('click', () => {
                 // This should trigger the main settings controller's setup provider action
-                new Notice('AI Provider setup coming soon!');
+                new Notice('Please configure an AI provider in the AI Providers section above');
             });
         }
     }
@@ -329,18 +339,20 @@ export class AgentManagement {
     }
 
     private async handleCreateAgent(): Promise<void> {
-        // Open agent builder modal (placeholder)
-        new Notice('Agent creation modal coming soon!');
-
-        // TODO: Open AgentBuilderModal
-        // const modal = new AgentBuilderModal(this.app, this.plugin, null, async (config: AgentConfig) => {
-        //   await this.onAgentAction('create-agent', config);
-        // });
-        // modal.open();
+        // Open agent builder modal for creating a new agent
+        const modal = new AgentBuilderModal(
+            this.plugin.app,
+            this.plugin,
+            null,
+            async (config: AgentConfig) => {
+                await this.onAgentAction('create-agent', config);
+            }
+        );
+        modal.open();
     }
 
     private async handleImportTemplates(): Promise<void> {
-        // Open template browser (placeholder)
+        // Open template browser (placeholder for now)
         new Notice('Template browser coming soon!');
     }
 
@@ -352,17 +364,23 @@ export class AgentManagement {
     }
 
     private async handleEditAgent(agentId: string): Promise<void> {
-        // Open agent builder modal for editing (placeholder)
-        new Notice('Agent editing modal coming soon!');
+        // Find the agent to edit
+        const agent = this.state.agents.find(a => a.id === agentId);
+        if (!agent) {
+            new Notice('Agent not found');
+            return;
+        }
 
-        // TODO: Open AgentBuilderModal with existing config
-        // const agent = this.state.agents.find(a => a.id === agentId);
-        // if (agent) {
-        //   const modal = new AgentBuilderModal(this.app, this.plugin, agent, async (config: AgentConfig) => {
-        //     await this.onAgentAction('update-agent', { id: agentId, config });
-        //   });
-        //   modal.open();
-        // }
+        // Open agent builder modal with existing agent config
+        const modal = new AgentBuilderModal(
+            this.plugin.app,
+            this.plugin,
+            agent,
+            async (config: AgentConfig) => {
+                await this.onAgentAction('update-agent', { id: agentId, config });
+            }
+        );
+        modal.open();
     }
 
     private async handleDeleteAgent(agentId: string): Promise<void> {
