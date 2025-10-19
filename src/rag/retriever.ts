@@ -279,6 +279,13 @@ export class RAGRetriever {
         return true;
     }
 
+    /**
+     * Get the vector store instance
+     */
+    getVectorStore(): VectorStore {
+        return this.vectorStore;
+    }
+
     // ... (rest of methods remain the same)
 
     validateChunks(directoryPath?: string): Promise<{ valid: boolean; errors: string[]; warnings: string[]; }> {

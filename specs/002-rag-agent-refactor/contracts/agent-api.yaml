@@ -1,0 +1,529 @@
+openapi: 3.0.3
+info:
+  title: Mnemosyne Agent API
+  description: API for managing AI agents, templates, and agent operations
+  version: 1.0.0
+
+paths:
+  /agents:
+    get:
+      summary: List all agents
+      description: Returns all agents with optional filtering
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [research, business, creative, technical, personal, custom]
+        - name: includeArchived
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Agent'
+
+    post:
+      summary: Create a new agent
+      description: Create an agent from scratch or from a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agents/{agentId}:
+    get:
+      summary: Get agent by ID
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          description: Agent not found
+
+    patch:
+      summary: Update agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          description: Agent not found
+
+    delete:
+      summary: Delete agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent deleted
+        '404':
+          description: Agent not found
+
+  /agents/{agentId}/query:
+    post:
+      summary: Query an agent
+      description: Send a message to an agent and get a response with RAG context
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid query
+        '404':
+          description: Agent not found
+
+  /agents/{agentId}/archive:
+    post:
+      summary: Archive an agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+  /agents/{agentId}/restore:
+    post:
+      summary: Restore an archived agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+  /templates:
+    get:
+      summary: List all agent templates
+      description: Returns builtin and community templates
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: builtinOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentTemplate'
+
+  /templates/{templateId}:
+    get:
+      summary: Get template by ID
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTemplate'
+        '404':
+          description: Template not found
+
+  /templates/{templateId}/apply:
+    post:
+      summary: Create agent from template
+      description: Apply a template to create a new agent with optional customizations
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyTemplateRequest'
+      responses:
+        '201':
+          description: Agent created from template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+  /templates/import:
+    post:
+      summary: Import custom template
+      description: Import a community or custom template from JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentTemplate'
+      responses:
+        '201':
+          description: Template imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentTemplate'
+        '400':
+          description: Invalid template format
+
+components:
+  schemas:
+    Agent:
+      type: object
+      required: [id, name, systemPrompt, llmProvider, model, category]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+        templateId:
+          type: string
+          nullable: true
+        isCustom:
+          type: boolean
+        systemPrompt:
+          type: string
+          minLength: 10
+          maxLength: 5000
+        llmProvider:
+          type: string
+          enum: [openai, anthropic, ollama]
+        model:
+          type: string
+        temperature:
+          type: number
+          minimum: 0.0
+          maximum: 2.0
+          default: 0.7
+        retrievalConfig:
+          $ref: '#/components/schemas/RetrievalConfig'
+        icon:
+          type: string
+        color:
+          type: string
+          nullable: true
+        category:
+          type: string
+          enum: [research, business, creative, technical, personal, custom]
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+        lastUsed:
+          type: integer
+          format: int64
+          nullable: true
+        usageCount:
+          type: integer
+          default: 0
+
+    RetrievalConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        maxResults:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+        minRelevance:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.7
+        folderScope:
+          type: array
+          items:
+            type: string
+          nullable: true
+        excludePatterns:
+          type: array
+          items:
+            type: string
+          nullable: true
+        prioritizeTags:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    AgentTemplate:
+      type: object
+      required: [id, name, description, category, systemPrompt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [research, business, creative, technical, personal, custom]
+        tags:
+          type: array
+          items:
+            type: string
+        icon:
+          type: string
+        systemPrompt:
+          type: string
+        recommendedProvider:
+          type: string
+          enum: [openai, anthropic, ollama]
+        recommendedModel:
+          type: string
+        defaultRetrievalConfig:
+          $ref: '#/components/schemas/RetrievalConfig'
+        exampleQueries:
+          type: array
+          items:
+            type: string
+          minItems: 3
+          maxItems: 5
+        useCases:
+          type: array
+          items:
+            type: string
+          minItems: 2
+          maxItems: 3
+        tips:
+          type: string
+          nullable: true
+        version:
+          type: string
+        author:
+          type: string
+        isBuiltin:
+          type: boolean
+        createdAt:
+          type: integer
+          format: int64
+        updatedAt:
+          type: integer
+          format: int64
+
+    CreateAgentRequest:
+      type: object
+      required: [name, systemPrompt, llmProvider, model]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        systemPrompt:
+          type: string
+        llmProvider:
+          type: string
+          enum: [openai, anthropic, ollama]
+        model:
+          type: string
+        temperature:
+          type: number
+          default: 0.7
+        retrievalConfig:
+          $ref: '#/components/schemas/RetrievalConfig'
+        icon:
+          type: string
+        category:
+          type: string
+          enum: [research, business, creative, technical, personal, custom]
+
+    UpdateAgentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        systemPrompt:
+          type: string
+        temperature:
+          type: number
+        retrievalConfig:
+          $ref: '#/components/schemas/RetrievalConfig'
+        icon:
+          type: string
+
+    ApplyTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Override template name
+        customizations:
+          type: object
+          properties:
+            systemPrompt:
+              type: string
+            temperature:
+              type: number
+            retrievalConfig:
+              $ref: '#/components/schemas/RetrievalConfig'
+
+    QueryRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        conversationId:
+          type: string
+          format: uuid
+          nullable: true
+        includeHistory:
+          type: boolean
+          default: true
+        maxHistoryMessages:
+          type: integer
+          default: 10
+
+    QueryResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        conversationId:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          properties:
+            model:
+              type: string
+            tokenCount:
+              type: integer
+            latency:
+              type: integer
+
+    Source:
+      type: object
+      properties:
+        chunkId:
+          type: string
+        filePath:
+          type: string
+        relevance:
+          type: number
+        excerpt:
+          type: string
+        headingContext:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object

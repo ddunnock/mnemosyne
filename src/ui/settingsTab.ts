@@ -24,6 +24,8 @@ export class MnemosyneSettingTab extends PluginSettingTab {
         // Initialize settings controller
         if (!this.settingsController) {
             this.settingsController = new MnemosyneSettingsController(this.plugin);
+            // Set reference in plugin for other components to access
+            this.plugin.settingsController = this.settingsController;
         }
 
         // Render the modern settings UI
