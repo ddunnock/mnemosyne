@@ -489,7 +489,7 @@ export class TailwindChatView extends ItemView {
             console.log('=== Attempting Automatic Initialization ===');
             
             // First, ensure KeyManager is ready (needed for LLM providers)
-            if (this.plugin.keyManager && !this.plugin.keyManager.isReady()) {
+            if (this.plugin.keyManager && !this.plugin.keyManager.hasMasterPassword()) {
                 console.log('KeyManager not ready - cannot initialize LLM providers');
                 return;
             }
@@ -575,7 +575,7 @@ export class TailwindChatView extends ItemView {
         }
         
         // Check if KeyManager is ready (needed for LLM providers)
-        const keyManagerReady = this.plugin.keyManager && this.plugin.keyManager.isReady();
+        const keyManagerReady = this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword();
         console.log('KeyManager ready:', keyManagerReady);
         if (!keyManagerReady) {
             missingComponents.push('Master Password');
