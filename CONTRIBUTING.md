@@ -123,11 +123,13 @@ chore: update dependencies
 
 ## 📋 Code Standards
 
+**IMPORTANT**: All code contributions must adhere to the [Mnemosyne Constitution](.specify/memory/constitution.md), which defines our core development principles including clean code practices, professional documentation standards, type safety requirements, and test coverage expectations.
+
 ### TypeScript
 
 - **Strict typing** - No `any` types (use `unknown` if needed)
 - **Interfaces over types** - Prefer interfaces for object shapes
-- **JSDoc comments** - Document public APIs and complex logic
+- **JSDoc comments** - Document public APIs and complex logic (see Constitution Principle II)
 - **Error handling** - Proper error boundaries and typed errors
 
 ### React Components
