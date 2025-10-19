@@ -496,12 +496,34 @@ export class TailwindChatView extends ItemView {
             
             if (!keyManagerReady && !sessionPasswordReady) {
                 console.log('Neither KeyManager nor session password ready - cannot initialize LLM providers');
+                
+                // First, try to restore password from KeyManager if it exists
+                if (this.plugin.keyManager) {
+                    console.log('Attempting to restore password from KeyManager...');
+                    try {
+                        // Check if KeyManager has a password but it's not in session cache
+                        const hasPassword = this.plugin.keyManager.hasMasterPassword();
+                        console.log('KeyManager has password:', hasPassword);
+                        
+                        if (hasPassword) {
+                            // Try to get the password from KeyManager and set it in session cache
+                            console.log('KeyManager has password but session cache is empty - this is a session cache issue');
+                        }
+                    } catch (error) {
+                        console.warn('Failed to check KeyManager password:', error);
+                    }
+                }
+                
                 console.log('Attempting to prompt for master password...');
                 
                 // Try to prompt for master password if not available
                 try {
                     await this.plugin.settingsController.ensureMasterPasswordLoaded();
                     console.log('Master password prompt completed');
+                    
+                    // Check if the session cache was set after the prompt
+                    console.log('Session password cache after prompt:', this.plugin.sessionPasswordCache ? 'Set' : 'Not set');
+                    console.log('KeyManager ready after prompt:', this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword());
                 } catch (error) {
                     console.warn('Failed to prompt for master password:', error);
                 }
