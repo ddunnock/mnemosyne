@@ -555,23 +555,77 @@ export class TailwindChatView extends ItemView {
             <div class="text-6xl mb-4">⚠️</div>
             <h3 class="text-lg font-semibold text-slate-100 mb-2">Setup Required</h3>
             <p class="text-slate-60 mb-4">${status.message}</p>
-            <button 
-                id="open-settings-btn"
-                class="px-4 py-2 bg-primary text-slate-100 font-medium rounded-xl hover:bg-slate-20 hover:shadow-md transition-all"
-            >
-                Open Settings
-            </button>
+            <div class="flex gap-3 justify-center">
+                <button 
+                    id="open-settings-btn"
+                    class="px-4 py-2 bg-primary text-slate-100 font-medium rounded-xl hover:bg-slate-20 hover:shadow-md transition-all"
+                >
+                    Open Settings
+                </button>
+                <button 
+                    id="refresh-status-btn"
+                    class="px-4 py-2 bg-slate-20 text-slate-100 font-medium rounded-xl hover:bg-slate-30 hover:shadow-md transition-all"
+                >
+                    Refresh Status
+                </button>
+            </div>
         `;
         
         messagesArea.appendChild(initMessage);
         
-        // Add click handler for settings button
+        // Add click handlers
         const settingsBtn = initMessage.querySelector('#open-settings-btn');
+        const refreshBtn = initMessage.querySelector('#refresh-status-btn');
+        
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
                 this.plugin.app.setting.open();
                 this.plugin.app.setting.openTabById('mnemosyne-settings');
             });
+        }
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', async () => {
+                const newStatus = await this.checkInitializationStatus();
+                if (newStatus.isReady) {
+                    this.showWelcomeMessage();
+                } else {
+                    // Update the message with current status
+                    this.showInitializationMessage(newStatus);
+                }
+            });
+        }
+    }
+    
+    /**
+     * Show welcome message when system is ready
+     */
+    private showWelcomeMessage(): void {
+        const messagesArea = this.containerEl.querySelector('#messages-area');
+        if (!messagesArea) return;
+        
+        // Clear existing messages
+        messagesArea.innerHTML = '';
+        
+        // Add welcome message
+        const welcomeMessage = document.createElement('div');
+        welcomeMessage.className = 'text-center py-8';
+        welcomeMessage.innerHTML = `
+            <div class="text-6xl mb-4">👋</div>
+            <h3 class="text-lg font-semibold text-slate-100 mb-2">Welcome to Mnemosyne Chat!</h3>
+            <p class="text-slate-60">Select an agent above to start your conversation.</p>
+        `;
+        
+        messagesArea.appendChild(welcomeMessage);
+        
+        // Re-enable the input area
+        const textarea = this.containerEl.querySelector('#message-input') as HTMLTextAreaElement;
+        const sendBtn = this.containerEl.querySelector('#send-button') as HTMLButtonElement;
+        
+        if (textarea && sendBtn) {
+            textarea.disabled = false;
+            sendBtn.disabled = false;
+            textarea.placeholder = 'Type your message...';
         }
     }
 }
