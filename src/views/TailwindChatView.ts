@@ -489,8 +489,13 @@ export class TailwindChatView extends ItemView {
             console.log('=== Attempting Automatic Initialization ===');
             
             // First, ensure KeyManager is ready (needed for LLM providers)
-            if (this.plugin.keyManager && !this.plugin.keyManager.hasMasterPassword()) {
-                console.log('KeyManager not ready - cannot initialize LLM providers');
+            const keyManagerReady = this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword();
+            const sessionPasswordReady = this.plugin.sessionPasswordCache !== null;
+            console.log('KeyManager ready:', keyManagerReady);
+            console.log('Session password ready:', sessionPasswordReady);
+            
+            if (!keyManagerReady && !sessionPasswordReady) {
+                console.log('Neither KeyManager nor session password ready - cannot initialize LLM providers');
                 return;
             }
             
@@ -554,7 +559,7 @@ export class TailwindChatView extends ItemView {
         if (this.plugin.llmManager) {
             console.log('LLM Manager exists, checking internal state...');
             // Let's check what the LLM Manager's isReady() method is actually checking
-            console.log('LLM Manager providers count:', this.plugin.llmManager.getProviders().length);
+            console.log('LLM Manager stats:', this.plugin.llmManager.getStats());
         }
         if (!llmManagerReady) {
             missingComponents.push('LLM Provider');
@@ -590,6 +595,7 @@ export class TailwindChatView extends ItemView {
         // Check if KeyManager is ready (needed for LLM providers)
         const keyManagerReady = this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword();
         console.log('KeyManager ready:', keyManagerReady);
+        console.log('Plugin session password cache:', this.plugin.sessionPasswordCache ? 'Set' : 'Not set');
         if (!keyManagerReady) {
             missingComponents.push('Master Password');
         }
