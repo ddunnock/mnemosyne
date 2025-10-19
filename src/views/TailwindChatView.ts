@@ -524,6 +524,17 @@ export class TailwindChatView extends ItemView {
                     // Check if the session cache was set after the prompt
                     console.log('Session password cache after prompt:', this.plugin.sessionPasswordCache ? 'Set' : 'Not set');
                     console.log('KeyManager ready after prompt:', this.plugin.keyManager && this.plugin.keyManager.hasMasterPassword());
+                    
+                    // Now that we have the password, try to initialize LLM Manager
+                    if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
+                        console.log('Attempting to initialize LLM Manager after password prompt...');
+                        try {
+                            await this.plugin.llmManager.initialize();
+                            console.log('LLM Manager initialization after password prompt completed');
+                        } catch (error) {
+                            console.error('LLM Manager initialization after password prompt failed:', error);
+                        }
+                    }
                 } catch (error) {
                     console.warn('Failed to prompt for master password:', error);
                 }
