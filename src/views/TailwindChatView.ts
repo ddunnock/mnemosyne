@@ -517,6 +517,10 @@ export class TailwindChatView extends ItemView {
                 }
             }
             
+            // Debug: Check if KeyManager actually has password after all checks
+            console.log('Final KeyManager check - hasMasterPassword():', this.plugin.keyManager ? this.plugin.keyManager.hasMasterPassword() : 'KeyManager not available');
+            console.log('Final session password cache:', this.plugin.sessionPasswordCache);
+            
             // First, try to initialize LLM Manager even if KeyManager/session cache appear not ready
             // This handles cases where the password was entered in settings but not properly detected
             if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
