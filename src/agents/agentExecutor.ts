@@ -335,7 +335,7 @@ export class AgentExecutor {
      */
     async test(): Promise<boolean> {
         try {
-            const response = await this.execute('What is risk management?');
+            const response = await this.execute('Hello, can you help me?');
             return response.answer.length > 0;
         } catch (error) {
             console.error('Agent test failed:', error);

@@ -18,14 +18,48 @@ export interface LLMConfig {
     temperature: number;
     maxTokens: number;
     enabled: boolean;
+    baseUrl?: string;
+    isDefault?: boolean;
+    lastTested?: number;
+    testStatus?: 'success' | 'failed' | 'never';
     createdAt: number;
     updatedAt: number;
 }
+
+// Alias for backward compatibility
+export type AIProviderConfig = LLMConfig;
 
 export interface RetrievalSettings {
     topK: number;
     scoreThreshold: number;
     searchStrategy: SearchStrategy;
+}
+
+// Goddess Persona Configuration
+export interface GoddessPersonaSettings {
+    enabled: boolean;
+    intensity: 'subtle' | 'moderate' | 'strong';
+    customPrompt?: string;
+    speechPatterns: {
+        useDivineLanguage: boolean;
+        referenceDivineMemory: boolean;
+        useAncientTerminology: boolean;
+        embraceGoddessIdentity: boolean;
+    };
+    knowledgeAreas: {
+        mythology: boolean;
+        history: boolean;
+        arts: boolean;
+        sciences: boolean;
+        philosophy: boolean;
+        literature: boolean;
+    };
+    divineElements: {
+        referenceMuses: boolean;
+        mentionSacredDuties: boolean;
+        useDivineTitles: boolean;
+        speakOfEternalMemory: boolean;
+    };
 }
 
 // Phase 5: Agent Configuration
@@ -39,6 +73,8 @@ export interface AgentConfig {
     metadataFilters?: MetadataFilters;
     enabled: boolean;
     isPermanent?: boolean; // If true, agent cannot be deleted (only disabled)
+    lastTested?: number;
+    testStatus?: 'success' | 'failed' | 'never';
     createdAt: number;
     updatedAt: number;
 }
@@ -62,6 +98,15 @@ export interface PluginSettings {
     // Security
     isEncryptionEnabled: boolean;
     lastPasswordChangeDate?: number;
+    masterPassword?: {
+        isSet: boolean;
+        verificationData?: {
+            ciphertext: string;
+            iv: string;
+            salt: string;
+        };
+        lastChanged?: number;
+    };
 
     // LLM Configurations
     llmConfigs: LLMConfig[];
@@ -71,6 +116,9 @@ export interface PluginSettings {
 
     // Phase 5: Default Agent
     defaultAgentId?: string;
+
+    // Goddess Persona Configuration
+    persona: GoddessPersonaSettings;
 
     // RAG Configuration
     vectorDbPath: string;

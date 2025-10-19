@@ -4,8 +4,8 @@
  * Default settings and validation - Updated for Phase 5
  */
 
-import { PluginSettings, AgentConfig } from './types';
-import { SearchStrategy } from './constants';
+import { PluginSettings, AgentConfig, GoddessPersonaSettings, LLMConfig } from './types';
+import { SearchStrategy, LLMProvider } from './constants';
 
 /**
  * Default plugin settings
@@ -14,6 +14,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     // Security
     isEncryptionEnabled: true,
     lastPasswordChangeDate: undefined,
+    masterPassword: {
+        isSet: false,
+    },
 
     // LLM Configurations (Phase 4)
     llmConfigs: [],
@@ -23,6 +26,33 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 
     // Default Agent (Phase 5)
     defaultAgentId: undefined,
+
+    // Goddess Persona Configuration
+    persona: {
+        enabled: false,
+        intensity: 'moderate',
+        customPrompt: '',
+        speechPatterns: {
+            useDivineLanguage: true,
+            referenceDivineMemory: true,
+            useAncientTerminology: false,
+            embraceGoddessIdentity: true,
+        },
+        knowledgeAreas: {
+            mythology: true,
+            history: true,
+            arts: true,
+            sciences: true,
+            philosophy: true,
+            literature: true,
+        },
+        divineElements: {
+            referenceMuses: true,
+            mentionSacredDuties: true,
+            useDivineTitles: true,
+            speakOfEternalMemory: true,
+        },
+    },
 
     // RAG Configuration (Phase 3)
     vectorDbPath: 'vector-store-index.json',
@@ -213,7 +243,7 @@ Guidelines:
 - Cite specific sources when referencing information from the context
 - Be conversational but professional
 - Help users think through complex topics by asking clarifying questions when appropriate`,
-        llmId: llmId || 'default-llm',
+        llmId: llmId || 'default-openai-provider',
         enabled: true,
         isPermanent: true, // Mark as permanent so it can't be deleted
         retrievalSettings: {
@@ -228,10 +258,41 @@ Guidelines:
 }
 
 /**
+ * Ensure we have at least one LLM provider configured
+ */
+export function ensureDefaultLlmProvider(settings: PluginSettings): void {
+    // Check if we already have a default provider
+    const hasDefaultProvider = settings.llmConfigs.some(c => c.id === 'default-openai-provider');
+    
+    if (!hasDefaultProvider) {
+        // Create a default OpenAI provider as a placeholder
+        const defaultProvider: LLMConfig = {
+            id: 'default-openai-provider',
+            name: 'Default OpenAI Provider',
+            provider: LLMProvider.OPENAI,
+            model: 'gpt-4o-mini',
+            enabled: false, // Start disabled so user can configure it
+            encryptedApiKey: '',
+            baseUrl: 'https://api.openai.com/v1',
+            temperature: 0.7,
+            maxTokens: 4000,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        };
+        
+        settings.llmConfigs.push(defaultProvider);
+        console.log('Created default OpenAI provider (disabled - needs configuration)');
+    }
+}
+
+/**
  * Ensure the permanent Mnemosyne Agent exists in settings
  */
 export function ensureMnemosyneAgent(settings: PluginSettings): void {
     const mnemosyneAgentId = 'mnemosyne-agent-permanent';
+    
+    // First ensure we have at least one LLM provider
+    ensureDefaultLlmProvider(settings);
     
     // Check if Mnemosyne agent already exists
     const existingAgent = settings.agents.find(a => a.id === mnemosyneAgentId);

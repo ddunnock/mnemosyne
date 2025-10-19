@@ -6,8 +6,14 @@
 
 import { Plugin, Notice, Modal, App } from 'obsidian';
 import { PluginSettings, Message } from './types';
-import { mergeSettings, validateSettings, DEFAULT_SETTINGS, ensureMnemosyneAgent } from './settings';
+import { mergeSettings, validateSettings, DEFAULT_SETTINGS, ensureMnemosyneAgent, ensureDefaultLlmProvider } from './settings';
 import { PLUGIN_NAME } from './constants';
+import './styles.css';
+import { AgentChatSidebar } from './ui/sidebar/AgentChatSidebar';
+import { AgentChatView, VIEW_TYPE_AGENT_CHAT } from './views/AgentChatView';
+import { SvelteChatView, VIEW_TYPE_SVELTE_CHAT } from './views/SvelteChatView';
+import { CleanChatView, VIEW_TYPE_CLEAN_CHAT } from './views/CleanChatView';
+import { TailwindChatView, VIEW_TYPE_TAILWIND_CHAT } from './views/TailwindChatView';
 
 // Import modules
 import { KeyManager } from './encryption/keyManager';
@@ -41,6 +47,9 @@ export default class RiskManagementPlugin extends Plugin {
     
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
+    
+    // Sidebar chat
+    chatSidebar: AgentChatSidebar | null = null;
 
     /**
      * Plugin initialization - called when plugin is loaded
@@ -58,8 +67,8 @@ export default class RiskManagementPlugin extends Plugin {
         this.initManager = new InitializationManager(this);
 
         // Add ribbon icon with custom Mnemosyne SVG
-        const ribbonIcon = this.addRibbonIcon('brain', 'Mnemosyne - AI Knowledge Assistant', () => {
-            this.openAgentPalette();
+        const ribbonIcon = this.addRibbonIcon('brain', 'Mnemosyne - AI Knowledge Assistant', async () => {
+            await this.openAgentPalette();
         });
         
         // Set custom SVG icon (24px version for ribbon)
@@ -75,6 +84,9 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Register commands
         this.registerCommands();
+        
+        // Register views
+        this.registerViews();
 
         // Phase 5: Expose public API
         exposePublicAPI(this);
@@ -146,7 +158,8 @@ export default class RiskManagementPlugin extends Plugin {
             this.settings = { ...DEFAULT_SETTINGS };
         }
         
-        // Ensure permanent Mnemosyne Agent exists
+        // Ensure we have default LLM provider and permanent Mnemosyne Agent
+        ensureDefaultLlmProvider(this.settings);
         ensureMnemosyneAgent(this.settings);
         
         // Save settings if the Mnemosyne agent was added
@@ -195,15 +208,13 @@ export default class RiskManagementPlugin extends Plugin {
             // Phase 5: Initialize Agent Manager
             this.agentManager = new AgentManager(this, this.retriever, this.llmManager);
 
-            if (this.llmManager.isReady() && this.retriever.isReady()) {
-                try {
-                    await this.agentManager.initialize();
-                    console.log('✓ Agent Manager initialized');
-                } catch (error) {
-                    console.warn('Agent Manager initialization incomplete:', error);
-                }
-            } else {
-                console.log('⚠ Skipping Agent Manager initialization - dependencies not ready');
+            // Always initialize Agent Manager, even if dependencies aren't ready
+            // It will handle the dependency checks internally
+            try {
+                await this.agentManager.initialize();
+                console.log('✓ Agent Manager initialized');
+            } catch (error) {
+                console.warn('Agent Manager initialization incomplete:', error);
             }
 
             // Initialize Auto Ingestion System
@@ -262,8 +273,8 @@ export default class RiskManagementPlugin extends Plugin {
         this.addCommand({
             id: 'open-agent-palette',
             name: 'Open Agent Palette',
-            callback: () => {
-                this.openAgentPalette();
+            callback: async () => {
+                await this.openAgentPalette();
             },
         });
 
@@ -431,6 +442,16 @@ export default class RiskManagementPlugin extends Plugin {
         });
     }
 
+    /**
+     * Register views
+     */
+    registerViews() {
+        // Register the Tailwind chat view
+        this.registerView(VIEW_TYPE_TAILWIND_CHAT, (leaf) => {
+            return new TailwindChatView(leaf, this);
+        });
+    }
+
     // ========================================================================
     // Phase 5: Agent Helper Methods
     // ========================================================================
@@ -438,10 +459,94 @@ export default class RiskManagementPlugin extends Plugin {
     /**
      * Open agent palette for selecting and executing agents
      */
-    private openAgentPalette() {
-        if (!this.agentManager || !this.agentManager.isReady()) {
-            new Notice('Agent system not ready. Please configure settings first.');
-            return;
+    private async openAgentPalette() {
+        // Get comprehensive system status
+        const status = this.getSystemStatus();
+        
+        if (!status.ready) {
+            console.log('System status check:', status);
+            
+            // Try to reinitialize if some components are missing
+            if (!this.agentManager) {
+                new Notice('Agent system not initialized. Please restart the plugin or check settings.');
+                return;
+            }
+
+            // Try to reinitialize the LLM Manager if it's not ready
+            if (this.llmManager && !this.llmManager.isReady()) {
+                // Only prompt for password if it's truly not set in settings
+                if (!this.settings.masterPassword?.isSet) {
+                    new Notice('Master password not set. Please configure it in Security settings.');
+                    return;
+                }
+                
+                // If password is set in settings but not in session, prompt user to re-enter it
+                if (!this.keyManager.hasMasterPassword() && this.settings.masterPassword?.isSet) {
+                    console.log('Master password session expired, prompting user to re-enter password');
+                    console.log('KeyManager has password:', this.keyManager.hasMasterPassword());
+                    console.log('Settings password is set:', this.settings.masterPassword?.isSet);
+                    
+                    // Use the settings controller to prompt for password
+                    if (this.settingsController) {
+                        const passwordLoaded = await this.settingsController.ensureMasterPasswordLoaded();
+                        if (!passwordLoaded) {
+                            new Notice('Master password is required to continue.');
+                            return;
+                        }
+                        console.log('Master password loaded successfully');
+                        console.log('KeyManager has password after load:', this.keyManager.hasMasterPassword());
+                    } else {
+                        new Notice('Master password session expired. Please re-enter your password in Security settings to continue.');
+                        return;
+                    }
+                }
+                
+                try {
+                    console.log('Attempting to reinitialize LLM Manager...');
+                    await this.llmManager.initialize();
+                    console.log('LLM Manager reinitialized successfully');
+                } catch (error) {
+                    console.error('Failed to reinitialize LLM Manager:', error);
+                }
+            }
+
+            // Try to reinitialize the RAG Retriever if it's not ready
+            if (this.retriever && !this.retriever.isReady()) {
+                try {
+                    console.log('Attempting to reinitialize RAG Retriever...');
+                    await this.retriever.initialize();
+                    console.log('RAG Retriever reinitialized successfully');
+                } catch (error) {
+                    console.error('Failed to reinitialize RAG Retriever:', error);
+                }
+            }
+
+            // Check dependencies again after reinitialization attempts
+            const llmReady = this.llmManager && this.llmManager.isReady();
+            const ragReady = this.retriever && this.retriever.isReady();
+            
+            if (llmReady && ragReady) {
+                try {
+                    await this.agentManager.initialize();
+                    console.log('Agent Manager reinitialized successfully');
+                    
+                    // Check again after reinitialization
+                    const newStatus = this.getSystemStatus();
+                    if (!newStatus.ready) {
+                        new Notice(`System issues: ${newStatus.issues.join(', ')}`);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Failed to reinitialize Agent Manager:', error);
+                    new Notice('Failed to initialize agent system. Please check your settings and try again.');
+                    return;
+                }
+            } else {
+                // Show specific error message
+                const primaryIssue = status.issues[0];
+                new Notice(primaryIssue);
+                return;
+            }
         }
 
         const agents = this.agentManager.listAgents();
@@ -451,11 +556,156 @@ export default class RiskManagementPlugin extends Plugin {
             return;
         }
 
-        // Show agent selection modal
-        const modal = new AgentSelectorModal(this.app, agents, (agentId) => {
-            this.showAgentQueryModal(agentId);
+        // Open Tailwind chat view in sidebar
+        this.openTailwindChatView();
+    }
+
+    /**
+     * Open Tailwind chat view
+     */
+    private async openTailwindChatView(): Promise<void> {
+        // Check if chat view is already open
+        const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TAILWIND_CHAT);
+        if (existingLeaves.length > 0) {
+            // Focus existing view
+            this.app.workspace.revealLeaf(existingLeaves[0]);
+            return;
+        }
+
+        // Create new leaf in right sidebar
+        const leaf = this.app.workspace.getRightLeaf(false);
+        if (!leaf) {
+            new Notice('Could not create chat view. Please try again.');
+            return;
+        }
+        await leaf.setViewState({ type: VIEW_TYPE_TAILWIND_CHAT, active: true });
+        this.app.workspace.revealLeaf(leaf);
+    }
+
+    /**
+     * Open agent chat sidebar (legacy method - keeping for reference)
+     */
+    private openAgentChatSidebar(): void {
+        // Check if sidebar is already open
+        if (this.chatSidebar) {
+            // Focus existing sidebar
+            const sidebar = document.querySelector('.agent-chat-sidebar');
+            if (sidebar) {
+                sidebar.scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+        }
+
+        // Create new sidebar
+        this.chatSidebar = new AgentChatSidebar(
+            this,
+            (agentId: string) => this.handleAgentChange(agentId),
+            (message: string) => this.handleSendMessage(message)
+        );
+
+        // Create a proper sidebar container that pushes content
+        const container = document.createElement('div');
+        container.className = 'agent-chat-sidebar-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 350px;
+            height: 100vh;
+            background: var(--background-primary);
+            border-left: 1px solid var(--background-modifier-border);
+            z-index: 1000;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+        `;
+        
+        // Add to body
+        document.body.appendChild(container);
+        
+        // Render sidebar
+        this.chatSidebar.render(container);
+        
+        // Update agents list
+        const agents = this.agentManager.listAgents();
+        this.chatSidebar.updateAgents(agents);
+        
+        // Add a backdrop to close the sidebar
+        const backdrop = document.createElement('div');
+        backdrop.className = 'agent-chat-backdrop';
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+        `;
+        document.body.appendChild(backdrop);
+        
+        // Close on backdrop click
+        backdrop.addEventListener('click', () => {
+            this.closeAgentChatSidebar();
         });
-        modal.open();
+    }
+
+    /**
+     * Handle agent change in sidebar
+     */
+    private handleAgentChange(agentId: string): void {
+        console.log('Agent changed to:', agentId);
+        // Could add agent-specific initialization here
+    }
+
+    /**
+     * Handle send message in sidebar
+     */
+    private async handleSendMessage(message: string): Promise<void> {
+        if (!this.chatSidebar || !this.chatSidebar.state.selectedAgentId) return;
+
+        try {
+            // Show typing indicator
+            this.chatSidebar.setTyping(true);
+
+            // Execute agent
+            const response = await this.agentManager.executeAgent(
+                this.chatSidebar.state.selectedAgentId,
+                message
+            );
+
+            // Hide typing indicator
+            this.chatSidebar.setTyping(false);
+
+            // Add agent response
+            const sources = response.sources.map(source => ({
+                documentTitle: source.document_title,
+                section: source.section
+            }));
+            this.chatSidebar.addAgentMessage(response.answer, sources);
+
+        } catch (error: unknown) {
+            // Hide typing indicator
+            this.chatSidebar.setTyping(false);
+            
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.chatSidebar.addAgentMessage(`❌ Error: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Close agent chat sidebar
+     */
+    private closeAgentChatSidebar(): void {
+        const sidebarContainer = document.querySelector('.agent-chat-sidebar-container');
+        const backdrop = document.querySelector('.agent-chat-backdrop');
+        
+        if (sidebarContainer) {
+            sidebarContainer.remove();
+        }
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        this.chatSidebar = null;
     }
 
     /**
@@ -471,6 +721,107 @@ export default class RiskManagementPlugin extends Plugin {
      */
     private getLLMConfig(id: string) {
         return this.settings.llmConfigs.find(c => c.id === id);
+    }
+
+    /**
+     * Prompt for master password when session is lost
+     */
+    private async promptForMasterPassword(): Promise<boolean> {
+        return new Promise((resolve) => {
+            // Import MasterPasswordModal dynamically to avoid circular imports
+            import('./ui/modals/MasterPasswordModal').then(({ MasterPasswordModal }) => {
+                const modal = new MasterPasswordModal(this.app, this.keyManager, {
+                    mode: 'verify',
+                    title: 'Master Password Required',
+                    description: 'Your master password session has expired. Please enter your password to continue.',
+                    existingVerificationData: this.settings.masterPassword?.verificationData,
+                    onSuccess: async (password: string) => {
+                        // Password verified successfully
+                        resolve(true);
+                    },
+                    onCancel: () => {
+                        resolve(false);
+                    }
+                });
+                
+                modal.open();
+            }).catch(() => {
+                // Fallback if modal can't be loaded
+                resolve(false);
+            });
+        });
+    }
+
+    /**
+     * Check system status and provide diagnostic information
+     */
+    private getSystemStatus(): { ready: boolean; issues: string[] } {
+        const issues: string[] = [];
+        let ready = true;
+
+        // Check master password first - check both session and settings
+        const hasPasswordInSession = this.keyManager.hasMasterPassword();
+        const hasPasswordInSettings = this.settings.masterPassword?.isSet || false;
+        
+        if (!hasPasswordInSession && !hasPasswordInSettings) {
+            issues.push('Master password not set (set master password in Security settings)');
+            ready = false;
+        } else if (!hasPasswordInSession && hasPasswordInSettings) {
+            issues.push('Master password session expired (re-enter password in Security settings)');
+            ready = false;
+        }
+
+        // Check LLM Manager
+        if (!this.llmManager) {
+            issues.push('LLM Manager not initialized');
+            ready = false;
+        } else if (!this.llmManager.isReady()) {
+            // Check if any providers are configured
+            const hasConfiguredProviders = this.settings.llmConfigs && this.settings.llmConfigs.length > 0;
+            const hasEnabledProviders = this.settings.llmConfigs && this.settings.llmConfigs.some(config => config.enabled);
+            
+            if (!hasConfiguredProviders) {
+                issues.push('No AI providers configured (add AI providers in settings)');
+            } else if (!hasEnabledProviders) {
+                issues.push('No enabled AI providers (enable at least one AI provider in settings)');
+            } else {
+                issues.push('LLM Manager not ready (check master password and AI provider configuration)');
+            }
+            ready = false;
+        }
+
+        // Check RAG Retriever
+        if (!this.retriever) {
+            issues.push('RAG Retriever not initialized');
+            ready = false;
+        } else if (!this.retriever.isReady()) {
+            issues.push('RAG Retriever not ready (check embeddings configuration)');
+            ready = false;
+        } else {
+            // Check if vector store has data
+            const stats = this.retriever.getStats();
+            if (!stats || stats.totalChunks === 0) {
+                issues.push('Vector store is empty. Run chunk ingestion to populate it.');
+                ready = false;
+            }
+        }
+
+        // Check Agent Manager
+        if (!this.agentManager) {
+            issues.push('Agent Manager not initialized');
+            ready = false;
+        } else if (!this.agentManager.isReady()) {
+            issues.push('Agent Manager not ready (check dependencies above)');
+            ready = false;
+        } else {
+            const agents = this.agentManager.listAgents();
+            if (agents.length === 0) {
+                issues.push('No agents available (create agents in settings)');
+                ready = false;
+            }
+        }
+
+        return { ready, issues };
     }
 }
 
@@ -552,6 +903,7 @@ class AgentQueryModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.addClass('agent-chat-modal');
 
         const agent = this.plugin.agentManager.getAgent(this.agentId);
         if (!agent) {
@@ -560,84 +912,154 @@ class AgentQueryModal extends Modal {
             return;
         }
 
-        contentEl.createEl('h2', { text: `💬 Ask ${agent.getConfig().name}` });
+        // Check if Goddess Persona is enabled
+        const personaEnabled = this.plugin.settings.persona?.enabled || false;
+        const personaIntensity = this.plugin.settings.persona?.intensity || 'moderate';
 
-        // Query input
-        const inputDiv = contentEl.createDiv();
-        inputDiv.style.marginBottom = '15px';
+        // Header with agent info and persona status
+        const header = contentEl.createDiv({ cls: 'chat-header' });
+        const agentName = agent.getConfig().name;
+        const title = personaEnabled ? `🏛️ ${agentName} (Divine Mode)` : `💬 ${agentName}`;
+        header.createEl('h2', { text: title });
 
-        const textarea = inputDiv.createEl('textarea');
-        textarea.placeholder = 'Enter your question...';
-        textarea.style.width = '100%';
-        textarea.style.minHeight = '100px';
-        textarea.style.padding = '10px';
-        textarea.style.fontFamily = 'inherit';
-        textarea.style.fontSize = '14px';
+        if (personaEnabled) {
+            const personaInfo = header.createDiv({ cls: 'persona-info' });
+            personaInfo.innerHTML = `
+                <div class="persona-badge">
+                    <span class="persona-icon">🏛️</span>
+                    <span class="persona-text">Goddess Persona: ${personaIntensity}</span>
+                </div>
+            `;
+        }
 
-        // Buttons
-        const buttonDiv = contentEl.createDiv();
-        buttonDiv.style.display = 'flex';
-        buttonDiv.style.gap = '10px';
+        // Chat container
+        const chatContainer = contentEl.createDiv({ cls: 'chat-container' });
+        
+        // Messages area
+        const messagesArea = chatContainer.createDiv({ cls: 'messages-area' });
+        messagesArea.innerHTML = `
+            <div class="welcome-message">
+                <div class="message-content">
+                    ${personaEnabled ? 
+                        `Greetings, mortal. I am ${agentName}, and through my divine connection to Mnemosyne, goddess of memory, I am here to assist you with wisdom from the ages. What knowledge do you seek?` :
+                        `Hello! I'm ${agentName}. How can I help you today?`
+                    }
+                </div>
+            </div>
+        `;
 
-        const submitBtn = buttonDiv.createEl('button', { text: 'Ask' });
-        submitBtn.style.padding = '10px 20px';
-        submitBtn.style.cursor = 'pointer';
+        // Input area
+        const inputArea = chatContainer.createDiv({ cls: 'input-area' });
+        
+        // Input container
+        const inputContainer = inputArea.createDiv({ cls: 'input-container' });
+        
+        const textarea = inputContainer.createEl('textarea', {
+            placeholder: personaEnabled ? 'Ask the goddess for divine wisdom...' : 'Enter your question...',
+            cls: 'message-input'
+        });
+        textarea.style.resize = 'none';
 
-        const cancelBtn = buttonDiv.createEl('button', { text: 'Cancel' });
-        cancelBtn.style.padding = '10px 20px';
-        cancelBtn.style.cursor = 'pointer';
+        // Send button
+        const sendBtn = inputContainer.createEl('button', { 
+            text: personaEnabled ? '🔮 Seek Wisdom' : 'Send',
+            cls: 'send-button'
+        });
 
-        // Response area
-        const responseDiv = contentEl.createDiv();
-        responseDiv.style.marginTop = '20px';
-        responseDiv.style.display = 'none';
+        // Auto-resize textarea
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        });
 
-        submitBtn.addEventListener('click', async () => {
+        // Send message function
+        const sendMessage = async () => {
             const query = textarea.value.trim();
-            if (!query) {
-                new Notice('Please enter a question');
-                return;
-            }
+            if (!query) return;
 
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Thinking...';
+            // Add user message to chat
+            const userMessage = messagesArea.createDiv({ cls: 'message user-message' });
+            userMessage.innerHTML = `
+                <div class="message-content">${query}</div>
+                <div class="message-time">${new Date().toLocaleTimeString()}</div>
+            `;
+
+            // Clear input and disable send button
+            textarea.value = '';
+            textarea.style.height = 'auto';
+            sendBtn.disabled = true;
+            sendBtn.textContent = personaEnabled ? '🔮 Channeling...' : 'Thinking...';
+
+            // Add agent thinking indicator
+            const thinkingMessage = messagesArea.createDiv({ cls: 'message agent-message thinking' });
+            thinkingMessage.innerHTML = `
+                <div class="message-content">
+                    <div class="thinking-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    ${personaEnabled ? 'The goddess is channeling divine wisdom...' : 'Processing your request...'}
+                </div>
+            `;
+
+            // Scroll to bottom
+            messagesArea.scrollTop = messagesArea.scrollHeight;
 
             try {
                 const response = await this.plugin.agentManager.executeAgent(this.agentId, query);
 
-                responseDiv.style.display = 'block';
-                responseDiv.empty();
+                // Remove thinking indicator
+                thinkingMessage.remove();
 
-                responseDiv.createEl('h3', { text: '📝 Response' });
-                const answerDiv = responseDiv.createDiv();
-                answerDiv.style.padding = '15px';
-                answerDiv.style.backgroundColor = 'var(--background-secondary)';
-                answerDiv.style.borderRadius = '6px';
-                answerDiv.style.whiteSpace = 'pre-wrap';
-                answerDiv.textContent = response.answer;
+                // Add agent response
+                const agentMessage = messagesArea.createDiv({ cls: 'message agent-message' });
+                agentMessage.innerHTML = `
+                    <div class="message-content">${response.answer}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                `;
 
                 // Show sources if any
                 if (response.sources && response.sources.length > 0) {
-                    responseDiv.createEl('h4', { text: '📚 Sources' });
-                    const sourcesList = responseDiv.createEl('ul');
-                    response.sources.forEach(source => {
-                        const li = sourcesList.createEl('li');
-                        li.textContent = `${source.documentTitle} - ${source.section}`;
-                    });
+                    const sourcesDiv = agentMessage.createDiv({ cls: 'sources' });
+                    sourcesDiv.innerHTML = `
+                        <div class="sources-header">📚 Sources:</div>
+                        <ul class="sources-list">
+                            ${response.sources.map(source => 
+                                `<li>${source.documentTitle} - ${source.section}</li>`
+                            ).join('')}
+                        </ul>
+                    `;
                 }
 
             } catch (error: unknown) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                new Notice(`Error: ${errorMessage}`);
+                // Remove thinking indicator
+                thinkingMessage.remove();
+                
+                const errorMessage = messagesArea.createDiv({ cls: 'message error-message' });
+                errorMessage.innerHTML = `
+                    <div class="message-content">
+                        ❌ ${personaEnabled ? 'The divine connection was interrupted...' : 'An error occurred:'} 
+                        ${error instanceof Error ? error.message : String(error)}
+                    </div>
+                `;
             } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Ask';
+                sendBtn.disabled = false;
+                sendBtn.textContent = personaEnabled ? '🔮 Seek Wisdom' : 'Send';
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            }
+        };
+
+        // Event listeners
+        sendBtn.addEventListener('click', sendMessage);
+        
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
             }
         });
 
-        cancelBtn.addEventListener('click', () => {
-            this.close();
-        });
+        // Focus input
+        textarea.focus();
     }
 
     onClose() {

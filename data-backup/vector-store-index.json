@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "embeddingModel": "text-embedding-3-small",
+  "dimension": 1536,
+  "totalChunks": 0,
+  "createdAt": 1760905556113,
+  "updatedAt": 1760905556113,
+  "entries": []
+}
