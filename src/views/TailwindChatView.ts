@@ -275,7 +275,10 @@ export class TailwindChatView extends ItemView {
             const message = textarea.value.trim();
             if (!message || !this.selectedAgentId) return;
 
-            // Check initialization status before sending
+            // First, try to automatically initialize the system
+            await this.attemptAutoInitialization();
+
+            // Check initialization status after auto-init attempt
             const initStatus = await this.checkInitializationStatus();
             if (!initStatus.isReady) {
                 this.showInitializationMessage(initStatus);
@@ -479,6 +482,37 @@ export class TailwindChatView extends ItemView {
     }
 
     /**
+     * Attempt to automatically initialize the system
+     */
+    private async attemptAutoInitialization(): Promise<void> {
+        try {
+            console.log('Attempting automatic initialization...');
+            
+            // Try to initialize LLM Manager if not ready
+            if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
+                console.log('Initializing LLM Manager...');
+                await this.plugin.llmManager.initialize();
+            }
+            
+            // Try to initialize Agent Manager if not ready
+            if (this.plugin.agentManager && !this.plugin.agentManager.isReady()) {
+                console.log('Initializing Agent Manager...');
+                await this.plugin.agentManager.initialize();
+            }
+            
+            // Try to initialize RAG Retriever if not ready
+            if (this.plugin.ragRetriever && !this.plugin.ragRetriever.isReady()) {
+                console.log('Initializing RAG Retriever...');
+                await this.plugin.ragRetriever.initialize();
+            }
+            
+            console.log('Automatic initialization completed');
+        } catch (error) {
+            console.warn('Automatic initialization failed:', error);
+        }
+    }
+
+    /**
      * Check if all required components are initialized
      */
     private async checkInitializationStatus(): Promise<{
@@ -577,6 +611,9 @@ export class TailwindChatView extends ItemView {
         const settingsBtn = initMessage.querySelector('#open-settings-btn');
         const refreshBtn = initMessage.querySelector('#refresh-status-btn');
         
+        console.log('Settings button found:', !!settingsBtn);
+        console.log('Refresh button found:', !!refreshBtn);
+        
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
                 this.plugin.app.setting.open();
@@ -585,13 +622,28 @@ export class TailwindChatView extends ItemView {
         }
         
         if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
-                const newStatus = await this.checkInitializationStatus();
-                if (newStatus.isReady) {
-                    this.showWelcomeMessage();
-                } else {
-                    // Update the message with current status
-                    this.showInitializationMessage(newStatus);
+            refreshBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const button = refreshBtn as HTMLButtonElement;
+                
+                // Show loading state
+                button.textContent = 'Checking...';
+                button.disabled = true;
+                
+                try {
+                    const newStatus = await this.checkInitializationStatus();
+                    if (newStatus.isReady) {
+                        this.showWelcomeMessage();
+                    } else {
+                        // Update the message with current status
+                        this.showInitializationMessage(newStatus);
+                    }
+                } catch (error) {
+                    console.error('Error checking initialization status:', error);
+                    button.textContent = 'Refresh Status';
+                    button.disabled = false;
                 }
             });
         }
