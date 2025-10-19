@@ -497,11 +497,19 @@ export class TailwindChatView extends ItemView {
             // Try to initialize LLM Manager if not ready
             if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
                 console.log('Initializing LLM Manager...');
-                await this.plugin.llmManager.initialize();
-                console.log('LLM Manager initialization completed');
+                try {
+                    await this.plugin.llmManager.initialize();
+                    console.log('LLM Manager initialization completed');
+                } catch (error) {
+                    console.error('LLM Manager initialization failed:', error);
+                }
             } else {
                 console.log('LLM Manager already ready');
             }
+            
+            // Check LLM Manager status after initialization attempt
+            const llmReadyAfter = this.plugin.llmManager && this.plugin.llmManager.isReady();
+            console.log('LLM Manager ready after initialization:', llmReadyAfter);
             
             // Try to initialize Agent Manager if not ready
             if (this.plugin.agentManager && !this.plugin.agentManager.isReady()) {
@@ -543,6 +551,11 @@ export class TailwindChatView extends ItemView {
         // Check if LLM Manager is ready
         const llmManagerReady = this.plugin.llmManager && this.plugin.llmManager.isReady();
         console.log('LLM Manager ready:', llmManagerReady);
+        if (this.plugin.llmManager) {
+            console.log('LLM Manager exists, checking internal state...');
+            // Let's check what the LLM Manager's isReady() method is actually checking
+            console.log('LLM Manager providers count:', this.plugin.llmManager.getProviders().length);
+        }
         if (!llmManagerReady) {
             missingComponents.push('LLM Provider');
         }
