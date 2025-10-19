@@ -496,6 +496,15 @@ export class TailwindChatView extends ItemView {
             
             if (!keyManagerReady && !sessionPasswordReady) {
                 console.log('Neither KeyManager nor session password ready - cannot initialize LLM providers');
+                console.log('Attempting to prompt for master password...');
+                
+                // Try to prompt for master password if not available
+                try {
+                    await this.plugin.settingsController.ensureMasterPasswordLoaded();
+                    console.log('Master password prompt completed');
+                } catch (error) {
+                    console.warn('Failed to prompt for master password:', error);
+                }
                 return;
             }
             
