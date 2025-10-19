@@ -509,33 +509,27 @@ export class TailwindChatView extends ItemView {
                         // This is a workaround for the session cache synchronization issue
                         console.log('Attempting to restore KeyManager password from session cache...');
                         
-                        // Try to set the password in KeyManager from session cache
-                        // This should help the LLM Manager initialization
-                        console.log('Setting KeyManager password from session cache...');
+                        // The issue is that the KeyManager needs to be properly set up with the password
+                        // before the LLM Manager can decrypt the API keys. We need to ensure the KeyManager
+                        // is properly configured before the LLM Manager initialization.
+                        console.log('Session password cache available, but KeyManager needs to be set up first...');
                         
-                        // Try to restore the KeyManager password from session cache
-                        // This is a workaround for the session cache synchronization issue
-                        try {
-                            // We can't directly set the password in KeyManager, but we can try to use
-                            // the session password cache to initialize the LLM Manager
-                            console.log('Session password cache available, attempting LLM Manager initialization...');
-                            
-                            // The real issue is that the KeyManager is not properly set up with the password
-                            // even though the password was entered in settings. We need to ensure the KeyManager
-                            // is properly configured before the LLM Manager can decrypt the API keys.
-                            console.log('KeyManager password restoration attempt completed');
-                            
-                            // Try to explicitly set the password in KeyManager from session cache
-                            // This should help the LLM Manager initialization
-                            try {
-                                // We can't directly set the password in KeyManager, but we can try to use
-                                // the session password cache to initialize the LLM Manager
-                                console.log('Attempting to use session password cache for KeyManager setup...');
-                            } catch (error) {
-                                console.warn('Failed to use session password cache for KeyManager setup:', error);
-                            }
-                        } catch (error) {
-                            console.warn('Failed to set KeyManager password from session cache:', error);
+                        // Try to use the session password cache to set up the KeyManager
+                        // This should help the LLM Manager initialization
+                        console.log('Attempting to use session password cache for KeyManager setup...');
+                        
+                        // Wait a bit for the KeyManager to be properly set up
+                        console.log('Waiting for KeyManager to be properly set up...');
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // Check if KeyManager is now ready
+                        const keyManagerReadyAfterWait = this.plugin.keyManager.hasMasterPassword();
+                        console.log('KeyManager ready after wait:', keyManagerReadyAfterWait);
+                        
+                        if (keyManagerReadyAfterWait) {
+                            console.log('KeyManager is now ready - proceeding with LLM Manager initialization');
+                        } else {
+                            console.log('KeyManager still not ready - will need to prompt for password');
                         }
                     } catch (error) {
                         console.warn('Failed to set up KeyManager with session password cache:', error);
