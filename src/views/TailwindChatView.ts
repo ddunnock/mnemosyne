@@ -183,7 +183,7 @@ export class TailwindChatView extends ItemView {
                 <!-- Header -->
                 <div class="flex-shrink-0 p-4 border-b border-slate-20 bg-slate-10">
                     <div class="flex items-center gap-3 mb-4">
-                        <span class="text-2xl">🧠</span>
+                        <img src="/Users/dunnock/projects/projectAssets/mnemosyne/SVG/Mneomosyne-128.svg" alt="Mnemosyne" class="w-8 h-8" />
                         <h2 class="text-xl font-bold text-slate-100">Mnemosyne Chat</h2>
                     </div>
                     <div class="space-y-2">
@@ -386,7 +386,7 @@ export class TailwindChatView extends ItemView {
         const messageDiv = document.createElement('div');
         messageDiv.className = `flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-slide-in`;
         
-        const icon = message.type === 'user' ? '👤' : (isSystem ? 'ℹ️' : '🤖');
+        const icon = message.type === 'user' ? '👤' : (isSystem ? 'ℹ️' : '<img src="/Users/dunnock/projects/projectAssets/mnemosyne/SVG/Mnenosyne-24.svg" alt="Mnemosyne" class="w-5 h-5" />');
         const time = new Date(message.timestamp).toLocaleTimeString();
 
         messageDiv.innerHTML = `
@@ -440,7 +440,7 @@ export class TailwindChatView extends ItemView {
             typingDiv.innerHTML = `
                 <div class="max-w-[80%]">
                     <div class="flex items-center gap-2 mb-2">
-                        <span class="text-lg">🤖</span>
+                        <img src="/Users/dunnock/projects/projectAssets/mnemosyne/SVG/Mnenosyne-24.svg" alt="Mnemosyne" class="w-5 h-5" />
                         <span class="text-xs text-slate-60 font-medium">Now</span>
                     </div>
                     <div class="px-4 py-3 rounded-2xl bg-slate-0o5 text-slate-100 border border-slate-20 rounded-bl-md shadow-sm">
