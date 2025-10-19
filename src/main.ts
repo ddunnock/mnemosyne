@@ -6,7 +6,7 @@
 
 import { Plugin, Notice, Modal, App } from 'obsidian';
 import { PluginSettings, Message } from './types';
-import { DEFAULT_SETTINGS, mergeSettings, validateSettings } from './settings';
+import { mergeSettings, validateSettings, DEFAULT_SETTINGS, ensureMnemosyneAgent } from './settings';
 import { PLUGIN_NAME } from './constants';
 
 // Import modules
@@ -21,6 +21,10 @@ import { AgentManager } from './agents/agentManager';
 import { AgentBuilderModal } from './ui/agentBuilderModal';
 import { exposePublicAPI } from './integration/publicAPI';
 
+// Auto Ingestion imports
+import { AutoIngestionManager } from './rag/AutoIngestionManager';
+import { VaultIngestor } from './rag/VaultIngestor';
+
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
 
@@ -30,6 +34,13 @@ export default class RiskManagementPlugin extends Plugin {
     llmManager: LLMManager;
     agentManager: AgentManager;
     initManager: InitializationManager;
+    
+    // Auto Ingestion components
+    vaultIngestor: VaultIngestor;
+    autoIngestionManager: AutoIngestionManager;
+    
+    // Settings controller (for modern UI)
+    settingsController: any; // Will be set by settings tab
 
     /**
      * Plugin initialization - called when plugin is loaded
@@ -68,10 +79,11 @@ export default class RiskManagementPlugin extends Plugin {
         // Phase 5: Expose public API
         exposePublicAPI(this);
 
-        // Show welcome notice on first load
-        if (!this.settings.agents || this.settings.agents.length === 0) {
+        // Show welcome notice
+        const mnemosyneAgent = this.settings.agents.find(a => a.id === 'mnemosyne-agent-permanent');
+        if (mnemosyneAgent && this.settings.agents.length === 1) {
             new Notice(
-                `${PLUGIN_NAME} loaded!\nOpen settings to configure your first agent.`,
+                `${PLUGIN_NAME} loaded!\nThe Mnemosyne Agent is ready. Configure AI providers in settings to get started.`,
                 5000
             );
         } else {
@@ -86,6 +98,12 @@ export default class RiskManagementPlugin extends Plugin {
      */
     async onunload() {
         console.log(`Unloading ${PLUGIN_NAME}`);
+
+        // Stop auto ingestion
+        if (this.autoIngestionManager) {
+            this.autoIngestionManager.stop();
+            console.log('✓ Auto Ingestion Manager stopped');
+        }
 
         // Phase 5: Cleanup agent manager
         if (this.agentManager) {
@@ -126,6 +144,14 @@ export default class RiskManagementPlugin extends Plugin {
         if (!validateSettings(this.settings)) {
             console.warn('Invalid settings detected, using defaults');
             this.settings = { ...DEFAULT_SETTINGS };
+        }
+        
+        // Ensure permanent Mnemosyne Agent exists
+        ensureMnemosyneAgent(this.settings);
+        
+        // Save settings if the Mnemosyne agent was added
+        if (this.settings.agents.length > 0 && this.settings.agents[0].id === 'mnemosyne-agent-permanent') {
+            await this.saveSettings();
         }
     }
 
@@ -178,6 +204,26 @@ export default class RiskManagementPlugin extends Plugin {
                 }
             } else {
                 console.log('⚠ Skipping Agent Manager initialization - dependencies not ready');
+            }
+
+            // Initialize Auto Ingestion System
+            this.vaultIngestor = new VaultIngestor(this);
+            this.autoIngestionManager = new AutoIngestionManager(
+                this.app.vault, 
+                this.vaultIngestor, 
+                this.settings
+            );
+            
+            // Start auto ingestion if enabled and RAG system is ready
+            if (this.settings.autoIngestion.enabled && this.retriever.isReady()) {
+                try {
+                    this.autoIngestionManager.start();
+                    console.log('✓ Auto Ingestion Manager started');
+                } catch (error) {
+                    console.warn('Auto Ingestion Manager failed to start:', error);
+                }
+            } else {
+                console.log('⚠ Auto ingestion disabled or RAG system not ready');
             }
 
             console.log('All managers initialized');

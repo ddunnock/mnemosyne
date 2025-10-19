@@ -38,8 +38,24 @@ export interface AgentConfig {
     retrievalSettings: RetrievalSettings;
     metadataFilters?: MetadataFilters;
     enabled: boolean;
+    isPermanent?: boolean; // If true, agent cannot be deleted (only disabled)
     createdAt: number;
     updatedAt: number;
+}
+
+export interface AutoIngestionConfig {
+    enabled: boolean;
+    debounceDelay: number; // milliseconds to wait after file change before processing
+    batchSize: number; // max files to process in one batch
+    maxFileSize: number; // max file size in MB to process
+    processingInterval: number; // milliseconds between batch processing
+    retryAttempts: number; // number of retry attempts for failed files
+    excludePatterns: string[]; // glob patterns for files to exclude
+    includeFileTypes: string[]; // file extensions to include (empty = all markdown)
+    maxQueueSize: number; // maximum number of files in queue
+    logLevel: 'silent' | 'minimal' | 'verbose'; // logging level for auto ingestion
+    enabledFolders: string[]; // specific folders to watch (empty = all)
+    ignoreHiddenFiles: boolean; // ignore files starting with .
 }
 
 export interface PluginSettings {
@@ -61,6 +77,9 @@ export interface PluginSettings {
     embeddingModel: string;
     chunkSize: number;
     chunkOverlap: number;
+
+    // Auto Ingestion Configuration
+    autoIngestion: AutoIngestionConfig;
 
     // Feature flags
     enableLogging: boolean;

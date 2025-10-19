@@ -2,11 +2,25 @@
 
 import { AgentManagement, AgentManagementState } from './components/AgentManagement';
 import { AgentConfig } from '../../types/index';
-import { Notice } from 'obsidian';
+import { Notice, Modal } from 'obsidian';
+import { VaultIngestionModal } from '../vaultIngestionModal';
+import { KeyManager, EncryptedData } from '../../encryption/keyManager';
+import { MasterPasswordModal } from '../modals/MasterPasswordModal';
 
 export interface MnemosyneSettings {
     // Core functionality
     enabled: boolean;
+
+    // Security
+    masterPassword: {
+        isSet: boolean;
+        verificationData?: {
+            ciphertext: string;
+            iv: string;
+            salt: string;
+        };
+        lastChanged?: number;
+    };
 
     // AI Providers
     providers: AIProviderConfig[];
@@ -45,6 +59,7 @@ export class MnemosyneSettingsController {
     private plugin: any;
     private container: HTMLElement | null = null;
     private settings: MnemosyneSettings;
+    private keyManager: KeyManager;
 
     // Components
     private agentManagement: AgentManagement | null = null;
@@ -56,11 +71,16 @@ export class MnemosyneSettingsController {
     constructor(plugin: any) {
         this.plugin = plugin;
         this.settings = this.getDefaultSettings();
+        // Use the plugin's KeyManager instead of creating a new one
+        this.keyManager = this.plugin.keyManager || new KeyManager(this.plugin.app);
     }
 
     private getDefaultSettings(): MnemosyneSettings {
         return {
             enabled: false,
+            masterPassword: {
+                isSet: false,
+            },
             providers: [],
             defaultProvider: '',
             agents: [],
@@ -101,6 +121,12 @@ export class MnemosyneSettingsController {
                 // Ensure agents array exists
                 agents: savedSettings?.agents || [],
                 providers: savedSettings?.providers || [],
+                // Ensure master password field exists with proper structure
+                masterPassword: {
+                    isSet: savedSettings?.masterPassword?.isSet || false,
+                    verificationData: savedSettings?.masterPassword?.verificationData,
+                    lastChanged: savedSettings?.masterPassword?.lastChanged,
+                },
             };
         } catch (error) {
             console.error('Failed to load settings:', error);
@@ -110,13 +136,22 @@ export class MnemosyneSettingsController {
 
     private async loadDynamicState(): Promise<void> {
         try {
-            // Get chunk count from vector store
-            if (this.plugin.vectorStore) {
-                this.chunkCount = await this.plugin.vectorStore.getChunkCount();
+            // Get chunk count from vector store via retriever
+            if (this.plugin.retriever) {
+                // Access the vector store through the public getter
+                const vectorStore = this.plugin.retriever.getVectorStore();
+                if (vectorStore && vectorStore.isReady()) {
+                    const stats = vectorStore.getStats();
+                    this.chunkCount = stats ? stats.totalChunks : 0;
+                } else {
+                    this.chunkCount = 0;
+                }
+            } else {
+                this.chunkCount = 0;
             }
 
-            // Check if indexing is in progress
-            this.isIndexing = this.plugin.vectorStore?.isIndexing() || false;
+            // For now, we don't track indexing state in the vector store itself
+            this.isIndexing = false;
         } catch (error) {
             console.error('Failed to load dynamic state:', error);
             this.chunkCount = 0;
@@ -148,6 +183,7 @@ export class MnemosyneSettingsController {
         
         <div class="settings-content">
           ${this.renderQuickSetup()}
+          ${this.renderSecurity()}
           ${this.renderAgentManagement()}
           ${this.renderPlaceholderSections()}
         </div>
@@ -238,6 +274,190 @@ export class MnemosyneSettingsController {
     `;
     }
 
+    private renderAutoIngestionSettings(): string {
+        // Get auto ingestion settings from plugin
+        const pluginSettings = this.plugin?.settings;
+        const autoIngestion = pluginSettings?.autoIngestion || {
+            enabled: false,
+            debounceDelay: 2000,
+            batchSize: 10,
+            maxFileSize: 5,
+            queueSize: 0,
+            filesProcessed: 0,
+            logLevel: 'minimal'
+        };
+        
+        const autoManager = this.plugin?.autoIngestionManager;
+        const stats = autoManager ? autoManager.getStats() : {
+            filesProcessed: 0,
+            filesQueued: 0,
+            filesSkipped: 0,
+            errors: 0,
+            isProcessing: false,
+            queueSize: 0
+        };
+        
+        const isEnabled = autoIngestion.enabled;
+        const statusIcon = isEnabled ? '🟢' : '🔴';
+        const statusText = isEnabled ? 'Enabled' : 'Disabled';
+        const statusClass = isEnabled ? 'text-success' : 'text-muted';
+        
+        return `
+      <div class="settings-section">
+        <h3 class="section-title">🔄 Automatic Ingestion</h3>
+        <div class="settings-card auto-ingestion-card fade-in">
+          <div class="card-header">
+            <p class="card-description">Automatically update your knowledge base when files change</p>
+            <div class="status-chip" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px; background: ${isEnabled ? 'rgba(72, 187, 120, 0.1)' : 'rgba(156, 163, 175, 0.1)'}; color: var(--${statusClass}); border: 1px solid ${isEnabled ? 'rgba(72, 187, 120, 0.3)' : 'rgba(156, 163, 175, 0.3)'}">
+              ${statusIcon} Status: ${statusText}
+            </div>
+          </div>
+          
+          <div class="auto-ingestion-content">
+            <div class="control-group" style="margin-bottom: 16px;">
+              <div class="toggle-container">
+                <label class="toggle-label" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                  <input type="checkbox" id="auto-ingestion-toggle" ${isEnabled ? 'checked' : ''} style="display: none;">
+                  <div class="toggle-switch" style="position: relative; width: 44px; height: 24px; background: ${isEnabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 12px; transition: background-color 0.3s ease; cursor: pointer; border: 1px solid ${isEnabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)'};">
+                    <div class="toggle-slider" style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 10px; transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transform: translateX(${isEnabled ? '20px' : '0px'});"></div>
+                  </div>
+                  <span style="font-weight: 500; font-size: 14px;">Enable Automatic Ingestion</span>
+                </label>
+                <p class="help-text">Automatically index files when they are created or modified</p>
+              </div>
+            </div>
+            
+            ${isEnabled ? `
+            <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div class="stat-item">
+                <span class="label" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Files Processed</span>
+                <span class="value" style="font-size: 16px; font-weight: 500;">${stats.filesProcessed}</span>
+              </div>
+              <div class="stat-item">
+                <span class="label" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Queue Size</span>
+                <span class="value" style="font-size: 16px; font-weight: 500; color: ${stats.queueSize > 0 ? 'var(--interactive-accent)' : 'inherit'};">${stats.queueSize}</span>
+              </div>
+              <div class="stat-item">
+                <span class="label" style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Status</span>
+                <span class="value" style="font-size: 16px; font-weight: 500; color: ${stats.isProcessing ? 'var(--interactive-accent)' : 'inherit'};">${stats.isProcessing ? 'Processing...' : 'Idle'}</span>
+              </div>
+            </div>
+            ` : ''}
+            
+            <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div>
+                <label style="font-weight: 500; font-size: 14px;">Debounce Delay</label>
+                <p class="help-text">Time to wait after file stops changing (seconds)</p>
+              </div>
+              <input type="number" id="auto-debounce-delay" value="${autoIngestion.debounceDelay / 1000}" min="1" max="30" step="1" style="width: 80px; text-align: right;" ${!isEnabled ? 'disabled' : ''}>
+            </div>
+            
+            <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div>
+                <label style="font-weight: 500; font-size: 14px;">Batch Size</label>
+                <p class="help-text">Max files to process at once</p>
+              </div>
+              <input type="number" id="auto-batch-size" value="${autoIngestion.batchSize}" min="1" max="50" step="1" style="width: 80px; text-align: right;" ${!isEnabled ? 'disabled' : ''}>
+            </div>
+            
+            <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <label style="font-weight: 500; font-size: 14px;">Max File Size</label>
+                <p class="help-text">Maximum file size to process (MB)</p>
+              </div>
+              <input type="number" id="auto-max-file-size" value="${autoIngestion.maxFileSize}" min="1" max="100" step="1" style="width: 80px; text-align: right;" ${!isEnabled ? 'disabled' : ''}>
+            </div>
+            
+            <div class="quick-actions">
+              <button class="btn btn-secondary" data-action="configure-auto-ingestion" ${!isEnabled ? 'disabled' : ''}>
+                <span>⚙️</span>
+                Advanced Settings
+              </button>
+              ${stats.queueSize > 0 ? `
+                <button class="btn btn-outline" data-action="clear-auto-queue">
+                  <span>🗑️</span>
+                  Clear Queue (${stats.queueSize})
+                </button>
+              ` : ''}
+            </div>
+            
+            <div class="auto-ingestion-notice" style="margin-top: 16px;">
+              <div class="security-notice-icon">⚡</div>
+              <div class="security-notice-content">
+                <strong>Performance Note:</strong> Auto ingestion monitors file changes in real-time. 
+                Disable this feature if you experience performance issues or want manual control over indexing.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+    
+    private renderSecurity(): string {
+        // Get security status
+        const isPasswordSet = this.settings.masterPassword.isSet;
+        const passwordLastChanged = this.settings.masterPassword.lastChanged;
+        const securityStatusClass = isPasswordSet ? 'text-success' : 'text-error';
+        const securityStatusText = isPasswordSet ? 'Set' : 'Not Set';
+        const securityIcon = isPasswordSet ? '✅' : '⚠️';
+        
+        // Format last changed date if available
+        let lastChangedText = 'Never';
+        if (passwordLastChanged) {
+            const date = new Date(passwordLastChanged);
+            lastChangedText = date.toLocaleDateString();
+        }
+        
+        return `
+      <div class="settings-section">
+        <h3 class="section-title">🔒 Security</h3>
+        <div class="settings-card security-card fade-in">
+          <div class="card-header">
+            <p class="card-description">Protect your API keys with a master password</p>
+            <div class="status-chip" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px; background: ${isPasswordSet ? 'rgba(72, 187, 120, 0.1)' : 'rgba(245, 101, 101, 0.1)'}; color: var(--${securityStatusClass}); border: 1px solid ${isPasswordSet ? 'rgba(72, 187, 120, 0.3)' : 'rgba(245, 101, 101, 0.3)'}">
+              ${securityIcon} Master Password: ${securityStatusText}
+            </div>
+          </div>
+          
+          <div class="security-content">
+            <div class="status-grid">
+              <div class="status-item">
+                <span class="label">Encryption</span>
+                <span class="value">AES-256-CBC</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Password Last Changed</span>
+                <span class="value">${lastChangedText}</span>
+              </div>
+            </div>
+            
+            <div class="quick-actions" style="margin-top: 16px;">
+              <button class="btn ${isPasswordSet ? 'btn-secondary' : 'btn-primary'}" data-action="${isPasswordSet ? 'change-password' : 'set-password'}">
+                <span>${isPasswordSet ? '🔄' : '🔐'}</span>
+                ${isPasswordSet ? 'Change Password' : 'Set Password'}
+              </button>
+              ${isPasswordSet ? `
+                <button class="btn btn-outline" data-action="reset-password">
+                  <span>🗑️</span>
+                  Reset Password
+                </button>
+              ` : ''}
+            </div>
+            
+            <div class="security-notice" style="margin-top: 16px;">
+              <div class="security-notice-icon">🛡️</div>
+              <div class="security-notice-content">
+                <strong>Security Note:</strong> Your master password is used to encrypt API keys and is never stored. 
+                Set a strong password you won't forget. If you reset it, you'll need to re-enter all API keys.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
     private renderAgentManagement(): string {
         const agentManagementState: AgentManagementState = {
             agents: this.settings.agents,
@@ -261,8 +481,10 @@ export class MnemosyneSettingsController {
     }
 
     private renderPlaceholderSections(): string {
-        // Placeholder sections for future phases
+        // Placeholder sections for future phases + Auto Ingestion
         return `
+      ${this.renderAutoIngestionSettings()}
+      
       <div class="settings-section">
         <h3 class="section-title">🤖 AI Providers</h3>
         <div class="settings-card">
@@ -307,6 +529,39 @@ export class MnemosyneSettingsController {
             });
         }
 
+        // Attach auto ingestion toggle
+        const autoIngestionToggle = this.container.querySelector('#auto-ingestion-toggle') as HTMLInputElement;
+        if (autoIngestionToggle) {
+            autoIngestionToggle.addEventListener('change', async () => {
+                await this.handleAutoIngestionToggle(autoIngestionToggle.checked);
+            });
+        }
+
+        // Attach auto ingestion settings inputs
+        const debounceInput = this.container.querySelector('#auto-debounce-delay') as HTMLInputElement;
+        if (debounceInput) {
+            debounceInput.addEventListener('change', async () => {
+                const delayMs = parseInt(debounceInput.value) * 1000;
+                await this.handleAutoIngestionSettingUpdate('debounceDelay', delayMs);
+            });
+        }
+
+        const batchSizeInput = this.container.querySelector('#auto-batch-size') as HTMLInputElement;
+        if (batchSizeInput) {
+            batchSizeInput.addEventListener('change', async () => {
+                const batchSize = parseInt(batchSizeInput.value);
+                await this.handleAutoIngestionSettingUpdate('batchSize', batchSize);
+            });
+        }
+
+        const maxFileSizeInput = this.container.querySelector('#auto-max-file-size') as HTMLInputElement;
+        if (maxFileSizeInput) {
+            maxFileSizeInput.addEventListener('change', async () => {
+                const maxFileSize = parseInt(maxFileSizeInput.value);
+                await this.handleAutoIngestionSettingUpdate('maxFileSize', maxFileSize);
+            });
+        }
+
         // Attach action buttons
         const actionButtons = this.container.querySelectorAll('[data-action]');
         actionButtons.forEach(button => {
@@ -345,6 +600,21 @@ export class MnemosyneSettingsController {
                 break;
             case 'index-vault':
                 await this.handleIndexVault();
+                break;
+            case 'set-password':
+                await this.handleSetMasterPassword();
+                break;
+            case 'change-password':
+                await this.handleChangeMasterPassword();
+                break;
+            case 'reset-password':
+                await this.handleResetMasterPassword();
+                break;
+            case 'configure-auto-ingestion':
+                await this.handleConfigureAutoIngestion();
+                break;
+            case 'clear-auto-queue':
+                await this.handleClearAutoQueue();
                 break;
             default:
                 console.warn(`Unknown quick action: ${action}`);
@@ -414,19 +684,65 @@ export class MnemosyneSettingsController {
 
     private async handleDeleteAgent(agentId: string): Promise<void> {
         const agent = this.settings.agents.find(a => a.id === agentId);
-        if (!agent) return;
-
-        // Remove from settings
-        this.settings.agents = this.settings.agents.filter(a => a.id !== agentId);
-        await this.saveSettings();
-
-        // Remove from agent manager
-        if (this.plugin.agentManager) {
-            await this.plugin.agentManager.deleteAgent(agentId);
+        if (!agent) {
+            new Notice('Agent not found');
+            return;
+        }
+        
+        // Check if agent is permanent
+        if (agent.isPermanent) {
+            new Notice('This is a permanent agent and cannot be deleted. You can disable it instead.');
+            return;
         }
 
-        this.updateComponents();
-        new Notice(`Agent "${agent.name}" deleted successfully!`);
+        // Store original state for rollback
+        const originalAgents = [...this.settings.agents];
+        
+        try {
+            console.log(`Deleting agent: ${agent.name} (${agentId})`);
+            
+            // Remove from settings
+            this.settings.agents = this.settings.agents.filter(a => a.id !== agentId);
+            
+            // Save settings
+            await this.saveSettings();
+            
+            // Remove from agent manager memory (no save needed - already saved above)
+            if (this.plugin.agentManager) {
+                try {
+                    this.plugin.agentManager.removeAgentFromMemory(agentId);
+                } catch (managerError) {
+                    console.warn('Failed to remove agent from manager memory:', managerError);
+                    // This is not critical, continue
+                }
+            }
+
+            // Update UI
+            try {
+                this.updateComponents();
+            } catch (uiError) {
+                console.error('Failed to update UI after agent deletion:', uiError);
+                // Try to recover by forcing a minimal update
+                this.updateAgentManagement();
+            }
+            
+            new Notice(`Agent "${agent.name}" deleted successfully!`);
+            console.log(`Successfully deleted agent: ${agent.name}`);
+            
+        } catch (error) {
+            console.error('Failed to delete agent:', error);
+            
+            // Rollback to original state
+            this.settings.agents = originalAgents;
+            try {
+                await this.saveSettings();
+                this.updateComponents();
+            } catch (rollbackError) {
+                console.error('Failed to rollback after deletion error:', rollbackError);
+            }
+            
+            new Notice(`Failed to delete agent: ${error.message}`);
+        }
     }
 
     private async handleToggleAgent(agentId: string, enabled: boolean): Promise<void> {
@@ -477,21 +793,165 @@ export class MnemosyneSettingsController {
     }
 
     private async handleIndexVault(): Promise<void> {
-        if (this.plugin.vectorStore) {
-            this.isIndexing = true;
-            this.updateComponents();
-
-            try {
-                await this.plugin.vectorStore.ingestVault();
-                this.chunkCount = await this.plugin.vectorStore.getChunkCount();
-                new Notice('Vault indexed successfully!');
-            } finally {
-                this.isIndexing = false;
+        // Open the vault ingestion modal instead of direct indexing
+        const modal = new VaultIngestionModal(this.plugin.app, this.plugin);
+        
+        // Override the onClose method to refresh state after modal closes
+        const originalOnClose = modal.onClose.bind(modal);
+        modal.onClose = () => {
+            originalOnClose();
+            // Refresh chunk count after modal closes (will be updated if ingestion completed)
+            this.loadDynamicState().then(() => {
                 this.updateComponents();
+            });
+        };
+        
+        modal.open();
+    }
+
+    private async handleSetMasterPassword(): Promise<void> {
+        const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
+            mode: 'set',
+            onSuccess: async (password, verificationData) => {
+                // Update settings
+                this.settings.masterPassword = {
+                    isSet: true,
+                    verificationData,
+                    lastChanged: Date.now(),
+                };
+                
+                // Save settings
+                await this.saveSettings();
+                
+                // Update UI
+                this.updateComponents();
+                
+                new Notice('Master password set successfully!');
             }
-        } else {
-            throw new Error('Vector store not available');
+        });
+        
+        modal.open();
+    }
+
+    private async handleChangeMasterPassword(): Promise<void> {
+        if (!this.settings.masterPassword.isSet || !this.settings.masterPassword.verificationData) {
+            new Notice('No master password is currently set');
+            return;
         }
+        
+        const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
+            mode: 'change',
+            existingVerificationData: this.settings.masterPassword.verificationData,
+            onSuccess: async (password, verificationData) => {
+                // Update settings
+                this.settings.masterPassword = {
+                    isSet: true,
+                    verificationData,
+                    lastChanged: Date.now(),
+                };
+                
+                // Save settings
+                await this.saveSettings();
+                
+                // Update UI
+                this.updateComponents();
+                
+                new Notice('Master password changed successfully!');
+            }
+        });
+        
+        modal.open();
+    }
+
+    private async handleResetMasterPassword(): Promise<void> {
+        // Confirmation dialog
+        const confirmed = await this.showConfirmationDialog(
+            'Reset Master Password',
+            'Are you sure you want to reset your master password? This will clear all encrypted API keys and you will need to re-enter them.',
+            'Reset',
+            'Cancel'
+        );
+        
+        if (!confirmed) return;
+        
+        try {
+            // Clear master password data
+            this.settings.masterPassword = {
+                isSet: false,
+            };
+            
+            // Clear KeyManager
+            this.keyManager.clearMasterPassword();
+            
+            // Clear all encrypted API keys from providers
+            this.settings.providers.forEach(provider => {
+                if (provider.apiKey) {
+                    provider.apiKey = undefined;
+                }
+            });
+            
+            // Save settings
+            await this.saveSettings();
+            
+            // Update UI
+            this.updateComponents();
+            
+            new Notice('Master password reset. All API keys have been cleared.');
+        } catch (error) {
+            console.error('Failed to reset master password:', error);
+            new Notice('Error resetting master password');
+        }
+    }
+    
+    private async showConfirmationDialog(
+        title: string, 
+        message: string, 
+        confirmText: string, 
+        cancelText: string
+    ): Promise<boolean> {
+        return new Promise((resolve) => {
+            // Create a simple confirmation modal
+            class ConfirmationModal extends Modal {
+                constructor(app: any) {
+                    super(app);
+                }
+                
+                onOpen() {
+                    const { contentEl } = this;
+                    contentEl.empty();
+                    
+                    contentEl.createEl('h2', { text: title });
+                    contentEl.createEl('p', { text: message });
+                    
+                    const buttonContainer = contentEl.createEl('div', { 
+                        cls: 'modal-button-container',
+                        attr: { style: 'display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;' }
+                    });
+                    
+                    const cancelButton = buttonContainer.createEl('button', { 
+                        cls: 'btn btn-outline',
+                        text: cancelText
+                    });
+                    cancelButton.addEventListener('click', () => {
+                        resolve(false);
+                        this.close();
+                    });
+                    
+                    const confirmButton = buttonContainer.createEl('button', { 
+                        cls: 'btn btn-primary',
+                        text: confirmText,
+                        attr: { style: 'background: #ff4757; border-color: #ff4757;' }
+                    });
+                    confirmButton.addEventListener('click', () => {
+                        resolve(true);
+                        this.close();
+                    });
+                }
+            }
+            
+            const modal = new ConfirmationModal(this.plugin.app);
+            modal.open();
+        });
     }
 
     // Helper methods
@@ -557,6 +1017,7 @@ export class MnemosyneSettingsController {
         // Update visual elements
         this.updateToggleState();
         this.updateQuickSetupStatus();
+        this.updateSecuritySection();
         this.updateAgentManagement();
     }
 
@@ -601,18 +1062,113 @@ export class MnemosyneSettingsController {
         }
     }
 
+    private updateSecuritySection(): void {
+        if (!this.container) return;
+
+        // Update master password status chip
+        const statusChip = this.container.querySelector('.security-card .status-chip');
+        if (statusChip) {
+            const isPasswordSet = this.settings.masterPassword.isSet;
+            const securityStatusText = isPasswordSet ? 'Set' : 'Not Set';
+            const securityIcon = isPasswordSet ? '✅' : '⚠️';
+            
+            // Update chip styling
+            if (isPasswordSet) {
+                statusChip.setAttribute('style', 'display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px; background: rgba(72, 187, 120, 0.1); color: var(--text-success); border: 1px solid rgba(72, 187, 120, 0.3);');
+            } else {
+                statusChip.setAttribute('style', 'display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px; background: rgba(245, 101, 101, 0.1); color: var(--text-error); border: 1px solid rgba(245, 101, 101, 0.3);');
+            }
+            
+            statusChip.textContent = `${securityIcon} Master Password: ${securityStatusText}`;
+        }
+
+        // Update last changed date
+        const lastChangedValue = this.container.querySelector('.security-card .status-item:last-child .value');
+        if (lastChangedValue) {
+            let lastChangedText = 'Never';
+            if (this.settings.masterPassword.lastChanged) {
+                const date = new Date(this.settings.masterPassword.lastChanged);
+                lastChangedText = date.toLocaleDateString();
+            }
+            lastChangedValue.textContent = lastChangedText;
+        }
+
+        // Update button
+        const passwordButton = this.container.querySelector('.security-card [data-action="set-password"], .security-card [data-action="change-password"]');
+        if (passwordButton) {
+            const isPasswordSet = this.settings.masterPassword.isSet;
+            const buttonClass = isPasswordSet ? 'btn btn-secondary' : 'btn btn-primary';
+            const buttonAction = isPasswordSet ? 'change-password' : 'set-password';
+            const buttonIcon = isPasswordSet ? '🔄' : '🔐';
+            const buttonText = isPasswordSet ? 'Change Password' : 'Set Password';
+            
+            passwordButton.className = buttonClass;
+            passwordButton.setAttribute('data-action', buttonAction);
+            passwordButton.innerHTML = `<span>${buttonIcon}</span>${buttonText}`;
+        }
+
+        // Update reset button visibility
+        const resetButton = this.container.querySelector('.security-card [data-action="reset-password"]') as HTMLElement;
+        if (resetButton) {
+            resetButton.style.display = this.settings.masterPassword.isSet ? 'inline-flex' : 'none';
+        } else if (this.settings.masterPassword.isSet) {
+            // Add reset button if it doesn't exist but should
+            const quickActions = this.container.querySelector('.security-card .quick-actions');
+            if (quickActions) {
+                const resetBtn = document.createElement('button');
+                resetBtn.className = 'btn btn-outline';
+                resetBtn.setAttribute('data-action', 'reset-password');
+                resetBtn.innerHTML = '<span>🗑️</span>Reset Password';
+                quickActions.appendChild(resetBtn);
+                
+                // Add event listener
+                resetBtn.addEventListener('click', async (e) => {
+                    const target = e.target as HTMLElement;
+                    const action = target.closest('[data-action]')?.getAttribute('data-action');
+                    if (action) {
+                        await this.handleQuickAction(action);
+                    }
+                });
+            }
+        }
+    }
+
     private updateAgentManagement(): void {
         if (this.agentManagement && this.container) {
-            this.agentManagement.update({
-                agents: this.settings.agents,
-                defaultAgentId: this.settings.defaultAgentId,
-            }, this.settings.providers.length > 0);
+            try {
+                // Update state first
+                this.agentManagement.update({
+                    agents: this.settings.agents,
+                    defaultAgentId: this.settings.defaultAgentId,
+                }, this.settings.providers.length > 0);
 
-            // Re-render agent management section
-            const agentManagementContainer = this.container.querySelector('.agent-management-container') as HTMLElement;
-            if (agentManagementContainer) {
-                this.agentManagement.render(agentManagementContainer);
-                this.agentManagement.attachEventListeners(agentManagementContainer);
+                // Find the agent management container
+                const agentManagementContainer = this.container.querySelector('.agent-management-container') as HTMLElement;
+                if (agentManagementContainer) {
+                    // Safely clear and re-render
+                    try {
+                        // Remove all child nodes safely
+                        while (agentManagementContainer.firstChild) {
+                            agentManagementContainer.removeChild(agentManagementContainer.firstChild);
+                        }
+                        
+                        // Re-render with fresh content
+                        this.agentManagement.render(agentManagementContainer);
+                        this.agentManagement.attachEventListeners(agentManagementContainer);
+                    } catch (renderError) {
+                        console.error('Failed to render agent management:', renderError);
+                        // Show a simple error message instead of crashing
+                        agentManagementContainer.innerHTML = `
+                            <div style="padding: 20px; text-align: center; color: var(--text-error);">
+                                ⚠️ Failed to render agent management. Please refresh the settings.
+                            </div>
+                        `;
+                    }
+                } else {
+                    console.warn('Agent management container not found');
+                }
+            } catch (error) {
+                console.error('Failed to update agent management:', error);
             }
         }
     }
@@ -817,6 +1373,39 @@ export class MnemosyneSettingsController {
         font-size: 16px;
       }
       
+      .security-card .security-content {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      .security-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(59, 130, 246, 0.05);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      
+      .security-notice-icon {
+        font-size: 16px;
+        opacity: 0.8;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      
+      .security-notice-content {
+        color: var(--text-muted);
+      }
+      
+      .security-notice strong {
+        color: var(--text-normal);
+      }
+      
       @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -830,6 +1419,50 @@ export class MnemosyneSettingsController {
     getSettings(): MnemosyneSettings {
         return this.settings;
     }
+    
+    getKeyManager(): KeyManager {
+        return this.keyManager;
+    }
+    
+    /**
+     * Ensure master password is loaded in KeyManager
+     * If not in memory but verification data exists, prompt user
+     */
+    async ensureMasterPasswordLoaded(): Promise<boolean> {
+        // If already in memory, we're good
+        if (this.keyManager.hasMasterPassword()) {
+            return true;
+        }
+        
+        // If no master password is set in settings, return false
+        if (!this.settings.masterPassword.isSet || !this.settings.masterPassword.verificationData) {
+            return false;
+        }
+        
+        // Prompt user to enter master password
+        return new Promise((resolve) => {
+            const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
+                mode: 'verify',
+                title: 'Enter Master Password',
+                description: 'Enter your master password to continue with the operation.',
+                existingVerificationData: this.settings.masterPassword.verificationData,
+                onSuccess: async (password) => {
+                    // Verify that the password is actually set in KeyManager
+                    if (this.keyManager.hasMasterPassword()) {
+                        resolve(true);
+                    } else {
+                        console.error('Password verification succeeded but KeyManager does not have password');
+                        resolve(false);
+                    }
+                },
+                onCancel: () => {
+                    resolve(false);
+                }
+            });
+            
+            modal.open();
+        });
+    }
 
     async refresh(): Promise<void> {
         await this.loadSettings();
@@ -837,9 +1470,157 @@ export class MnemosyneSettingsController {
         this.updateComponents();
     }
 
+    // Auto ingestion handler methods
+    private async handleAutoIngestionToggle(enabled: boolean): Promise<void> {
+        try {
+            // Update plugin settings directly
+            if (this.plugin.settings && this.plugin.settings.autoIngestion) {
+                this.plugin.settings.autoIngestion.enabled = enabled;
+                await this.plugin.saveSettings();
+                
+                // Update auto ingestion manager if it exists
+                if (this.plugin.autoIngestionManager) {
+                    this.plugin.autoIngestionManager.updateConfig(this.plugin.settings);
+                }
+                
+                // Re-render the auto ingestion section
+                await this.renderAutoIngestionSection();
+                
+                new Notice(`Auto ingestion ${enabled ? 'enabled' : 'disabled'}`);
+            } else {
+                throw new Error('Auto ingestion settings not available');
+            }
+        } catch (error) {
+            console.error('Failed to toggle auto ingestion:', error);
+            new Notice('Error updating auto ingestion setting');
+        }
+    }
+    
+    private async handleAutoIngestionSettingUpdate(setting: string, value: any): Promise<void> {
+        try {
+            if (this.plugin.settings && this.plugin.settings.autoIngestion) {
+                (this.plugin.settings.autoIngestion as any)[setting] = value;
+                await this.plugin.saveSettings();
+                
+                // Update auto ingestion manager if it exists
+                if (this.plugin.autoIngestionManager) {
+                    this.plugin.autoIngestionManager.updateConfig(this.plugin.settings);
+                }
+                
+                console.log(`Auto ingestion ${setting} updated to ${value}`);
+            }
+        } catch (error) {
+            console.error(`Failed to update auto ingestion ${setting}:`, error);
+            new Notice(`Error updating ${setting}`);
+        }
+    }
+    
+    private async handleConfigureAutoIngestion(): Promise<void> {
+        new Notice('Advanced auto ingestion settings coming soon!');
+        // TODO: Open advanced configuration modal
+    }
+    
+    private async handleClearAutoQueue(): Promise<void> {
+        try {
+            if (this.plugin.autoIngestionManager) {
+                const stats = this.plugin.autoIngestionManager.getStats();
+                const queueSize = stats.queueSize;
+                
+                if (queueSize === 0) {
+                    new Notice('Auto ingestion queue is already empty');
+                    return;
+                }
+                
+                // Reset the queue
+                this.plugin.autoIngestionManager.reset();
+                
+                // Re-render the auto ingestion section
+                await this.renderAutoIngestionSection();
+                
+                new Notice(`Cleared ${queueSize} items from auto ingestion queue`);
+            } else {
+                new Notice('Auto ingestion manager not available');
+            }
+        } catch (error) {
+            console.error('Failed to clear auto ingestion queue:', error);
+            new Notice('Error clearing auto ingestion queue');
+        }
+    }
+    
+    private async renderAutoIngestionSection(): Promise<void> {
+        if (!this.container) return;
+        
+        const autoIngestionCard = this.container.querySelector('.auto-ingestion-card');
+        if (autoIngestionCard) {
+            // Find the parent section and re-render just the auto ingestion part
+            const autoIngestionSection = autoIngestionCard.closest('.settings-section');
+            if (autoIngestionSection) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = this.renderAutoIngestionSettings();
+                const newSection = tempDiv.firstElementChild;
+                
+                if (newSection) {
+                    autoIngestionSection.replaceWith(newSection);
+                    
+                    // Re-attach event listeners for the new section
+                    this.attachAutoIngestionEventListeners(newSection as HTMLElement);
+                }
+            }
+        }
+    }
+    
+    private attachAutoIngestionEventListeners(section: HTMLElement): void {
+        // Attach auto ingestion toggle
+        const autoIngestionToggle = section.querySelector('#auto-ingestion-toggle') as HTMLInputElement;
+        if (autoIngestionToggle) {
+            autoIngestionToggle.addEventListener('change', async () => {
+                await this.handleAutoIngestionToggle(autoIngestionToggle.checked);
+            });
+        }
+
+        // Attach auto ingestion settings inputs
+        const debounceInput = section.querySelector('#auto-debounce-delay') as HTMLInputElement;
+        if (debounceInput) {
+            debounceInput.addEventListener('change', async () => {
+                const delayMs = parseInt(debounceInput.value) * 1000;
+                await this.handleAutoIngestionSettingUpdate('debounceDelay', delayMs);
+            });
+        }
+
+        const batchSizeInput = section.querySelector('#auto-batch-size') as HTMLInputElement;
+        if (batchSizeInput) {
+            batchSizeInput.addEventListener('change', async () => {
+                const batchSize = parseInt(batchSizeInput.value);
+                await this.handleAutoIngestionSettingUpdate('batchSize', batchSize);
+            });
+        }
+
+        const maxFileSizeInput = section.querySelector('#auto-max-file-size') as HTMLInputElement;
+        if (maxFileSizeInput) {
+            maxFileSizeInput.addEventListener('change', async () => {
+                const maxFileSize = parseInt(maxFileSizeInput.value);
+                await this.handleAutoIngestionSettingUpdate('maxFileSize', maxFileSize);
+            });
+        }
+        
+        // Attach action buttons
+        const actionButtons = section.querySelectorAll('[data-action]');
+        actionButtons.forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const target = e.target as HTMLElement;
+                const action = target.closest('[data-action]')?.getAttribute('data-action');
+                if (action) {
+                    await this.handleQuickAction(action);
+                }
+            });
+        });
+    }
+
     destroy(): void {
         // Cleanup if needed
         this.container = null;
         this.agentManagement = null;
+        // Clear sensitive data
+        this.keyManager.clearMasterPassword();
     }
 }
