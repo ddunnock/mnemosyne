@@ -35,6 +35,17 @@ export interface RetrievalSettings {
     searchStrategy: SearchStrategy;
 }
 
+// Conversation Memory Configuration
+export interface MemoryConfig {
+    enabled: boolean;
+    maxMessages: number;
+    compressionThreshold: number;
+    compressionRatio: number;
+    autoCompress: boolean;
+    addToVectorStore: boolean;
+    compressionPrompt: string;
+}
+
 // Goddess Persona Configuration
 export interface GoddessPersonaSettings {
     enabled: boolean;
@@ -128,6 +139,9 @@ export interface PluginSettings {
 
     // Auto Ingestion Configuration
     autoIngestion: AutoIngestionConfig;
+
+    // Conversation Memory Configuration
+    memory: MemoryConfig;
 
     // Feature flags
     enableLogging: boolean;

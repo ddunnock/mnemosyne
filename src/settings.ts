@@ -84,6 +84,17 @@ export const DEFAULT_SETTINGS: PluginSettings = {
         ignoreHiddenFiles: true // ignore hidden files by default
     },
 
+    // Conversation Memory Configuration
+    memory: {
+        enabled: true,
+        maxMessages: 20, // Maximum messages before compression
+        compressionThreshold: 15, // When to start showing compression warnings
+        compressionRatio: 0.3, // Keep 30% of original messages after compression
+        autoCompress: true, // Automatically compress when maxMessages reached
+        addToVectorStore: true, // Add compressed memory to vector store
+        compressionPrompt: 'Summarize this conversation, focusing on key decisions, important context, and actionable items. Preserve the essential information while making it concise.'
+    },
+
     // Feature flags
     enableLogging: false,
     enableCaching: false
