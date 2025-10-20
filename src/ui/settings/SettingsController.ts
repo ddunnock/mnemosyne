@@ -2408,7 +2408,7 @@ export class MnemosyneSettingsController {
         // Cleanup if needed
         this.container = null;
         this.agentManagement = null;
-        // Clear sensitive data
-        this.keyManager.clearMasterPassword();
+        // Note: Don't clear master password here as it's needed for chat functionality
+        // The password should persist for the session
     }
 }
