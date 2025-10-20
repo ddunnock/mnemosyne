@@ -387,7 +387,7 @@ export class MasterPasswordModal extends Modal {
         switch (this.options.mode) {
             case 'set': return 'Set Master Password';
             case 'change': return 'Change Master Password';
-            case 'verify': return 'Enter Master Password';
+            case 'verify': return 'Authenticate to Unlock API Keys';
             default: return 'Master Password';
         }
     }
@@ -396,7 +396,7 @@ export class MasterPasswordModal extends Modal {
         switch (this.options.mode) {
             case 'set': return 'Create a master password to encrypt your API keys securely.';
             case 'change': return 'Enter your current password and choose a new one.';
-            case 'verify': return 'Enter your master password to access encrypted settings.';
+            case 'verify': return 'Enter your master password to decrypt and access your API keys.';
             default: return '';
         }
     }

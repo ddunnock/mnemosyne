@@ -46,22 +46,29 @@ export class AgentExecutor {
                 throw new Error('Query cannot be empty');
             }
 
-            // Ensure RAG system is ready
-            if (!this.retriever.isReady()) {
-                throw new RAGError(
-                    'RAG system not ready. Please configure an OpenAI API key and ingest chunks in settings.'
-                );
+            // Step 1: Retrieve relevant chunks (if RAG is available)
+            let contextText = '';
+            let retrievedChunks: RetrievedChunk[] = [];
+            
+            if (this.retriever.isReady()) {
+                // Debug: Check vector store stats
+                const stats = this.retriever.getStats();
+                console.log('Vector store stats:', stats);
+                
+                retrievedChunks = await this.retrieveContext(query, context);
+                
+                if (retrievedChunks.length === 0) {
+                    console.warn('No relevant chunks found for query:', query);
+                    console.log('Vector store has', stats?.totalChunks || 0, 'total chunks');
+                    contextText = '[No relevant context found in knowledge base]';
+                } else {
+                    console.log('Found', retrievedChunks.length, 'relevant chunks');
+                    contextText = this.buildContextText(retrievedChunks);
+                }
+            } else {
+                console.log('RAG system not available - using agent without knowledge base context');
+                contextText = '[RAG system not configured - agent will respond without knowledge base context]';
             }
-
-            // Step 1: Retrieve relevant chunks
-            const retrievedChunks = await this.retrieveContext(query, context);
-
-            if (retrievedChunks.length === 0) {
-                console.warn('No relevant chunks found for query:', query);
-            }
-
-            // Step 2: Build context from chunks
-            const contextText = this.buildContextText(retrievedChunks);
 
             // Step 3: Build messages for LLM
             const messages = this.buildMessages(query, contextText, context);

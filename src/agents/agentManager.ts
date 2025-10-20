@@ -118,15 +118,16 @@ export class AgentManager {
             throw new Error(`Agent not found: ${agentId}`);
         }
 
-        // ✅ NEW: Check if RAG system is actually ready
-        if (!this.retriever.isReady()) {
-            throw new Error('RAG system not ready. Please ensure embeddings are configured and chunks are ingested.');
-        }
-
-        // ✅ NEW: Check if vector store has data
-        const stats = this.retriever.getStats();
-        if (!stats || stats.totalChunks === 0) {
-            throw new Error('No chunks ingested. Please ingest chunks in RAG Configuration settings first.');
+        // ✅ NEW: Check if RAG system is available (optional enhancement)
+        if (this.retriever.isReady()) {
+            const stats = this.retriever.getStats();
+            if (stats && stats.totalChunks > 0) {
+                console.log(`✓ RAG system ready with ${stats.totalChunks} chunks - agent will be enhanced with knowledge base context`);
+            } else {
+                console.log('⚠ RAG system configured but no chunks available - agent will work without knowledge base context');
+            }
+        } else {
+            console.log('ℹ️ RAG system not configured - agent will work without knowledge base context');
         }
 
         try {

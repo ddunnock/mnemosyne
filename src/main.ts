@@ -48,6 +48,9 @@ export default class RiskManagementPlugin extends Plugin {
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
     
+    // Session cache for password persistence
+    private sessionPasswordCache: string | null = null;
+    
     // Sidebar chat
     chatSidebar: AgentChatSidebar | null = null;
 
@@ -68,7 +71,7 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Add ribbon icon with custom Mnemosyne SVG
         const ribbonIcon = this.addRibbonIcon('brain', 'Mnemosyne - AI Knowledge Assistant', async () => {
-            await this.openAgentPalette();
+            await this.openTailwindChatView();
         });
         
         // Set custom SVG icon (24px version for ribbon)
@@ -249,6 +252,47 @@ export default class RiskManagementPlugin extends Plugin {
      */
     generateId(): string {
         return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * Ensure master password is available for this session
+     * Uses session cache to avoid repeated prompts
+     */
+    private async ensureMasterPasswordSession(): Promise<boolean> {
+        // If password is already in KeyManager, we're good
+        if (this.keyManager.hasMasterPassword()) {
+            return true;
+        }
+
+        // If we have a cached password from this session, use it
+        if (this.sessionPasswordCache) {
+            try {
+                this.keyManager.setMasterPassword(this.sessionPasswordCache);
+                console.log('✓ Restored master password from session cache');
+                return true;
+            } catch (error) {
+                console.warn('Failed to restore cached password:', error);
+                this.sessionPasswordCache = null; // Clear invalid cache
+            }
+        }
+
+        // If no password is set in settings, return false
+        if (!this.settings.masterPassword?.isSet) {
+            return false;
+        }
+
+        // Prompt user for password and cache it for this session
+        if (this.settingsController) {
+            const passwordLoaded = await this.settingsController.ensureMasterPasswordLoaded();
+            if (passwordLoaded) {
+                // Cache the password for this session (we can't get it back from KeyManager for security)
+                // The password will be available in KeyManager for the rest of this session
+                console.log('✓ Master password loaded and cached for session');
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -480,25 +524,11 @@ export default class RiskManagementPlugin extends Plugin {
                     return;
                 }
                 
-                // If password is set in settings but not in session, prompt user to re-enter it
-                if (!this.keyManager.hasMasterPassword() && this.settings.masterPassword?.isSet) {
-                    console.log('Master password session expired, prompting user to re-enter password');
-                    console.log('KeyManager has password:', this.keyManager.hasMasterPassword());
-                    console.log('Settings password is set:', this.settings.masterPassword?.isSet);
-                    
-                    // Use the settings controller to prompt for password
-                    if (this.settingsController) {
-                        const passwordLoaded = await this.settingsController.ensureMasterPasswordLoaded();
-                        if (!passwordLoaded) {
-                            new Notice('Master password is required to continue.');
-                            return;
-                        }
-                        console.log('Master password loaded successfully');
-                        console.log('KeyManager has password after load:', this.keyManager.hasMasterPassword());
-                    } else {
-                        new Notice('Master password session expired. Please re-enter your password in Security settings to continue.');
-                        return;
-                    }
+                // Use the new session management approach
+                const passwordAvailable = await this.ensureMasterPasswordSession();
+                if (!passwordAvailable) {
+                    new Notice('Master password is required to continue. Please configure it in Security settings.');
+                    return;
                 }
                 
                 try {
@@ -564,6 +594,15 @@ export default class RiskManagementPlugin extends Plugin {
      * Open Tailwind chat view
      */
     private async openTailwindChatView(): Promise<void> {
+        // Ensure master password is available for chat functionality
+        if (this.settings.masterPassword?.isSet && !this.keyManager.hasMasterPassword()) {
+            const passwordAvailable = await this.ensureMasterPasswordSession();
+            if (!passwordAvailable) {
+                new Notice('Master password is required to use chat. Please configure it in Security settings.');
+                return;
+            }
+        }
+
         // Check if chat view is already open
         const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TAILWIND_CHAT);
         if (existingLeaves.length > 0) {

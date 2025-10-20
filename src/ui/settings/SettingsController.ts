@@ -1410,22 +1410,28 @@ export class MnemosyneSettingsController {
     private async handleSetMasterPassword(): Promise<void> {
         const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
             mode: 'set',
-            onSuccess: async (password, verificationData) => {
-                // Update settings
-                this.settings.masterPassword = {
-                    isSet: true,
-                    verificationData,
-                    lastChanged: Date.now(),
-                };
-                
-                // Save settings
-                await this.saveSettings();
-                
-                // Re-render the entire UI to show the full settings
-                this.renderUI();
-                
-                new Notice('Master password set successfully! System is now ready.');
-            }
+                onSuccess: async (password, verificationData) => {
+                    // Update settings
+                    this.settings.masterPassword = {
+                        isSet: true,
+                        verificationData,
+                        lastChanged: Date.now(),
+                    };
+                    
+                    // Save settings
+                    await this.saveSettings();
+                    
+                    // Debug: Check if KeyManager has password after setting
+                    console.log('Settings: Password set in KeyManager - hasMasterPassword():', this.keyManager.hasMasterPassword());
+                    console.log('Settings: KeyManager instance:', this.keyManager);
+                    console.log('Settings: Plugin KeyManager instance:', this.plugin.keyManager);
+                    console.log('Settings: KeyManager instances match:', this.keyManager === this.plugin.keyManager);
+                    
+                    // Re-render the entire UI to show the full settings
+                    this.renderUI();
+                    
+                    new Notice('Master password set successfully! System is now ready.');
+                }
         });
         
         modal.open();
@@ -2220,12 +2226,17 @@ export class MnemosyneSettingsController {
         return new Promise((resolve) => {
             const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
                 mode: 'verify',
-                title: 'Enter Master Password',
-                description: 'Enter your master password to continue with the operation.',
+                title: 'Authenticate to Unlock API Keys',
+                description: 'Enter your master password to decrypt and access your API keys.',
                 existingVerificationData: this.settings.masterPassword.verificationData,
                 onSuccess: async (password) => {
                     // Verify that the password is actually set in KeyManager
                     if (this.keyManager.hasMasterPassword()) {
+                        // Cache the password in the plugin's session cache for persistence
+                        if (this.plugin.sessionPasswordCache !== undefined) {
+                            this.plugin.sessionPasswordCache = password;
+                            console.log('✓ Master password cached for session persistence');
+                        }
                         resolve(true);
                     } else {
                         console.error('Password verification succeeded but KeyManager does not have password');
@@ -2397,7 +2408,7 @@ export class MnemosyneSettingsController {
         // Cleanup if needed
         this.container = null;
         this.agentManagement = null;
-        // Clear sensitive data
-        this.keyManager.clearMasterPassword();
+        // Note: Don't clear master password here as it's needed for chat functionality
+        // The password should persist for the session
     }
 }

@@ -35,9 +35,13 @@ export class KeyManager {
             throw new EncryptionError('Master password must be at least 8 characters');
         }
 
+        console.log('KeyManager: Setting master password...');
         this.masterPassword = password;
         // Pre-compute session key for faster operations
         this.sessionKey = this.deriveKey(password, this.getVaultSalt());
+        console.log('KeyManager: Master password set successfully');
+        console.log('KeyManager: hasMasterPassword():', this.hasMasterPassword());
+        console.log('KeyManager: masterPassword length:', this.masterPassword?.length);
     }
 
     /**
@@ -52,7 +56,9 @@ export class KeyManager {
      * Check if master password is set for this session
      */
     hasMasterPassword(): boolean {
-        return this.masterPassword !== null;
+        const hasPassword = this.masterPassword !== null;
+        console.log('KeyManager: hasMasterPassword() called - result:', hasPassword, 'masterPassword:', this.masterPassword ? 'set' : 'null');
+        return hasPassword;
     }
 
     /**
