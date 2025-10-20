@@ -178,25 +178,16 @@ export class AgentManager {
 
     /**
      * Check if manager is ready
-     * ✅ FIXED: More comprehensive check
+     * ✅ FIXED: More lenient check - only require basic initialization
      */
     isReady(): boolean {
-        // Basic checks
+        // Basic checks - only require initialization and at least one agent
         if (!this.initialized || this.agents.size === 0) {
             return false;
         }
 
-        // Check dependencies
-        if (!this.retriever.isReady() || !this.llmManager.isReady()) {
-            return false;
-        }
-
-        // Check if vector store has data
-        const stats = this.retriever.getStats();
-        if (!stats || stats.totalChunks === 0) {
-            return false;
-        }
-
+        // Don't require all dependencies to be ready - let the agent execution handle that
+        // This allows the Agent Manager to be "ready" even if LLM providers aren't configured yet
         return true;
     }
 

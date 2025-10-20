@@ -338,7 +338,7 @@ export class VectorStore {
         }
 
         try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+            const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
 
             const indexData = JSON.stringify(this.index, null, 2);
@@ -354,7 +354,7 @@ export class VectorStore {
      */
     async load(): Promise<void> {
         try {
-            const pluginDir = '.obsidian/plugins/rag-agent-manager';
+            const pluginDir = '.obsidian/plugins/mnemosyne';
             const indexFile = `${pluginDir}/${this.indexPath}`;
 
             const indexData = await this.app.vault.adapter.read(indexFile);

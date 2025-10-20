@@ -6,6 +6,7 @@ import { Notice } from 'obsidian';
 import { VectorStore } from './vectorStore';
 import { EmbeddingsGenerator } from './embeddings';
 import { ChunkIngestor } from './ingestor';
+import { VaultIngestor } from './VaultIngestor';
 import { RetrievedChunk, MetadataFilters } from '../types';
 import { RAGError } from '../types';
 import RagAgentManagerPlugin from '../main';
@@ -162,8 +163,8 @@ export class RAGRetriever {
     }
 
     /**
-     * Ingest chunks from files
-     * ✅ FIXED: Ensure vector store save is complete before returning
+     * Ingest chunks from vault files (Markdown files)
+     * ✅ UPDATED: Now uses vault ingestion instead of JSON file ingestion
      */
     async ingestChunks(directoryPath?: string): Promise<number> {
         if (!this.isInitialized) {
@@ -174,49 +175,61 @@ export class RAGRetriever {
             // Ensure embeddings are ready before ingestion
             await this.ensureEmbeddingsReady();
 
-            const path = directoryPath || 'data/rag_chunks';
+            new Notice('Starting vault ingestion...');
 
-            new Notice('Starting chunk ingestion...');
+            // Use VaultIngestor to process Markdown files from the vault
+            const vaultIngestor = new VaultIngestor(this.plugin);
 
-            const result = await this.ingestor.ingestFromDirectory(path, (progress) => {
-                if (progress.percentage % 20 === 0) {
-                    console.log(`Ingestion progress: ${progress.percentage}%`);
+            // Get all Markdown files from the vault
+            const markdownFiles = this.plugin.app.vault.getMarkdownFiles();
+            
+            if (markdownFiles.length === 0) {
+                new Notice('No Markdown files found in vault');
+                return 0;
+            }
+
+            console.log(`Found ${markdownFiles.length} Markdown files to process`);
+
+            let totalChunks = 0;
+            let processedFiles = 0;
+
+            // Process files in batches to avoid overwhelming the system
+            const batchSize = 5;
+            for (let i = 0; i < markdownFiles.length; i += batchSize) {
+                const batch = markdownFiles.slice(i, i + batchSize);
+                
+                for (const file of batch) {
+                    try {
+                        await vaultIngestor.ingestTFile(file);
+                        processedFiles++;
+                        
+                        // Update progress
+                        const progress = Math.round((processedFiles / markdownFiles.length) * 100);
+                        if (progress % 20 === 0) {
+                            console.log(`Vault ingestion progress: ${progress}%`);
+                        }
+                    } catch (error) {
+                        console.error(`Error processing file ${file.path}:`, error);
+                    }
                 }
-            });
+            }
 
-            // ✅ NEW: Force save and wait for completion
-            console.log('Saving vector store...');
-            await this.vectorStore.save();
-
-            // ✅ NEW: Add small delay to ensure file system write completes
-            await this.delay(200);
-
-            // ✅ NEW: Verify the data is accessible
+            // Get final stats
             const stats = this.vectorStore.getStats();
             if (stats) {
-                console.log(`Vector store verification: ${stats.totalChunks} chunks available`);
+                totalChunks = stats.totalChunks;
+                console.log(`Vector store verification: ${totalChunks} chunks available`);
             }
 
-            if (result.success) {
-                new Notice(
-                    `✓ Ingested ${result.ingestedChunks} chunks successfully!`
-                );
-            } else {
-                new Notice(
-                    `⚠️ Ingested ${result.ingestedChunks}/${result.totalChunks} chunks with ${result.errors.length} errors`
-                );
-                console.error('Ingestion errors:', result.errors);
-            }
-
-            console.log('Ingestion result:', result);
-            return result.ingestedChunks;
+            new Notice(`✓ Ingested ${totalChunks} chunks from ${processedFiles} files successfully!`);
+            return totalChunks;
         } catch (error: any) {
-            console.error('Error during ingestion:', error);
+            console.error('Error during vault ingestion:', error);
 
             if (error.message && error.message.includes('Embeddings not configured')) {
                 new Notice('✖ Please configure an OpenAI API key in settings first.');
             } else {
-                new Notice('✖ Chunk ingestion failed. Check console for details.');
+                new Notice('✖ Vault ingestion failed. Check console for details.');
             }
             throw error;
         }
@@ -277,6 +290,13 @@ export class RAGRetriever {
         }
 
         return true;
+    }
+
+    /**
+     * Get the vector store instance
+     */
+    getVectorStore(): VectorStore {
+        return this.vectorStore;
     }
 
     // ... (rest of methods remain the same)

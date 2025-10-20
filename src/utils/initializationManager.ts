@@ -135,6 +135,35 @@ export class InitializationManager {
     }
 
     /**
+     * Check if master password is available, prompt user if needed
+     */
+    private async checkMasterPasswordAvailability(): Promise<boolean> {
+        // If already in memory, we're good
+        if (this.plugin.keyManager?.hasMasterPassword()) {
+            return true;
+        }
+        
+        // Use modern settings controller if available
+        if (this.plugin.settingsController) {
+            try {
+                return await this.plugin.settingsController.ensureMasterPasswordLoaded();
+            } catch (error) {
+                console.error('Error loading master password:', error);
+                return false;
+            }
+        }
+        
+        // Fallback: check if master password exists in settings
+        // This might be using the old settings structure, so we check both
+        const hasOldPassword = this.plugin.keyManager?.hasMasterPassword();
+        if (hasOldPassword) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
      * Initialize or re-initialize all systems
      */
     async initializeAll(force: boolean = false): Promise<InitializationResult> {
@@ -159,8 +188,10 @@ export class InitializationManager {
                 return { success: false, errors, warnings };
             }
 
-            if (!this.plugin.keyManager.hasMasterPassword()) {
-                errors.push('Master password not set');
+            // Check master password using modern settings system
+            const needsMasterPassword = await this.checkMasterPasswordAvailability();
+            if (!needsMasterPassword) {
+                errors.push('Master password not available');
                 return { success: false, errors, warnings };
             }
 

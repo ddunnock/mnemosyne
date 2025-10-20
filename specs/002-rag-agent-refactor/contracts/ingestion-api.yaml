@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: Mnemosyne Ingestion API
+  description: API for vault ingestion, chunking, and embedding
+  version: 1.0.0
+
+paths:
+  /ingestion/jobs:
+    get:
+      summary: List ingestion jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IngestionJob'
+
+    post:
+      summary: Start ingestion job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartIngestionRequest'
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJob'
+
+  /ingestion/jobs/{jobId}:
+    get:
+      summary: Get job status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJob'
+
+  /ingestion/jobs/{jobId}/cancel:
+    post:
+      summary: Cancel running job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job cancelled
+
+  /ingestion/chunks:
+    get:
+      summary: Query chunks
+      parameters:
+        - name: filePath
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Chunks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chunk'
+
+components:
+  schemas:
+    IngestionJob:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [full, incremental, folder, file]
+        status:
+          type: string
+          enum: [pending, running, paused, completed, failed, cancelled]
+        config:
+          type: object
+          properties:
+            folderPaths:
+              type: array
+              items:
+                type: string
+            excludePatterns:
+              type: array
+              items:
+                type: string
+            forceReindex:
+              type: boolean
+            batchSize:
+              type: integer
+        progress:
+          type: object
+          properties:
+            totalFiles:
+              type: integer
+            processedFiles:
+              type: integer
+            failedFiles:
+              type: integer
+            totalChunks:
+              type: integer
+            percentComplete:
+              type: number
+            estimatedTimeRemaining:
+              type: integer
+              nullable: true
+
+    StartIngestionRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [full, incremental, folder, file]
+        config:
+          type: object
+          properties:
+            folderPaths:
+              type: array
+              items:
+                type: string
+            excludePatterns:
+              type: array
+              items:
+                type: string
+            forceReindex:
+              type: boolean
+              default: false
+
+    Chunk:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        sourceFile:
+          type: object
+          properties:
+            path:
+              type: string
+            name:
+              type: string
+        quality:
+          type: object
+          properties:
+            score:
+              type: number
+        metadata:
+          type: object

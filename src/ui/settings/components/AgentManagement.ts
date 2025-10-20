@@ -229,7 +229,14 @@ export class AgentManagement {
             defaultBadge.style.color = 'white';
         }
 
-        const statusBadge = cardHeader.createSpan({
+        // Status badges container
+        const badgesContainer = cardHeader.createDiv();
+        badgesContainer.style.display = 'flex';
+        badgesContainer.style.gap = '6px';
+        badgesContainer.style.alignItems = 'center';
+        console.log(`Created badgesContainer for ${agent.name}:`, badgesContainer);
+
+        const statusBadge = badgesContainer.createSpan({
             cls: `agent-status-badge ${agent.enabled ? 'enabled' : 'disabled'}`
         });
         statusBadge.setText(agent.enabled ? 'Enabled' : 'Disabled');
@@ -240,6 +247,38 @@ export class AgentManagement {
             ? 'var(--interactive-success)'
             : 'var(--background-modifier-error)';
         statusBadge.style.color = 'white';
+
+        // Test status badge
+        console.log(`Rendering agent ${agent.name} with testStatus:`, agent.testStatus);
+        if (agent.testStatus === 'success') {
+            console.log(`Creating success badge for ${agent.name}`);
+            const testBadge = badgesContainer.createSpan({
+                cls: 'test-success-badge'
+            });
+            testBadge.setText('✓ Tested');
+            testBadge.style.padding = '4px 8px';
+            testBadge.style.borderRadius = '4px';
+            testBadge.style.fontSize = '0.85em';
+            testBadge.style.backgroundColor = '#10b981'; // Use explicit green color
+            testBadge.style.color = 'white';
+            testBadge.style.fontWeight = '500';
+            testBadge.style.display = 'inline-block';
+            testBadge.style.marginLeft = '4px';
+            console.log(`Success badge created for ${agent.name}`, testBadge);
+            console.log(`Badge parent element:`, testBadge.parentElement);
+            console.log(`Badge is connected to DOM:`, testBadge.isConnected);
+        } else if (agent.testStatus === 'failed') {
+            const testBadge = badgesContainer.createSpan({
+                cls: 'test-failed-badge'
+            });
+            testBadge.setText('✗ Failed');
+            testBadge.style.padding = '4px 8px';
+            testBadge.style.borderRadius = '4px';
+            testBadge.style.fontSize = '0.85em';
+            testBadge.style.backgroundColor = 'var(--background-modifier-error)';
+            testBadge.style.color = 'white';
+            testBadge.style.fontWeight = '500';
+        }
 
         // Description
         if (agent.description) {

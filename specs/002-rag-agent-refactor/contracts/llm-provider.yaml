@@ -1,0 +1,176 @@
+openapi: 3.0.3
+info:
+  title: Mnemosyne LLM Provider API
+  description: Unified interface for OpenAI, Anthropic, and Ollama providers
+  version: 1.0.0
+
+paths:
+  /providers:
+    get:
+      summary: List all configured providers
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LLMProviderConfig'
+
+  /providers/{provider}:
+    get:
+      summary: Get provider configuration
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [openai, anthropic, ollama]
+      responses:
+        '200':
+          description: Provider configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMProviderConfig'
+
+    patch:
+      summary: Update provider configuration
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+      responses:
+        '200':
+          description: Provider updated
+
+  /providers/{provider}/health:
+    get:
+      summary: Check provider health
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Provider status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  models:
+                    type: array
+                    items:
+                      type: string
+                  lastChecked:
+                    type: integer
+                  error:
+                    type: string
+                    nullable: true
+
+  /providers/{provider}/models:
+    get:
+      summary: List available models
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat:
+                    type: array
+                    items:
+                      type: string
+                  embeddings:
+                    type: array
+                    items:
+                      type: string
+
+components:
+  schemas:
+    LLMProviderConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic, ollama]
+        enabled:
+          type: boolean
+        credentials:
+          type: object
+          properties:
+            apiKey:
+              type: string
+              description: Encrypted
+            endpoint:
+              type: string
+            organization:
+              type: string
+        models:
+          type: object
+          properties:
+            chat:
+              type: array
+              items:
+                type: string
+            embeddings:
+              type: array
+              items:
+                type: string
+            defaultChat:
+              type: string
+            defaultEmbedding:
+              type: string
+        settings:
+          type: object
+          properties:
+            maxTokens:
+              type: integer
+            timeout:
+              type: integer
+            host:
+              type: string
+            keepAlive:
+              type: boolean
+        status:
+          type: object
+          properties:
+            available:
+              type: boolean
+            lastChecked:
+              type: integer
+            lastError:
+              type: string
+              nullable: true
+
+    UpdateProviderRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        credentials:
+          type: object
+        settings:
+          type: object
