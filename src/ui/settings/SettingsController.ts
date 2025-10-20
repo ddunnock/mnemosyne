@@ -2226,8 +2226,8 @@ export class MnemosyneSettingsController {
         return new Promise((resolve) => {
             const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
                 mode: 'verify',
-                title: 'Enter Master Password',
-                description: 'Enter your master password to continue with the operation.',
+                title: 'Authenticate to Unlock API Keys',
+                description: 'Enter your master password to decrypt and access your API keys.',
                 existingVerificationData: this.settings.masterPassword.verificationData,
                 onSuccess: async (password) => {
                     // Verify that the password is actually set in KeyManager
