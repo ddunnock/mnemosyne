@@ -4,7 +4,7 @@ import { AgentManagement, AgentManagementState } from './components/AgentManagem
 import { ProviderManagement, ProviderManagementState } from './components/ProviderManagement';
 import { GoddessPersonaManagement, GoddessPersonaManagementState } from './components/GoddessPersonaManagement';
 import { MemoryManagement, MemoryManagementState } from './components/MemoryManagement';
-import { AgentConfig, LLMConfig, GoddessPersonaSettings } from '../../types/index';
+import { AgentConfig, LLMConfig, GoddessPersonaSettings, MemoryConfig } from '../../types/index';
 import { Notice, Modal } from 'obsidian';
 import { VaultIngestionModal } from '../vaultIngestionModal';
 import { KeyManager, EncryptedData } from '../../encryption/keyManager';
@@ -36,6 +36,9 @@ export interface MnemosyneSettings {
 
     // Goddess Persona
     persona: GoddessPersonaSettings;
+
+    // Conversation Memory Configuration
+    memory: MemoryConfig;
 
     // Advanced settings (placeholder for now)
     advanced: {
@@ -104,6 +107,15 @@ export class MnemosyneSettingsController {
                     useDivineTitles: true,
                     speakOfEternalMemory: true,
                 },
+            },
+            memory: {
+                enabled: true,
+                maxMessages: 20,
+                compressionThreshold: 15,
+                compressionRatio: 0.3,
+                autoCompress: true,
+                addToVectorStore: true,
+                compressionPrompt: 'Summarize this conversation, focusing on key decisions, important context, and actionable items. Preserve the essential information while making it concise.'
             },
             advanced: {
                 debug: false,
@@ -740,6 +752,20 @@ export class MnemosyneSettingsController {
             if (goddessPersonaContainer) {
                 this.goddessPersonaManagement.render(goddessPersonaContainer);
             }
+        }
+
+        // Initialize Memory Management
+        const memoryContainer = this.container.querySelector('#memory-management-container') as HTMLElement;
+        if (memoryContainer) {
+            this.memoryManagement = new MemoryManagement(
+                this.plugin,
+                this.settings.memory,
+                (memory: MemoryConfig) => {
+                    this.settings.memory = memory;
+                    this.plugin.saveSettings();
+                }
+            );
+            this.memoryManagement.render(memoryContainer);
         }
 
         // Attach toggle switch event
@@ -2418,10 +2444,12 @@ export class MnemosyneSettingsController {
         });
     }
 
+
     destroy(): void {
         // Cleanup if needed
         this.container = null;
         this.agentManagement = null;
+        this.memoryManagement = null;
         // Note: Don't clear master password here as it's needed for chat functionality
         // The password should persist for the session
     }
