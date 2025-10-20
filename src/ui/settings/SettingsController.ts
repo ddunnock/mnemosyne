@@ -246,6 +246,7 @@ export class MnemosyneSettingsController {
           ${this.renderQuickSetup()}
           ${this.renderSecurity()}
           ${this.renderAgentManagement()}
+          ${this.renderMemoryManagement()}
           ${this.renderPlaceholderSections()}
         </div>
         
@@ -320,6 +321,17 @@ export class MnemosyneSettingsController {
                 this.handleSetMasterPassword();
             });
         }
+    }
+
+    private renderMemoryManagement(): string {
+        return `
+            <div class="settings-section">
+                <h3 class="section-title">💭 Conversation Memory</h3>
+                <div class="settings-card">
+                    <div id="memory-management-container"></div>
+                </div>
+            </div>
+        `;
     }
 
     private renderPasswordVerificationScreen(): void {
