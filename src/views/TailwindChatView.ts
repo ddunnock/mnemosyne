@@ -188,6 +188,7 @@ export class TailwindChatView extends ItemView {
                             <path d="M62.69,56.59c-10.77,3.15-2.17,18.62,5.92,10.56,3.74-4.53-.07-11.56-5.92-10.56Z" fill="#0A66FF"/>
                         </svg>
                         <h2 class="text-xl font-bold text-slate-100">Mnemosyne Chat</h2>
+                        <div id="memory-status" class="memory-status text-xs text-slate-60 bg-slate-20 px-2 py-1 rounded" style="margin-left: 12px; background: var(--background-modifier-border); color: var(--text-muted); border-radius: 4px; padding: 4px 8px; font-size: 12px;"></div>
                     </div>
                     <div class="space-y-2">
                         <label for="agent-dropdown" class="block text-sm font-semibold text-slate-70">Select Agent:</label>
@@ -291,14 +292,28 @@ export class TailwindChatView extends ItemView {
             sendBtn.disabled = true;
             sendBtn.textContent = 'Sending...';
 
+            // Add to conversation memory
+            if (this.plugin.memoryManager && this.plugin.settings.memory.enabled) {
+                this.plugin.memoryManager.addMessage('user', message);
+                this.updateMemoryStatus();
+            }
+
             try {
                 // Show typing indicator
                 this.setTyping(true);
 
+                // Get conversation history for context
+                let conversationHistory = [];
+                if (this.plugin.memoryManager && this.plugin.settings.memory.enabled) {
+                    conversationHistory = this.plugin.memoryManager.getConversationHistory();
+                }
+
                 // Execute agent
                 const response = await this.plugin.agentManager.executeAgent(
                     this.selectedAgentId,
-                    message
+                    message,
+                    this.plugin.retriever,
+                    conversationHistory
                 );
 
                 // Hide typing indicator
@@ -310,6 +325,12 @@ export class TailwindChatView extends ItemView {
                     section: source.section
                 }));
                 this.addAgentMessage(response.answer, sources);
+
+                // Add to conversation memory
+                if (this.plugin.memoryManager && this.plugin.settings.memory.enabled) {
+                    this.plugin.memoryManager.addMessage('assistant', response.answer);
+                    this.updateMemoryStatus();
+                }
 
             } catch (error: unknown) {
                 // Hide typing indicator
@@ -909,5 +930,42 @@ export class TailwindChatView extends ItemView {
             sendBtn.disabled = false;
             textarea.placeholder = 'Type your message...';
         }
+    }
+
+    /**
+     * Update memory status indicator
+     */
+    private updateMemoryStatus(): void {
+        const memoryStatusEl = this.contentEl.querySelector('#memory-status');
+        if (!memoryStatusEl || !this.plugin.memoryManager || !this.plugin.settings.memory.enabled) {
+            if (memoryStatusEl) {
+                memoryStatusEl.textContent = '';
+            }
+            return;
+        }
+
+        const status = this.plugin.memoryManager.getMemoryStatus();
+        const stats = this.plugin.memoryManager.getMemoryStats();
+
+        let statusText = '';
+        let statusColor = 'var(--text-muted)';
+
+        if (status.isNearCompression) {
+            statusText = `⚠️ ${status.messagesUntilCompression} msgs until compression`;
+            statusColor = '#f59e0b'; // amber
+        } else if (status.totalMessages > 0) {
+            statusText = `💭 ${status.totalMessages}/${this.plugin.settings.memory.maxMessages} msgs`;
+            statusColor = 'var(--text-normal)';
+        } else {
+            statusText = '💭 Memory ready';
+            statusColor = 'var(--text-muted)';
+        }
+
+        if (status.compressedChunks > 0) {
+            statusText += ` (${status.compressedChunks} compressed)`;
+        }
+
+        memoryStatusEl.textContent = statusText;
+        (memoryStatusEl as HTMLElement).style.color = statusColor;
     }
 }

@@ -28,6 +28,7 @@ import { AgentBuilderModal } from './ui/agentBuilderModal';
 import { exposePublicAPI } from './integration/publicAPI';
 
 // Auto Ingestion imports
+import { ConversationMemoryManager } from './memory/conversationMemory';
 import { AutoIngestionManager } from './rag/AutoIngestionManager';
 import { VaultIngestor } from './rag/VaultIngestor';
 
@@ -44,6 +45,9 @@ export default class RiskManagementPlugin extends Plugin {
     // Auto Ingestion components
     vaultIngestor: VaultIngestor;
     autoIngestionManager: AutoIngestionManager;
+    
+    // Conversation Memory
+    memoryManager: ConversationMemoryManager;
     
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
@@ -227,6 +231,14 @@ export default class RiskManagementPlugin extends Plugin {
                 this.vaultIngestor, 
                 this.settings
             );
+
+            // Initialize Conversation Memory Manager
+            this.memoryManager = new ConversationMemoryManager(
+                this.retriever,
+                this.llmManager,
+                this.settings.memory
+            );
+            console.log('✓ Conversation Memory Manager initialized');
             
             // Start auto ingestion if enabled and RAG system is ready
             if (this.settings.autoIngestion.enabled && this.retriever.isReady()) {
