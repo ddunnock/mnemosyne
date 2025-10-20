@@ -521,6 +521,20 @@ export class TailwindChatView extends ItemView {
             console.log('Final KeyManager check - hasMasterPassword():', this.plugin.keyManager ? this.plugin.keyManager.hasMasterPassword() : 'KeyManager not available');
             console.log('Final session password cache:', this.plugin.sessionPasswordCache);
             
+            // Debug: Check if KeyManager is the same instance as in settings
+            console.log('KeyManager instance check:', this.plugin.keyManager === this.plugin.settingsController?.keyManager);
+            console.log('Settings controller KeyManager:', this.plugin.settingsController?.keyManager);
+            console.log('Plugin KeyManager:', this.plugin.keyManager);
+            
+            // Debug: Check if KeyManager has any internal state
+            if (this.plugin.keyManager) {
+                console.log('KeyManager internal state:', {
+                    hasPassword: this.plugin.keyManager.hasMasterPassword(),
+                    // Try to access internal properties if they exist
+                    // This might reveal if the password is stored but not detected
+                });
+            }
+            
             // First, try to initialize LLM Manager even if KeyManager/session cache appear not ready
             // This handles cases where the password was entered in settings but not properly detected
             if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {

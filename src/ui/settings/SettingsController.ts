@@ -1410,22 +1410,28 @@ export class MnemosyneSettingsController {
     private async handleSetMasterPassword(): Promise<void> {
         const modal = new MasterPasswordModal(this.plugin.app, this.keyManager, {
             mode: 'set',
-            onSuccess: async (password, verificationData) => {
-                // Update settings
-                this.settings.masterPassword = {
-                    isSet: true,
-                    verificationData,
-                    lastChanged: Date.now(),
-                };
-                
-                // Save settings
-                await this.saveSettings();
-                
-                // Re-render the entire UI to show the full settings
-                this.renderUI();
-                
-                new Notice('Master password set successfully! System is now ready.');
-            }
+                onSuccess: async (password, verificationData) => {
+                    // Update settings
+                    this.settings.masterPassword = {
+                        isSet: true,
+                        verificationData,
+                        lastChanged: Date.now(),
+                    };
+                    
+                    // Save settings
+                    await this.saveSettings();
+                    
+                    // Debug: Check if KeyManager has password after setting
+                    console.log('Settings: Password set in KeyManager - hasMasterPassword():', this.keyManager.hasMasterPassword());
+                    console.log('Settings: KeyManager instance:', this.keyManager);
+                    console.log('Settings: Plugin KeyManager instance:', this.plugin.keyManager);
+                    console.log('Settings: KeyManager instances match:', this.keyManager === this.plugin.keyManager);
+                    
+                    // Re-render the entire UI to show the full settings
+                    this.renderUI();
+                    
+                    new Notice('Master password set successfully! System is now ready.');
+                }
         });
         
         modal.open();
