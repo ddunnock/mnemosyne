@@ -41,11 +41,13 @@ export class ConversationMemoryManager {
     private retriever: RAGRetriever;
     private llmManager: LLMManager;
     private compressedChunks: number = 0;
+    private triggerUIUpdate?: () => void;
 
-    constructor(retriever: RAGRetriever, llmManager: LLMManager, config: MemoryConfig) {
+    constructor(retriever: RAGRetriever, llmManager: LLMManager, config: MemoryConfig, uiUpdateCallback?: () => void) {
         this.retriever = retriever;
         this.llmManager = llmManager;
         this.config = config;
+        this.triggerUIUpdate = uiUpdateCallback;
     }
 
     /**
@@ -150,6 +152,9 @@ Please provide a concise summary that captures the key points, decisions, and co
 
             console.log('✅ Memory compressed successfully');
             new Notice(`Memory compressed: ${this.compressedChunks} chunks created`);
+            
+            // Trigger UI update after compression
+            this.triggerUIUpdate?.();
 
         } catch (error) {
             console.error('❌ Memory compression failed:', error);

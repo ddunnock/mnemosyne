@@ -236,7 +236,15 @@ export default class RiskManagementPlugin extends Plugin {
             this.memoryManager = new ConversationMemoryManager(
                 this.retriever,
                 this.llmManager,
-                this.settings.memory
+                this.settings.memory,
+                () => {
+                    // Trigger UI update for all chat views
+                    this.app.workspace.getLeavesOfType('tailwind-chat').forEach(leaf => {
+                        if (leaf.view && typeof (leaf.view as any).updateMemoryStatus === 'function') {
+                            (leaf.view as any).updateMemoryStatus();
+                        }
+                    });
+                }
             );
             console.log('✓ Conversation Memory Manager initialized');
             
