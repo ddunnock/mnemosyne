@@ -3,7 +3,8 @@
 import { AgentManagement, AgentManagementState } from './components/AgentManagement';
 import { ProviderManagement, ProviderManagementState } from './components/ProviderManagement';
 import { GoddessPersonaManagement, GoddessPersonaManagementState } from './components/GoddessPersonaManagement';
-import { AgentConfig, LLMConfig, GoddessPersonaSettings } from '../../types/index';
+import { MemoryManagement, MemoryManagementState } from './components/MemoryManagement';
+import { AgentConfig, LLMConfig, GoddessPersonaSettings, MemoryConfig } from '../../types/index';
 import { Notice, Modal } from 'obsidian';
 import { VaultIngestionModal } from '../vaultIngestionModal';
 import { KeyManager, EncryptedData } from '../../encryption/keyManager';
@@ -36,6 +37,9 @@ export interface MnemosyneSettings {
     // Goddess Persona
     persona: GoddessPersonaSettings;
 
+    // Conversation Memory Configuration
+    memory: MemoryConfig;
+
     // Advanced settings (placeholder for now)
     advanced: {
         debug: boolean;
@@ -58,6 +62,7 @@ export class MnemosyneSettingsController {
     private agentManagement: AgentManagement | null = null;
     private providerManagement: ProviderManagement | null = null;
     private goddessPersonaManagement: GoddessPersonaManagement | null = null;
+    private memoryManagement: MemoryManagement | null = null;
 
     // State
     private chunkCount = 0;
@@ -102,6 +107,15 @@ export class MnemosyneSettingsController {
                     useDivineTitles: true,
                     speakOfEternalMemory: true,
                 },
+            },
+            memory: {
+                enabled: true,
+                maxMessages: 20,
+                compressionThreshold: 15,
+                compressionRatio: 0.3,
+                autoCompress: true,
+                addToVectorStore: true,
+                compressionPrompt: 'Summarize this conversation, focusing on key decisions, important context, and actionable items. Preserve the essential information while making it concise.'
             },
             advanced: {
                 debug: false,
@@ -244,6 +258,7 @@ export class MnemosyneSettingsController {
           ${this.renderQuickSetup()}
           ${this.renderSecurity()}
           ${this.renderAgentManagement()}
+          ${this.renderMemoryManagement()}
           ${this.renderPlaceholderSections()}
         </div>
         
@@ -318,6 +333,17 @@ export class MnemosyneSettingsController {
                 this.handleSetMasterPassword();
             });
         }
+    }
+
+    private renderMemoryManagement(): string {
+        return `
+            <div class="settings-section">
+                <h3 class="section-title">💭 Conversation Memory</h3>
+                <div class="settings-card">
+                    <div id="memory-management-container"></div>
+                </div>
+            </div>
+        `;
     }
 
     private renderPasswordVerificationScreen(): void {
@@ -726,6 +752,20 @@ export class MnemosyneSettingsController {
             if (goddessPersonaContainer) {
                 this.goddessPersonaManagement.render(goddessPersonaContainer);
             }
+        }
+
+        // Initialize Memory Management
+        const memoryContainer = this.container.querySelector('#memory-management-container') as HTMLElement;
+        if (memoryContainer) {
+            this.memoryManagement = new MemoryManagement(
+                this.plugin,
+                this.settings.memory,
+                (memory: MemoryConfig) => {
+                    this.settings.memory = memory;
+                    this.plugin.saveSettings();
+                }
+            );
+            this.memoryManagement.render(memoryContainer);
         }
 
         // Attach toggle switch event
@@ -2404,10 +2444,12 @@ export class MnemosyneSettingsController {
         });
     }
 
+
     destroy(): void {
         // Cleanup if needed
         this.container = null;
         this.agentManagement = null;
+        this.memoryManagement = null;
         // Note: Don't clear master password here as it's needed for chat functionality
         // The password should persist for the session
     }
