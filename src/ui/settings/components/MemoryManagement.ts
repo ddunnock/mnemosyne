@@ -1,11 +1,13 @@
 /**
  * Memory Management Component
- * 
+ *
  * Handles conversation memory configuration and management
  */
 
 import { Notice } from 'obsidian';
 import { MemoryConfig } from '../../../types';
+import { getAdaptiveMemoryConfig, getBackendRecommendations, mergeMemoryConfig, getCompressionPrompt } from '../../../memory/adaptiveMemoryConfig';
+import { VectorStoreBackend } from '../../../rag/vectorStore/types';
 
 export interface MemoryManagementState {
     enabled: boolean;
@@ -170,8 +172,92 @@ export class MemoryManagement {
             this.onUpdate(this.settings);
         });
 
+        // Backend-Specific Recommendations
+        this.renderBackendRecommendations(container);
+
         // Memory Statistics
         this.renderMemoryStats(container);
+    }
+
+    private renderBackendRecommendations(container: HTMLElement): void {
+        // Get current backend
+        const backend = this.plugin.retriever?.getVectorStore()?.getBackend() as VectorStoreBackend;
+        if (!backend) {
+            return; // No backend available yet
+        }
+
+        const recommendations = getBackendRecommendations(backend);
+        const adaptiveProfile = getAdaptiveMemoryConfig(backend);
+
+        const recommendationsSection = container.createEl('div', { cls: 'backend-recommendations-section' });
+        recommendationsSection.style.marginTop = '24px';
+        recommendationsSection.style.padding = '16px';
+        recommendationsSection.style.background = 'var(--background-secondary)';
+        recommendationsSection.style.borderRadius = '6px';
+        recommendationsSection.style.border = '1px solid var(--background-modifier-border)';
+
+        // Backend indicator with color coding
+        const backendColors: Record<VectorStoreBackend, string> = {
+            json: '#f59e0b',
+            sqlite: '#3b82f6',
+            pgvector: '#10b981'
+        };
+
+        const backendLabels: Record<VectorStoreBackend, string> = {
+            json: 'JSON',
+            sqlite: 'SQLite',
+            pgvector: 'PostgreSQL'
+        };
+
+        recommendationsSection.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 14px; color: var(--text-normal);">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${backendColors[backend]}; margin-right: 8px;"></span>
+                    ${recommendations.title}
+                </h4>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">${recommendations.description}</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div style="background: var(--background-primary); padding: 12px; border-radius: 4px;">
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Current Backend</div>
+                    <div style="font-size: 16px; font-weight: 500; color: ${backendColors[backend]};">${backendLabels[backend]}</div>
+                </div>
+                <div style="background: var(--background-primary); padding: 12px; border-radius: 4px;">
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Recommended Max Messages</div>
+                    <div style="font-size: 16px; font-weight: 500; color: var(--text-normal);">${adaptiveProfile.maxMessages}</div>
+                </div>
+            </div>
+
+            <div style="background: var(--background-primary); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+                <div style="font-size: 12px; font-weight: 500; color: var(--text-normal); margin-bottom: 8px;">Recommendations:</div>
+                ${recommendations.recommendations.map(rec => `
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px; line-height: 1.5;">${rec}</div>
+                `).join('')}
+            </div>
+
+            <button id="apply-recommended-settings" class="btn btn-primary" style="width: 100%;">
+                Apply Recommended Settings for ${backendLabels[backend]}
+            </button>
+        `;
+
+        // Apply Recommended Settings Button
+        const applyButton = recommendationsSection.querySelector('#apply-recommended-settings') as HTMLButtonElement;
+        applyButton.addEventListener('click', () => {
+            // Apply adaptive profile settings
+            this.settings.maxMessages = adaptiveProfile.maxMessages;
+            this.settings.compressionThreshold = adaptiveProfile.compressionThreshold;
+            this.settings.compressionRatio = adaptiveProfile.compressionRatio;
+            this.settings.autoCompress = adaptiveProfile.autoCompress;
+            this.settings.addToVectorStore = adaptiveProfile.addToVectorStore;
+            this.settings.compressionPrompt = getCompressionPrompt(backend);
+
+            this.onUpdate(this.settings);
+            new Notice(`Applied recommended settings for ${backendLabels[backend]} backend`);
+
+            // Re-render to show updated values
+            this.render(container.parentElement as HTMLElement);
+        });
     }
 
     private renderMemoryStats(container: HTMLElement): void {
