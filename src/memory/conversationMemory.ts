@@ -145,10 +145,9 @@ Please provide a concise summary that captures the key points, decisions, and co
             this.compressedChunks++;
 
             // Add to vector store if enabled
-            // TODO: Implement vector store integration for compressed memory
-            // if (this.config.addToVectorStore && this.retriever.isReady()) {
-            //     await this.addToVectorStore(compressedSummary, messagesToCompress);
-            // }
+            if (this.config.addToVectorStore && this.retriever.isReady()) {
+                await this.addToVectorStore(compressedSummary, messagesToCompress);
+            }
 
             console.log('✅ Memory compressed successfully');
             new Notice(`Memory compressed: ${this.compressedChunks} chunks created`);
@@ -192,11 +191,18 @@ Please provide a concise summary that captures the key points, decisions, and co
 
     /**
      * Add compressed memory to vector store
-     * TODO: Implement proper vector store integration
+     * TODO: Implement proper vector store integration via retriever
      */
     private async addToVectorStore(summary: string, originalMessages: ConversationMessage[]): Promise<void> {
-        // TODO: Implement vector store integration for compressed memory chunks
-        console.log('📚 Vector store integration not yet implemented for conversation memory');
+        try {
+            // TODO: Need to implement a public method in RAGRetriever to add memory chunks
+            // For now, just log that we would add it
+            console.log('📚 Compressed memory ready for vector store (integration pending)');
+            console.log(`   - Summary length: ${summary.length} characters`);
+            console.log(`   - Original messages: ${originalMessages.length}`);
+        } catch (error) {
+            console.error('❌ Failed to add compressed memory to vector store:', error);
+        }
     }
 
     /**

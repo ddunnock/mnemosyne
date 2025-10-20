@@ -3,6 +3,7 @@
 import { AgentManagement, AgentManagementState } from './components/AgentManagement';
 import { ProviderManagement, ProviderManagementState } from './components/ProviderManagement';
 import { GoddessPersonaManagement, GoddessPersonaManagementState } from './components/GoddessPersonaManagement';
+import { MemoryManagement, MemoryManagementState } from './components/MemoryManagement';
 import { AgentConfig, LLMConfig, GoddessPersonaSettings } from '../../types/index';
 import { Notice, Modal } from 'obsidian';
 import { VaultIngestionModal } from '../vaultIngestionModal';
@@ -58,6 +59,7 @@ export class MnemosyneSettingsController {
     private agentManagement: AgentManagement | null = null;
     private providerManagement: ProviderManagement | null = null;
     private goddessPersonaManagement: GoddessPersonaManagement | null = null;
+    private memoryManagement: MemoryManagement | null = null;
 
     // State
     private chunkCount = 0;
