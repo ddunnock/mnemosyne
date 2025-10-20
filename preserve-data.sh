@@ -3,8 +3,10 @@
 # Preserve Data Script for Mnemosyne Development
 # This script preserves data.json and vector-store-index.json during development
 
-PLUGIN_DATA_DIR="/Users/dunnock/projects/test-vault/.obsidian/plugins/mnemosyne"
-BACKUP_DIR="/Users/dunnock/projects/mnemosyne/data-backup"
+# Get the script directory and use relative paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DATA_DIR="${PLUGIN_DATA_DIR:-$SCRIPT_DIR/dist}"
+BACKUP_DIR="$SCRIPT_DIR/data-backup"
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"

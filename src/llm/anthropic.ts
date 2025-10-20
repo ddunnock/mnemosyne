@@ -4,7 +4,7 @@
  * Uses Node.js https module directly instead of SDK to avoid CORS/fetch issues
  */
 
-import { BaseLLMProvider } from './base';
+import { BaseLLMProvider, ToolDefinition } from './base';
 import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
 import { LLMError } from '../types';
 
@@ -12,6 +12,7 @@ import * as https from 'https';
 
 export class AnthropicProvider extends BaseLLMProvider {
     readonly name = 'Anthropic Claude';
+    readonly supportsFunctionCalling = true; // ✨ NEW: Enable function calling
 
     constructor(apiKey: string, model: string, temperature: number = 0.7, maxTokens: number = 4096) {
         super(apiKey, model, temperature, maxTokens);
@@ -123,6 +124,115 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
 
     /**
+     * ✨ NEW: Chat with function calling support (Claude tool use)
+     */
+    async chatWithFunctions(
+        messages: Message[],
+        tools: unknown[],
+        options?: ChatOptions
+    ): Promise<ChatResponse> {
+        const mergedOptions = this.mergeOptions(options);
+
+        try {
+            const { systemMessage, userMessages } = this.formatMessagesForClaude(messages);
+
+            const body: any = {
+                model: this.model,
+                max_tokens: mergedOptions.maxTokens,
+                temperature: mergedOptions.temperature,
+                messages: userMessages,
+                tools: tools // Claude native tool format
+            };
+
+            if (systemMessage) {
+                body.system = systemMessage;
+            }
+
+            if (mergedOptions.stopSequences.length > 0) {
+                body.stop_sequences = mergedOptions.stopSequences;
+            }
+
+            console.log('Anthropic function calling request:', {
+                model: this.model,
+                toolCount: Array.isArray(tools) ? tools.length : 0
+            });
+
+            const responseText = await this.makeHttpsRequest(
+                'https://api.anthropic.com/v1/messages',
+                'POST',
+                {
+                    'x-api-key': this.apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                JSON.stringify(body)
+            );
+
+            const json = JSON.parse(responseText);
+            const response = json as any;
+
+            console.log('Anthropic function calling response:', {
+                model: response.model,
+                stopReason: response.stop_reason
+            });
+
+            // Check if Claude wants to use a tool
+            if (response.content) {
+                const toolUseBlock = response.content.find((block: any) => block.type === 'tool_use');
+
+                if (toolUseBlock) {
+                    // Extract text content if any
+                    const textContent = response.content
+                        .filter((block: any) => block.type === 'text')
+                        .map((block: any) => block.text)
+                        .join('') || '';
+
+                    return {
+                        content: textContent,
+                        functionCall: {
+                            name: toolUseBlock.name,
+                            arguments: toolUseBlock.input
+                        },
+                        usage: {
+                            promptTokens: response.usage?.input_tokens || 0,
+                            completionTokens: response.usage?.output_tokens || 0,
+                            totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
+                        },
+                        model: response.model || this.model,
+                        finishReason: response.stop_reason || 'complete'
+                    };
+                }
+            }
+
+            // Normal response without tool use
+            const content = response.content
+                ?.filter((block: any) => block.type === 'text')
+                .map((block: any) => block.text)
+                .join('') || '';
+
+            return {
+                content,
+                usage: {
+                    promptTokens: response.usage?.input_tokens || 0,
+                    completionTokens: response.usage?.output_tokens || 0,
+                    totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
+                },
+                model: response.model || this.model,
+                finishReason: response.stop_reason || 'complete'
+            };
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Anthropic function calling error:', errorMessage);
+
+            throw new LLMError(`Anthropic function calling failed: ${errorMessage}`, {
+                originalError: error,
+                provider: 'anthropic',
+                model: this.model
+            });
+        }
+    }
+
+    /**
      * Make HTTPS request using Node.js https module
      */
     private makeHttpsRequest(
@@ -192,9 +302,15 @@ export class AnthropicProvider extends BaseLLMProvider {
                 } else {
                     systemMessage = msg.content;
                 }
+            } else if (msg.role === 'function') {
+                // ✨ Convert function results to user messages for Claude
+                userMessages.push({
+                    role: 'user',
+                    content: `[Tool result from ${msg.name || 'function'}]: ${msg.content}`
+                });
             } else {
                 userMessages.push({
-                    role: msg.role,
+                    role: msg.role as 'user' | 'assistant',
                     content: msg.content
                 });
             }

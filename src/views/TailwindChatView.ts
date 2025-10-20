@@ -1,4 +1,5 @@
 import { WorkspaceLeaf, ItemView } from 'obsidian';
+import { buildExecutionContextWithCurrentNote } from '../utils/noteContext';
 
 export const VIEW_TYPE_TAILWIND_CHAT = 'tailwind-chat-view';
 
@@ -308,12 +309,18 @@ export class TailwindChatView extends ItemView {
                     conversationHistory = this.plugin.memoryManager.getConversationHistory();
                 }
 
-                // Execute agent
+                // Build execution context with current note (if active)
+                const context = await buildExecutionContextWithCurrentNote(
+                    this.plugin.app,
+                    message,
+                    conversationHistory
+                );
+
+                // Execute agent with context
                 const response = await this.plugin.agentManager.executeAgent(
                     this.selectedAgentId,
                     message,
-                    this.plugin.retriever,
-                    conversationHistory
+                    context
                 );
 
                 // Hide typing indicator
