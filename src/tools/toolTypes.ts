@@ -34,7 +34,7 @@ export interface ToolParameter extends ToolParameterSchema {
 export interface ToolDefinition {
     name: string;
     description: string;
-    category: 'vault' | 'metadata' | 'search' | 'system';
+    category: 'vault' | 'metadata' | 'search' | 'system' | 'agent';
     parameters: ToolParameter[];
     returns: {
         type: string;

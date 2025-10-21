@@ -85,7 +85,8 @@ export class LLMManager {
                 apiKey,
                 config.model,
                 config.temperature,
-                config.maxTokens
+                config.maxTokens,
+                config.baseUrl  // Pass custom base URL for local/enterprise LLMs
             );
 
             console.log(`Provider instance created for ${config.name}`);
@@ -106,23 +107,31 @@ export class LLMManager {
 
     /**
      * Create provider instance based on type
+     * ✨ ENHANCED: Now supports custom base URLs for local/enterprise LLMs
      */
     private createProviderInstance(
         providerType: LLMProviderEnum,
         apiKey: string,
         model: string,
         temperature: number,
-        maxTokens: number
+        maxTokens: number,
+        baseUrl?: string
     ): ILLMProvider {
         switch (providerType) {
             case LLMProviderEnum.ANTHROPIC:
                 return new AnthropicProvider(apiKey, model, temperature, maxTokens);
 
             case LLMProviderEnum.OPENAI:
-                return new OpenAIProvider(apiKey, model, temperature, maxTokens);
+                // OpenAI with optional custom base URL
+                return new OpenAIProvider(apiKey, model, temperature, maxTokens, baseUrl);
 
             case LLMProviderEnum.CUSTOM:
-                throw new Error('Custom providers not yet supported');
+                // Custom OpenAI-compatible endpoints (Open WebUI, Ollama, LM Studio, etc.)
+                if (!baseUrl) {
+                    throw new Error('Custom provider requires a base URL');
+                }
+                console.log(`🔧 Creating custom OpenAI-compatible provider: ${baseUrl}`);
+                return new OpenAIProvider(apiKey, model, temperature, maxTokens, baseUrl);
 
             default:
                 throw new Error(`Unknown provider type: ${providerType}`);

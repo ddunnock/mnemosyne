@@ -179,6 +179,11 @@ export class SemanticChunker {
         const chunks: RAGChunk[] = [];
         const sectionContent = section.content.trim();
 
+        // Skip empty sections
+        if (sectionContent.length === 0) {
+            return chunks;
+        }
+
         // If section is small enough, keep as single chunk
         if (sectionContent.length <= this.config.maxChunkSize) {
             const chunk = this.createChunk(

@@ -144,16 +144,51 @@ export class AgentManagement {
     }
 
     private renderAgentsList(container: HTMLElement) {
+        // ✨ NEW: Separate master agent from regular agents
+        const masterAgent = this.state.agents.find(a => a.isMaster || a.id === 'mnemosyne-master');
+        const regularAgents = this.state.agents.filter(a => !a.isMaster && a.id !== 'mnemosyne-master');
+
+        // Show master agent info (read-only)
+        if (masterAgent) {
+            const masterSection = container.createDiv({ cls: 'master-agent-section' });
+            masterSection.style.marginBottom = '24px';
+            masterSection.style.padding = '16px';
+            masterSection.style.border = '2px solid var(--interactive-accent)';
+            masterSection.style.borderRadius = '8px';
+            masterSection.style.background = 'var(--background-secondary)';
+
+            const header = masterSection.createEl('h4', { text: '🎭 Master Agent (Orchestrator)' });
+            header.style.margin = '0 0 12px 0';
+            header.style.color = 'var(--interactive-accent)';
+
+            const info = masterSection.createDiv();
+            info.innerHTML = `
+                <div style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 8px;">
+                    <strong>${masterAgent.name}</strong><br>
+                    ${masterAgent.description}
+                </div>
+                <div style="font-size: 0.85em; color: var(--text-faint); font-style: italic;">
+                    This agent automatically routes your requests to the right specialized agents.
+                    It updates automatically when you add, remove, or modify other agents.
+                </div>
+            `;
+        }
+
+        // Regular agents list
+        const agentsHeader = container.createEl('h4', { text: 'Specialized Agents' });
+        agentsHeader.style.marginTop = masterAgent ? '24px' : '0';
+        agentsHeader.style.marginBottom = '12px';
+
         const agentsList = container.createDiv({ cls: 'agents-list' });
         agentsList.style.display = 'grid';
         agentsList.style.gap = '12px';
 
-        this.state.agents.forEach(agent => {
+        regularAgents.forEach(agent => {
             this.renderAgentCard(agentsList, agent);
         });
 
         // Test all button
-        if (this.state.agents.length > 1) {
+        if (regularAgents.length > 1) {
             const testAllContainer = container.createDiv();
             testAllContainer.style.marginTop = '20px';
             testAllContainer.style.textAlign = 'right';

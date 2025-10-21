@@ -71,6 +71,9 @@ export class MnemosyneSettingsController {
     // State
     private chunkCount = 0;
     private isIndexing = false;
+    private vectorStoreBackend: 'json' | 'sqlite' | 'pgvector' | 'unknown' = 'unknown';
+    private lastStatsError: string | null = null;
+    private lastStatsUpdate: Date | null = null;
 
     constructor(plugin: any) {
         this.plugin = plugin;
@@ -203,14 +206,36 @@ export class MnemosyneSettingsController {
             if (this.plugin.retriever) {
                 // Access the vector store through the public getter
                 const vectorStore = this.plugin.retriever.getVectorStore();
+                console.log('Loading vector store stats...', {
+                    hasVectorStore: !!vectorStore,
+                    isReady: vectorStore?.isReady(),
+                    backend: vectorStore?.getBackend?.()
+                });
+
                 if (vectorStore && vectorStore.isReady()) {
                     const stats = await vectorStore.getStats();
                     this.chunkCount = stats ? stats.totalChunks : 0;
+                    this.vectorStoreBackend = stats?.backend || vectorStore.getBackend?.() || 'unknown';
+                    this.lastStatsError = null;
+                    this.lastStatsUpdate = new Date();
+
+                    console.log('Vector store stats loaded:', {
+                        chunks: this.chunkCount,
+                        backend: this.vectorStoreBackend,
+                        embeddingModel: stats?.embeddingModel,
+                        dimension: stats?.dimension
+                    });
                 } else {
                     this.chunkCount = 0;
+                    this.vectorStoreBackend = 'unknown';
+                    this.lastStatsError = vectorStore ? 'Vector store not ready' : 'Vector store not initialized';
+                    console.warn('Vector store not available:', this.lastStatsError);
                 }
             } else {
                 this.chunkCount = 0;
+                this.vectorStoreBackend = 'unknown';
+                this.lastStatsError = 'Retriever not initialized';
+                console.warn('Retriever not initialized');
             }
 
             // For now, we don't track indexing state in the vector store itself
@@ -219,6 +244,8 @@ export class MnemosyneSettingsController {
             console.error('Failed to load dynamic state:', error);
             this.chunkCount = 0;
             this.isIndexing = false;
+            this.vectorStoreBackend = 'unknown';
+            this.lastStatsError = error instanceof Error ? error.message : 'Unknown error';
         }
     }
 
@@ -411,16 +438,20 @@ export class MnemosyneSettingsController {
     }
 
     private renderQuickSetup(): string {
-        // Simplified Quick Setup for now
+        const backendDisplay = this.vectorStoreBackend === 'unknown' ? 'Not configured' : this.vectorStoreBackend.toUpperCase();
+        const lastUpdateText = this.lastStatsUpdate
+            ? this.lastStatsUpdate.toLocaleTimeString()
+            : 'Never';
+
         return `
       <div class="settings-section">
-        <h3 class="section-title">🚀 Quick Setup</h3>
+        <h3 class="section-title">🚀 Quick Start</h3>
         <div class="settings-card quick-setup fade-in">
           <div class="card-header">
-            <p class="card-description">Configure your AI-powered knowledge assistant</p>
+            <p class="card-description">Get started with your AI-powered knowledge assistant</p>
             ${this.renderQuickSetupStatus()}
           </div>
-          
+
           <div class="quick-controls">
             <div class="control-group">
               <div class="toggle-container">
@@ -434,8 +465,20 @@ export class MnemosyneSettingsController {
                 <p class="help-text">Turn the plugin on or off globally</p>
               </div>
             </div>
-            
-            <div class="status-grid">
+
+            ${this.lastStatsError ? `
+            <div class="status-error" style="background: rgba(245, 101, 101, 0.1); border: 1px solid rgba(245, 101, 101, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+              <div style="display: flex; align-items: start; gap: 8px;">
+                <span style="color: var(--text-error); font-size: 16px;">⚠️</span>
+                <div>
+                  <strong style="color: var(--text-error); font-size: 13px;">Vector Store Error</strong>
+                  <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">${this.lastStatsError}</p>
+                </div>
+              </div>
+            </div>
+            ` : ''}
+
+            <div class="status-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
               <div class="status-item">
                 <span class="label">AI Provider</span>
                 <span class="value" data-provider-status>${this.getProviderStatusText()}</span>
@@ -444,8 +487,16 @@ export class MnemosyneSettingsController {
                 <span class="label">Knowledge Base</span>
                 <span class="value" data-chunk-count>${this.isIndexing ? '⏳ Indexing...' : `${this.chunkCount} chunks`}</span>
               </div>
+              <div class="status-item">
+                <span class="label">Backend</span>
+                <span class="value" data-backend>${backendDisplay}</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Last Updated</span>
+                <span class="value" data-last-update>${lastUpdateText}</span>
+              </div>
             </div>
-            
+
             <div class="quick-actions">
               <button class="btn btn-primary" data-action="setup-provider" ${this.settings.providers.length > 0 ? 'style="display:none"' : ''}>
                 <span>⚡</span>
@@ -455,7 +506,22 @@ export class MnemosyneSettingsController {
                 <span>📚</span>
                 ${this.isIndexing ? 'Indexing...' : (this.chunkCount > 0 ? 'Reindex Vault' : 'Index Vault')}
               </button>
+              <button class="btn btn-outline" data-action="refresh-stats" title="Refresh vector store statistics">
+                <span>🔄</span>
+                Refresh Stats
+              </button>
             </div>
+
+            ${this.chunkCount === 0 && !this.isIndexing ? `
+            <div class="setup-hint" style="margin-top: 16px; padding: 12px; background: var(--background-secondary); border-radius: 8px; border-left: 3px solid var(--interactive-accent);">
+              <strong style="font-size: 13px;">👋 Getting Started</strong>
+              <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+                <li>Configure an AI provider (OpenAI, Anthropic, etc.) in the Providers section below</li>
+                <li>Index your vault to build the knowledge base</li>
+                <li>Open the chat sidebar or use commands to interact with Mnemosyne</li>
+              </ol>
+            </div>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -822,6 +888,49 @@ export class MnemosyneSettingsController {
           </div>
 
           <div style="padding: 20px;">
+            <!-- Embedding Provider Selection -->
+            <div class="setting-row" style="margin-bottom: 24px; padding: 16px; background: var(--background-secondary); border-radius: 6px; border-left: 3px solid var(--interactive-accent);">
+              <div style="margin-bottom: 12px;">
+                <label style="font-weight: 500; font-size: 14px;">🧠 Embedding Provider</label>
+                <p class="help-text">Choose how text is converted to vector embeddings</p>
+              </div>
+              <select id="embedding-provider" style="width: 100%; min-height: 52px; height: auto; padding: 12px 12px; border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); color: var(--text-normal); font-size: 14px; line-height: 1.8; display: block; overflow: visible;">
+                <option value="openai" ${this.plugin.settings.embeddingProvider === 'openai' || !this.plugin.settings.embeddingProvider ? 'selected' : ''}>OpenAI (Cloud - High Quality, 1536 dimensions)</option>
+                <option value="local" ${this.plugin.settings.embeddingProvider === 'local' ? 'selected' : ''}>Local (Transformers.js - Privacy-First, 384 dimensions)</option>
+              </select>
+
+              <!-- OpenAI Settings -->
+              <div id="openai-embedding-settings" style="display: ${this.plugin.settings.embeddingProvider === 'local' ? 'none' : 'block'}; margin-top: 12px; padding: 12px; background: var(--background-primary); border-radius: 4px;">
+                <label style="font-size: 13px; color: var(--text-muted);">OpenAI Model:</label>
+                <select id="openai-embedding-model" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;">
+                  <option value="text-embedding-3-small" ${this.plugin.settings.embeddingModel === 'text-embedding-3-small' ? 'selected' : ''}>text-embedding-3-small (1536 dim, recommended)</option>
+                  <option value="text-embedding-3-large" ${this.plugin.settings.embeddingModel === 'text-embedding-3-large' ? 'selected' : ''}>text-embedding-3-large (3072 dim, higher quality)</option>
+                </select>
+                <p class="help-text" style="margin-top: 4px; font-size: 12px;">⚠️ Requires OpenAI API key. Documents sent to OpenAI for embedding.</p>
+              </div>
+
+              <!-- Local Settings -->
+              <div id="local-embedding-settings" style="display: ${this.plugin.settings.embeddingProvider === 'local' ? 'block' : 'none'}; margin-top: 12px; padding: 12px; background: var(--background-primary); border-radius: 4px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Local Model:</label>
+                <select id="local-embedding-model" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;">
+                  <option value="Xenova/all-MiniLM-L6-v2" ${this.plugin.settings.embeddingModel === 'Xenova/all-MiniLM-L6-v2' ? 'selected' : ''}>all-MiniLM-L6-v2 (384 dim, recommended)</option>
+                </select>
+                <p class="help-text" style="margin-top: 4px; font-size: 12px;">✅ 100% local. No external API calls. Perfect for data privacy and air-gapped environments.</p>
+                <p class="help-text" style="margin-top: 4px; font-size: 12px;">📦 First use downloads ~23MB model (cached for future use).</p>
+              </div>
+
+              <!-- Warning about changing providers -->
+              <div style="margin-top: 12px; padding: 12px; background: var(--background-modifier-error); border-radius: 4px; border-left: 3px solid var(--text-error);">
+                <div style="display: flex; align-items: start; gap: 8px;">
+                  <span style="font-size: 16px;">⚠️</span>
+                  <div style="flex: 1;">
+                    <p style="font-size: 13px; color: var(--text-normal); margin-bottom: 4px;"><strong>Changing Embedding Provider Requires Re-indexing</strong></p>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 0;">Embeddings from different providers are not compatible. You'll need to re-ingest your vault after changing providers.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Backend Selection -->
             <div class="setting-row" style="margin-bottom: 24px;">
               <div style="margin-bottom: 12px;">
@@ -1121,6 +1230,28 @@ export class MnemosyneSettingsController {
             });
         });
 
+        // Attach Embedding Provider event handlers
+        const embeddingProviderSelect = this.container.querySelector('#embedding-provider') as HTMLSelectElement;
+        if (embeddingProviderSelect) {
+            embeddingProviderSelect.addEventListener('change', async () => {
+                await this.handleEmbeddingProviderChange(embeddingProviderSelect.value as 'openai' | 'local');
+            });
+        }
+
+        const openaiEmbeddingModelSelect = this.container.querySelector('#openai-embedding-model') as HTMLSelectElement;
+        if (openaiEmbeddingModelSelect) {
+            openaiEmbeddingModelSelect.addEventListener('change', async () => {
+                await this.handleEmbeddingModelChange(openaiEmbeddingModelSelect.value);
+            });
+        }
+
+        const localEmbeddingModelSelect = this.container.querySelector('#local-embedding-model') as HTMLSelectElement;
+        if (localEmbeddingModelSelect) {
+            localEmbeddingModelSelect.addEventListener('change', async () => {
+                await this.handleEmbeddingModelChange(localEmbeddingModelSelect.value);
+            });
+        }
+
         // Attach Vector Store event handlers
         const vectorStoreBackendSelect = this.container.querySelector('#vector-store-backend') as HTMLSelectElement;
         if (vectorStoreBackendSelect) {
@@ -1204,6 +1335,9 @@ export class MnemosyneSettingsController {
                 break;
             case 'index-vault':
                 await this.handleIndexVault();
+                break;
+            case 'refresh-stats':
+                await this.handleRefreshStats();
                 break;
             case 'set-password':
                 await this.handleSetMasterPassword();
@@ -1790,7 +1924,7 @@ export class MnemosyneSettingsController {
     private async handleIndexVault(): Promise<void> {
         // Open the vault ingestion modal instead of direct indexing
         const modal = new VaultIngestionModal(this.plugin.app, this.plugin);
-        
+
         // Override the onClose method to refresh state after modal closes
         const originalOnClose = modal.onClose.bind(modal);
         modal.onClose = () => {
@@ -1800,8 +1934,25 @@ export class MnemosyneSettingsController {
                 this.updateComponents();
             });
         };
-        
+
         modal.open();
+    }
+
+    private async handleRefreshStats(): Promise<void> {
+        try {
+            new Notice('Refreshing vector store statistics...');
+            await this.loadDynamicState();
+            this.updateComponents();
+
+            if (this.lastStatsError) {
+                new Notice(`Error: ${this.lastStatsError}`, 5000);
+            } else {
+                new Notice(`✓ Stats refreshed: ${this.chunkCount} chunks (${this.vectorStoreBackend})`, 3000);
+            }
+        } catch (error) {
+            console.error('Failed to refresh stats:', error);
+            new Notice('Failed to refresh stats. Check console for details.', 5000);
+        }
     }
 
     private async handleSetMasterPassword(): Promise<void> {
@@ -2083,6 +2234,22 @@ export class MnemosyneSettingsController {
         if (chunkCount) {
             const countText = this.isIndexing ? '⏳ Indexing...' : `${this.chunkCount} chunks`;
             chunkCount.textContent = countText;
+        }
+
+        // Update backend
+        const backend = this.container.querySelector('[data-backend]');
+        if (backend) {
+            const backendDisplay = this.vectorStoreBackend === 'unknown' ? 'Not configured' : this.vectorStoreBackend.toUpperCase();
+            backend.textContent = backendDisplay;
+        }
+
+        // Update last update time
+        const lastUpdate = this.container.querySelector('[data-last-update]');
+        if (lastUpdate) {
+            const lastUpdateText = this.lastStatsUpdate
+                ? this.lastStatsUpdate.toLocaleTimeString()
+                : 'Never';
+            lastUpdate.textContent = lastUpdateText;
         }
     }
 
@@ -2770,6 +2937,57 @@ export class MnemosyneSettingsController {
     }
 
     // Vector Store handler methods
+    private async handleEmbeddingProviderChange(provider: 'openai' | 'local'): Promise<void> {
+        try {
+            console.log(`Changing embedding provider to: ${provider}`);
+
+            // Update settings
+            this.plugin.settings.embeddingProvider = provider;
+
+            // Set default model for the provider
+            if (provider === 'openai' && !this.plugin.settings.embeddingModel?.startsWith('text-embedding')) {
+                this.plugin.settings.embeddingModel = 'text-embedding-3-small';
+            } else if (provider === 'local' && !this.plugin.settings.embeddingModel?.startsWith('Xenova/')) {
+                this.plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
+            }
+
+            await this.plugin.saveSettings();
+
+            // Toggle visibility of provider-specific settings
+            const openaiSettings = this.container?.querySelector('#openai-embedding-settings') as HTMLElement;
+            const localSettings = this.container?.querySelector('#local-embedding-settings') as HTMLElement;
+
+            if (openaiSettings && localSettings) {
+                openaiSettings.style.display = provider === 'openai' ? 'block' : 'none';
+                localSettings.style.display = provider === 'local' ? 'block' : 'none';
+            }
+
+            const providerName = provider === 'openai' ? 'OpenAI' : 'Local (Transformers.js)';
+            new Notice(`Embedding provider changed to ${providerName}. You will need to re-ingest your vault.`);
+            console.log(`Embedding provider changed to: ${provider}`);
+        } catch (error) {
+            console.error('Failed to change embedding provider:', error);
+            new Notice('Error changing embedding provider');
+        }
+    }
+
+    private async handleEmbeddingModelChange(model: string): Promise<void> {
+        try {
+            console.log(`Changing embedding model to: ${model}`);
+
+            // Update settings
+            this.plugin.settings.embeddingModel = model;
+
+            await this.plugin.saveSettings();
+
+            new Notice(`Embedding model changed to ${model}. You will need to re-ingest your vault.`);
+            console.log(`Embedding model changed to: ${model}`);
+        } catch (error) {
+            console.error('Failed to change embedding model:', error);
+            new Notice('Error changing embedding model');
+        }
+    }
+
     private async handleVectorStoreBackendChange(backend: 'json' | 'sqlite' | 'pgvector'): Promise<void> {
         try {
             // Update settings

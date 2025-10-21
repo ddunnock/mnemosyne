@@ -17,15 +17,28 @@ export class OpenAIProvider extends BaseLLMProvider {
     readonly name = 'OpenAI GPT';
     readonly supportsFunctionCalling = true; // ✨ NEW: Enable function calling
     private client: OpenAI;
+    private customBaseUrl?: string;
 
-    constructor(apiKey: string, model: string, temperature: number = 0.7, maxTokens: number = 4096) {
+    constructor(apiKey: string, model: string, temperature: number = 0.7, maxTokens: number = 4096, baseUrl?: string) {
         super(apiKey, model, temperature, maxTokens);
+        this.customBaseUrl = baseUrl;
 
-        // Initialize OpenAI client - same pattern as embeddings.ts
-        this.client = new OpenAI({
+        // Initialize OpenAI client with optional custom base URL
+        // This enables:
+        // - Open WebUI (corporate LLM interfaces)
+        // - Local LLMs (Ollama, LM Studio, etc.)
+        // - Any OpenAI-compatible API endpoint
+        const clientConfig: any = {
             apiKey,
             dangerouslyAllowBrowser: true
-        });
+        };
+
+        if (baseUrl) {
+            clientConfig.baseURL = baseUrl;
+            console.log(`🔗 Using custom OpenAI-compatible endpoint: ${baseUrl}`);
+        }
+
+        this.client = new OpenAI(clientConfig);
     }
 
     /**

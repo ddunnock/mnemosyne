@@ -121,6 +121,13 @@ export interface AgentConfig {
     enableTools?: boolean; // Enable MCP-style tool calling
     allowDangerousOperations?: boolean; // Allow write operations (create/update/delete notes)
     folderScope?: string[]; // Restrict tool operations to specific folders
+
+    // ✨ Agent Orchestration Metadata
+    isMaster?: boolean; // If true, this is the master orchestrator agent
+    isSpecialized?: boolean; // If true, agent is meant to be called by master
+    capabilities?: string[]; // Tags describing what this agent does (e.g., ['risk-discovery', 'mitigation'])
+    category?: string; // Category for organization (e.g., 'risk-management', 'general', 'research')
+    visibility?: 'public' | 'specialist'; // 'public' = directly callable, 'specialist' = only via master
 }
 
 export interface AutoIngestionConfig {
@@ -158,14 +165,18 @@ export interface PluginSettings {
     // Phase 5: Agent Configurations
     agents: AgentConfig[];
 
-    // Phase 5: Default Agent
+    // Phase 5: Default Agent (for backward compatibility)
     defaultAgentId?: string;
+
+    // ✨ Master Agent (orchestrator)
+    masterAgentId?: string;
 
     // Goddess Persona Configuration
     persona: GoddessPersonaSettings;
 
     // RAG Configuration
     vectorDbPath: string;
+    embeddingProvider: string; // 'openai' or 'local'
     embeddingModel: string;
     chunkSize: number;
     chunkOverlap: number;
@@ -281,7 +292,7 @@ export interface StreamChunk {
 // ============================================================================
 
 export interface AgentExecutionContext {
-    query: string;
+    query?: string; // Optional for backward compatibility
     conversationHistory?: Message[];
     additionalContext?: Record<string, any>;
     noteContext?: {
@@ -289,6 +300,8 @@ export interface AgentExecutionContext {
         noteContent: string;
         frontmatter?: Record<string, any>;
     };
+    activeFilePath?: string; // Auto-injected path to active note
+    structuredInput?: any; // For structured payloads from forms
 }
 
 export interface AgentResponse {

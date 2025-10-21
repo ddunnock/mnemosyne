@@ -7,8 +7,6 @@
 
 import { App, Modal, Notice, Setting, TFile, TFolder } from 'obsidian';
 import RiskManagementPlugin from '../main';
-import { VectorStore } from '../rag/vectorStore';
-import { EmbeddingsGenerator } from '../rag/embeddings';
 import { ChunkMetadata } from '../types';
 
 export interface IngestionConfig {
@@ -61,7 +59,7 @@ export class VaultIngestionModal extends Modal {
         super(app);
         this.plugin = plugin;
         this.config = {
-            selectedFolders: [''],  // Empty string means root folder
+            selectedFolders: [],  // Start with no folders selected - user must choose
             includeSubfolders: true,
             chunkSize: 1000,
             chunkOverlap: 200,
@@ -804,39 +802,37 @@ export class VaultIngestionModal extends Modal {
     }
 
     private async performIngestion() {
-        // Initialize vector store and embeddings
-        const vectorStore = new VectorStore(this.app);
-        await vectorStore.initialize();
+        // Use the plugin's VaultIngestor which is already configured with the correct vector store backend
+        const vaultIngestor = this.plugin.vaultIngestor;
 
-        const embeddings = new EmbeddingsGenerator();
-        
-        // Initialize embeddings with API key from plugin settings
-        const openAIConfig = this.plugin.settings.llmConfigs?.find(
-            (config: any) => config.provider === 'openai' && config.enabled
-        );
-        
-        if (!openAIConfig) {
-            throw new Error('No OpenAI configuration found. Please configure an OpenAI provider for embeddings.');
+        if (!vaultIngestor) {
+            throw new Error('VaultIngestor not initialized. Please restart the plugin.');
         }
-        
-        // Ensure master password is loaded before decrypting API key
-        if (this.plugin.settingsController) {
-            const passwordLoaded = await this.plugin.settingsController.ensureMasterPasswordLoaded();
-            if (!passwordLoaded) {
-                throw new Error('Master password is required to decrypt API keys. Please set up your master password in settings.');
+
+        // Ensure embeddings are ready
+        if (!this.plugin.retriever.isReady()) {
+            // Try to initialize embeddings
+            const openAIConfig = this.plugin.settings.llmConfigs?.find(
+                (config: any) => config.provider === 'openai' && config.enabled
+            );
+
+            if (!openAIConfig) {
+                throw new Error('No OpenAI configuration found. Please configure an OpenAI provider for embeddings.');
             }
-        } else if (!this.plugin.keyManager.hasMasterPassword()) {
-            throw new Error('Master password not loaded. Please check your settings.');
+
+            // Ensure master password is loaded before decrypting API key
+            if (this.plugin.settingsController) {
+                const passwordLoaded = await this.plugin.settingsController.ensureMasterPasswordLoaded();
+                if (!passwordLoaded) {
+                    throw new Error('Master password is required to decrypt API keys. Please set up your master password in settings.');
+                }
+            } else if (!this.plugin.keyManager.hasMasterPassword()) {
+                throw new Error('Master password not loaded. Please check your settings.');
+            }
+
+            // Re-initialize the retriever to set up embeddings
+            await this.plugin.retriever.initialize();
         }
-        
-        // Decrypt API key
-        const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
-        const apiKey = this.plugin.keyManager.decrypt(encryptedData);
-        
-        // Initialize embeddings
-        embeddings.initialize(apiKey, {
-            model: this.plugin.settings.embeddingModel || 'text-embedding-3-small'
-        });
 
         // Phase 1: Scan files
         if (this.progressCallback) {
@@ -852,118 +848,62 @@ export class VaultIngestionModal extends Modal {
         }
 
         const filesToProcess = await this.scanFiles();
-        
+
         if (this.cancellationRequested) return;
 
-        // Phase 2: Process files and create chunks
+        // Phase 2: Use VaultIngestor to process all files
         if (this.progressCallback) {
             this.progressCallback({
-                phase: 'chunking',
+                phase: 'indexing',
                 totalFiles: filesToProcess.length,
                 processedFiles: 0,
                 totalChunks: 0,
                 processedChunks: 0,
-                percentage: 0,
-                message: 'Creating content chunks...'
+                percentage: 10,
+                message: 'Starting ingestion...'
             });
         }
 
-        const allChunks: FileChunk[] = [];
-        
-        for (let i = 0; i < filesToProcess.length; i++) {
+        // Use the VaultIngestor which will use the correct vector store backend
+        const stats = await vaultIngestor.ingestFiles(filesToProcess, (current, total) => {
             if (this.cancellationRequested) return;
 
-            const file = filesToProcess[i];
-            const chunks = await this.processFile(file);
-            allChunks.push(...chunks);
-
             if (this.progressCallback) {
-                this.progressCallback({
-                    phase: 'chunking',
-                    totalFiles: filesToProcess.length,
-                    processedFiles: i + 1,
-                    totalChunks: allChunks.length,
-                    processedChunks: 0,
-                    percentage: Math.round(((i + 1) / filesToProcess.length) * 30),
-                    message: `Processing ${file.name}... (${allChunks.length} chunks created)`,
-                    currentFile: file.name
-                });
-            }
-        }
-
-        if (this.cancellationRequested) return;
-
-        // Phase 3: Generate embeddings and index
-        if (this.progressCallback) {
-            this.progressCallback({
-                phase: 'embedding',
-                totalFiles: filesToProcess.length,
-                processedFiles: filesToProcess.length,
-                totalChunks: allChunks.length,
-                processedChunks: 0,
-                percentage: 30,
-                message: 'Generating embeddings and indexing chunks...'
-            });
-        }
-
-        // Process chunks in batches
-        for (let i = 0; i < allChunks.length; i += this.config.batchSize) {
-            if (this.cancellationRequested) return;
-
-            const batch = allChunks.slice(i, i + this.config.batchSize);
-            
-            // Generate embeddings for batch
-            const texts = batch.map(chunk => chunk.content);
-            const batchEmbeddings = await embeddings.generateEmbeddings(texts);
-
-            // Insert into vector store
-            for (let j = 0; j < batch.length; j++) {
-                const chunk = batch[j];
-                const embedding = batchEmbeddings[j];
-
-                // Skip if already exists and configured to do so
-                if (this.config.skipExistingChunks && vectorStore.get(chunk.id)) {
-                    continue;
-                }
-
-                await vectorStore.insert(chunk.id, chunk.content, embedding, chunk.metadata);
-            }
-
-            if (this.progressCallback) {
-                const processedChunks = Math.min(i + batch.length, allChunks.length);
+                const percentage = 10 + Math.round((current / total) * 85);
                 this.progressCallback({
                     phase: 'indexing',
-                    totalFiles: filesToProcess.length,
-                    processedFiles: filesToProcess.length,
-                    totalChunks: allChunks.length,
-                    processedChunks,
-                    percentage: 30 + Math.round((processedChunks / allChunks.length) * 70),
-                    message: `Indexing chunks... ${processedChunks}/${allChunks.length}`,
-                    currentChunk: batch[0].id
+                    totalFiles: total,
+                    processedFiles: current,
+                    totalChunks: 0,
+                    processedChunks: 0,
+                    percentage,
+                    message: `Processing file ${current}/${total}...`,
+                    currentFile: filesToProcess[current - 1]?.name
                 });
             }
+        });
 
-            // Small delay to prevent UI blocking
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
-
-        // Save vector store
-        await vectorStore.save();
+        if (this.cancellationRequested) return;
 
         // Complete
         if (this.progressCallback) {
             this.progressCallback({
                 phase: 'complete',
-                totalFiles: filesToProcess.length,
-                processedFiles: filesToProcess.length,
-                totalChunks: allChunks.length,
-                processedChunks: allChunks.length,
+                totalFiles: stats.filesProcessed,
+                processedFiles: stats.filesProcessed,
+                totalChunks: stats.chunksIngested,
+                processedChunks: stats.chunksIngested,
                 percentage: 100,
-                message: `Ingestion complete! Processed ${allChunks.length} chunks from ${filesToProcess.length} files.`
+                message: `Ingestion complete! Processed ${stats.chunksIngested} chunks from ${stats.filesProcessed} files.`
             });
         }
 
-        new Notice(`✅ Vault ingestion complete! Indexed ${allChunks.length} chunks from ${filesToProcess.length} files.`);
+        new Notice(`✅ Vault ingestion complete! Indexed ${stats.chunksIngested} chunks from ${stats.filesProcessed} files (${stats.errors} errors).`);
+
+        // Refresh settings UI to show updated chunk count
+        if (this.plugin.settingsController) {
+            await this.plugin.settingsController.refresh();
+        }
     }
 
     private async scanFiles(): Promise<TFile[]> {

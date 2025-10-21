@@ -332,12 +332,13 @@ export class AIProviderModal extends Modal {
                 <div class="form-group">
                     <label class="form-label" for="provider-type">Provider Type</label>
                     <select id="provider-type" class="form-select">
-                        <option value="openai" ${this.providerType === LLMProvider.OPENAI ? 'selected' : ''}>OpenAI</option>
-                        <option value="anthropic" ${this.providerType === LLMProvider.ANTHROPIC ? 'selected' : ''}>Anthropic</option>
-                        <option value="custom" ${this.providerType === LLMProvider.CUSTOM ? 'selected' : ''}>Custom API</option>
+                        <option value="openai" ${this.providerType === LLMProvider.OPENAI ? 'selected' : ''}>OpenAI (Cloud)</option>
+                        <option value="anthropic" ${this.providerType === LLMProvider.ANTHROPIC ? 'selected' : ''}>Anthropic Claude (Cloud)</option>
+                        <option value="custom" ${this.providerType === LLMProvider.CUSTOM ? 'selected' : ''}>Local/Enterprise LLM (Ollama, Open WebUI, etc.)</option>
                     </select>
                     <div class="form-help">
-                        Choose the AI provider you want to configure. OpenAI and Anthropic are the most popular options.
+                        <strong>OpenAI/Anthropic:</strong> Cloud-based APIs requiring API keys<br>
+                        <strong>Local/Enterprise:</strong> Self-hosted or corporate LLM endpoints (requires Base URL in Advanced settings)
                     </div>
                 </div>
 
@@ -410,16 +411,20 @@ export class AIProviderModal extends Modal {
                 
                 <div class="advanced-content" id="advanced-content">
                     <div class="form-group">
-                        <label class="form-label" for="base-url">Base URL</label>
-                        <input 
-                            type="url" 
-                            id="base-url" 
-                            class="form-input" 
-                            placeholder="https://api.openai.com/v1"
+                        <label class="form-label" for="base-url">Base URL (Optional)</label>
+                        <input
+                            type="url"
+                            id="base-url"
+                            class="form-input"
+                            placeholder="e.g., http://localhost:11434/v1 (Ollama)"
                             value="${this.baseUrl}"
                         >
                         <div class="form-help">
-                            Custom API endpoint. Leave empty for default provider URLs.
+                            <strong>For local/enterprise LLMs:</strong><br>
+                            • Ollama: <code>http://localhost:11434/v1</code><br>
+                            • LM Studio: <code>http://localhost:1234/v1</code><br>
+                            • Open WebUI: <code>https://your-company.com/api/v1</code><br>
+                            • Leave empty for OpenAI/Anthropic default endpoints
                         </div>
                     </div>
 

@@ -91,6 +91,11 @@ export class AgentExecutor {
             const messages = this.buildMessages(query, contextText, context);
 
             // ✨ NEW: Check if agent supports tools
+            console.log('🔍 Tool support check:', {
+                'config.enableTools': this.config.enableTools,
+                'toolExecutor exists': !!this.toolExecutor,
+                'app exists': !!this.app
+            });
             const supportsTools = this.config.enableTools && this.toolExecutor;
 
             // Step 3: Get LLM response with optional tool support

@@ -56,7 +56,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 
     // RAG Configuration (Phase 3)
     vectorDbPath: 'vector-store-index.json',
-    embeddingModel: 'text-embedding-3-small',
+    embeddingProvider: 'openai', // 'openai' or 'local' - local uses Transformers.js
+    embeddingModel: 'text-embedding-3-small', // For OpenAI: text-embedding-3-small/large, For Local: Xenova/all-MiniLM-L6-v2
     chunkSize: 500,
     chunkOverlap: 50,
 
@@ -128,7 +129,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
  * Ensures all required fields exist
  */
 export function mergeSettings(loadedSettings: Partial<PluginSettings>): PluginSettings {
-    return {
+    const merged = {
         ...DEFAULT_SETTINGS,
         ...loadedSettings,
         // Ensure arrays exist
@@ -150,6 +151,33 @@ export function mergeSettings(loadedSettings: Partial<PluginSettings>): PluginSe
             ...(loadedSettings.vectorStore || {})
         }
     };
+
+    // ✨ NEW: Migrate existing agents to add new orchestration fields
+    merged.agents = migrateAgentConfigs(merged.agents);
+
+    return merged;
+}
+
+/**
+ * ✨ NEW: Migrate agent configs to add new orchestration metadata fields
+ */
+function migrateAgentConfigs(agents: any[]): any[] {
+    return agents.map(agent => {
+        // If agent already has the new fields, return as-is
+        if (agent.hasOwnProperty('isMaster') && agent.hasOwnProperty('isSpecialized')) {
+            return agent;
+        }
+
+        // Add new fields with defaults
+        return {
+            ...agent,
+            isMaster: agent.id === 'mnemosyne-master', // Mark master agent
+            isSpecialized: agent.id !== 'mnemosyne-master', // All others are specialized
+            capabilities: agent.capabilities || [], // Empty array if not set
+            category: agent.category || 'general', // Default category
+            visibility: agent.visibility || 'public' // Default to public
+        };
+    });
 }
 
 /**
