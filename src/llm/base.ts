@@ -3,9 +3,21 @@
  *
  * Defines the contract that all LLM providers must implement.
  * Supports both streaming and non-streaming responses.
+ * ✨ MCP ENHANCED: Now supports function calling
  */
 
 import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
+
+// ✨ NEW: Tool definition for function calling
+export interface ToolDefinition {
+    name: string;
+    description: string;
+    parameters: {
+        type: 'object';
+        properties: Record<string, unknown>;
+        required: string[];
+    };
+}
 
 /**
  * Base interface for all LLM providers
@@ -16,6 +28,11 @@ export interface ILLMProvider {
      */
     readonly name: string;
     readonly model: string;
+
+    /**
+     * ✨ NEW: Function calling support flag
+     */
+    readonly supportsFunctionCalling?: boolean;
 
     /**
      * Non-streaming chat completion
@@ -30,6 +47,15 @@ export interface ILLMProvider {
         onToken: (chunk: StreamChunk) => void,
         options?: ChatOptions
     ): Promise<void>;
+
+    /**
+     * ✨ NEW: Chat with function calling support
+     */
+    chatWithFunctions?(
+        messages: Message[],
+        tools: ToolDefinition[] | unknown[], // Accept both formats
+        options?: ChatOptions
+    ): Promise<ChatResponse>;
 
     /**
      * Test the provider connection
@@ -49,6 +75,7 @@ export interface ProviderInfo {
     name: string;
     model: string;
     supportsStreaming: boolean;
+    supportsFunctionCalling?: boolean; // ✨ NEW
     maxTokens: number;
     temperature: number;
 }
@@ -109,9 +136,22 @@ export abstract class BaseLLMProvider implements ILLMProvider {
             name: this.name,
             model: this.model,
             supportsStreaming: true,
+            supportsFunctionCalling: false, // ✨ NEW: Override in subclasses that support it
             maxTokens: this.maxTokens,
             temperature: this.temperature
         };
+    }
+
+    /**
+     * ✨ NEW: Default implementation that throws error
+     * Override in subclasses that support function calling
+     */
+    async chatWithFunctions(
+        _messages: Message[],
+        _tools: ToolDefinition[] | unknown[],
+        _options?: ChatOptions
+    ): Promise<ChatResponse> {
+        throw new Error(`Function calling not supported by ${this.name} provider`);
     }
 
     /**

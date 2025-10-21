@@ -46,6 +46,34 @@ export interface MemoryConfig {
     compressionPrompt: string;
 }
 
+// ✨ NEW: MCP Tools Configuration
+export interface MCPToolsConfig {
+    enabled: boolean; // Master switch for MCP functionality
+    allowedTools: string[]; // Which tools are enabled globally (e.g., ['read_note', 'write_note', 'search_notes', 'list_notes'])
+    defaultAllowDangerousOperations: boolean; // Default for new agents
+    defaultFolderScope: string[]; // Default folder restrictions for new agents
+}
+
+// ✨ NEW: Vector Store Configuration Types
+export interface VectorStoreConfig {
+    backend: 'json' | 'pgvector';
+    embeddingModel: string;
+    dimension: number;
+    json?: {
+        indexPath: string;
+    };
+    pgvector?: {
+        host: string;
+        port: number;
+        database: string;
+        user: string;
+        encryptedPassword: string;
+        ssl: boolean;
+        poolSize?: number;
+        connectionTimeout?: number;
+    };
+}
+
 // Goddess Persona Configuration
 export interface GoddessPersonaSettings {
     enabled: boolean;
@@ -88,6 +116,11 @@ export interface AgentConfig {
     testStatus?: 'success' | 'failed' | 'never';
     createdAt: number;
     updatedAt: number;
+
+    // ✨ MCP Tool Support
+    enableTools?: boolean; // Enable MCP-style tool calling
+    allowDangerousOperations?: boolean; // Allow write operations (create/update/delete notes)
+    folderScope?: string[]; // Restrict tool operations to specific folders
 }
 
 export interface AutoIngestionConfig {
@@ -142,6 +175,12 @@ export interface PluginSettings {
 
     // Conversation Memory Configuration
     memory: MemoryConfig;
+
+    // ✨ NEW: MCP Tools Configuration
+    mcpTools: MCPToolsConfig;
+
+    // ✨ NEW: Vector Store Configuration
+    vectorStore: VectorStoreConfig;
 
     // Feature flags
     enableLogging: boolean;
@@ -201,8 +240,13 @@ export interface VectorStoreEntry {
 // ============================================================================
 
 export interface Message {
-    role: 'system' | 'user' | 'assistant';
+    role: 'system' | 'user' | 'assistant' | 'function'; // ✨ NEW: Added 'function' role for tool results
     content: string;
+    functionCall?: { // ✨ NEW: For tool calling
+        name: string;
+        arguments: Record<string, unknown>;
+    };
+    name?: string; // ✨ NEW: Function name for function role messages
 }
 
 export interface ChatOptions {
@@ -221,6 +265,10 @@ export interface ChatResponse {
     };
     model?: string;
     finishReason?: string;
+    functionCall?: { // ✨ NEW: For function calling
+        name: string;
+        arguments: Record<string, unknown>;
+    };
 }
 
 export interface StreamChunk {
@@ -256,6 +304,23 @@ export interface AgentResponse {
         totalTokens: number;
     };
     executionTime: number;
+    toolResults?: ToolResult[]; // ✨ NEW: Tool execution results (if tools were used)
+}
+
+// ✨ NEW: Tool Result type (re-exported for convenience)
+export interface ToolResult {
+    success: boolean;
+    data?: unknown;
+    error?: {
+        code: string;
+        message: string;
+        details?: unknown;
+    };
+    metadata?: {
+        executionTime: number;
+        filesAffected?: string[];
+        operationType: 'read' | 'write' | 'delete';
+    };
 }
 
 export interface AgentTemplate {

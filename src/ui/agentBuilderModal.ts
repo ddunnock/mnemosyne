@@ -28,6 +28,10 @@ export class AgentBuilderModal extends Modal {
     private thresholdInput: TextComponent;
     private strategySelect: DropdownComponent;
     private filtersTextarea: HTMLTextAreaElement;
+    // MCP Tool fields
+    private enableToolsCheckbox: HTMLInputElement;
+    private allowDangerousCheckbox: HTMLInputElement;
+    private folderScopeTextarea: HTMLTextAreaElement;
 
     constructor(
         app: App,
@@ -72,6 +76,9 @@ export class AgentBuilderModal extends Modal {
 
         // Retrieval Settings
         this.createRetrievalSection(contentEl);
+
+        // Tool Permissions (MCP)
+        this.createToolPermissionsSection(contentEl);
 
         // Metadata Filters
         this.createFiltersSection(contentEl);
@@ -255,6 +262,10 @@ export class AgentBuilderModal extends Modal {
             retrievalSettings: template.retrievalSettings,
             metadataFilters: template.metadataFilters,
             enabled: true,
+            // MCP Tool Permissions - use defaults from settings
+            enableTools: this.plugin.settings.mcpTools?.enabled ?? true,
+            allowDangerousOperations: this.plugin.settings.mcpTools?.defaultAllowDangerousOperations ?? false,
+            folderScope: this.plugin.settings.mcpTools?.defaultFolderScope ?? [],
             createdAt: now,
             updatedAt: now
         };
@@ -467,6 +478,81 @@ Please provide detailed, accurate, and helpful responses based on the context pr
     }
 
     /**
+     * Tool permissions section (MCP)
+     */
+    private createToolPermissionsSection(containerEl: HTMLElement) {
+        const section = containerEl.createDiv({ cls: 'modal-section' });
+        section.style.marginBottom = '25px';
+
+        const header = section.createEl('h3', { text: '🛠️ Tool Permissions' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '10px';
+
+        const desc = section.createDiv({ cls: 'setting-item-description' });
+        desc.style.marginBottom = '15px';
+        desc.style.color = 'var(--text-muted)';
+        desc.innerHTML = `
+            Configure what tools (MCP) this agent can use to interact with your vault.
+        `;
+
+        // Enable Tools Toggle
+        const enableToolsSetting = new Setting(section)
+            .setName('Enable Tools')
+            .setDesc('Allow this agent to use tools for reading and potentially writing notes');
+
+        this.enableToolsCheckbox = enableToolsSetting.controlEl.createEl('input', { type: 'checkbox' });
+        this.enableToolsCheckbox.checked = this.agent?.enableTools ?? this.plugin.settings.mcpTools?.enabled ?? true;
+        this.enableToolsCheckbox.style.cursor = 'pointer';
+
+        // Update visibility of dependent settings
+        this.enableToolsCheckbox.addEventListener('change', () => {
+            dangerousContainer.style.display = this.enableToolsCheckbox.checked ? 'block' : 'none';
+            folderScopeContainer.style.display = this.enableToolsCheckbox.checked ? 'block' : 'none';
+        });
+
+        // Allow Dangerous Operations Toggle (conditional on enableTools)
+        const dangerousContainer = section.createDiv({ cls: 'setting-item' });
+        dangerousContainer.style.display = this.enableToolsCheckbox.checked ? 'block' : 'none';
+
+        const dangerousSetting = new Setting(dangerousContainer)
+            .setName('Allow Write Operations')
+            .setDesc('⚠️ Allow this agent to create and modify notes (dangerous operations)');
+
+        this.allowDangerousCheckbox = dangerousSetting.controlEl.createEl('input', { type: 'checkbox' });
+        this.allowDangerousCheckbox.checked = this.agent?.allowDangerousOperations ?? this.plugin.settings.mcpTools?.defaultAllowDangerousOperations ?? false;
+        this.allowDangerousCheckbox.style.cursor = 'pointer';
+
+        // Folder Scope (conditional on enableTools)
+        const folderScopeContainer = section.createDiv({ cls: 'setting-item' });
+        folderScopeContainer.style.display = this.enableToolsCheckbox.checked ? 'block' : 'none';
+
+        const folderScopeLabel = folderScopeContainer.createEl('div', { cls: 'setting-item-info' });
+        const folderScopeName = folderScopeLabel.createEl('div', { cls: 'setting-item-name', text: 'Folder Restrictions' });
+        const folderScopeDesc = folderScopeLabel.createEl('div', {
+            cls: 'setting-item-description',
+            text: 'Restrict tool operations to specific folders. Leave empty for access to entire vault. One folder path per line.'
+        });
+
+        this.folderScopeTextarea = folderScopeContainer.createEl('textarea', {
+            placeholder: 'e.g.,\nProjects/Research\nNotes/Work'
+        });
+        this.folderScopeTextarea.style.width = '100%';
+        this.folderScopeTextarea.style.minHeight = '80px';
+        this.folderScopeTextarea.style.resize = 'vertical';
+        this.folderScopeTextarea.style.padding = '8px';
+        this.folderScopeTextarea.style.borderRadius = '4px';
+        this.folderScopeTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.folderScopeTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.folderScopeTextarea.style.color = 'var(--text-normal)';
+        this.folderScopeTextarea.style.fontFamily = 'var(--font-text)';
+        this.folderScopeTextarea.style.fontSize = '13px';
+
+        if (this.agent?.folderScope && this.agent.folderScope.length > 0) {
+            this.folderScopeTextarea.value = this.agent.folderScope.join('\n');
+        }
+    }
+
+    /**
      * Metadata filters section
      */
     private createFiltersSection(containerEl: HTMLElement) {
@@ -607,6 +693,12 @@ Please provide detailed, accurate, and helpful responses based on the context pr
                 }
             }
 
+            // Parse folder scope
+            const folderScopeText = this.folderScopeTextarea.value.trim();
+            const folderScope: string[] = folderScopeText
+                ? folderScopeText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+                : [];
+
             // Build config
             const now = Date.now();
             const config: AgentConfig = {
@@ -622,6 +714,10 @@ Please provide detailed, accurate, and helpful responses based on the context pr
                 },
                 metadataFilters,
                 enabled: this.agent?.enabled ?? true,
+                // MCP Tool Permissions
+                enableTools: this.enableToolsCheckbox.checked,
+                allowDangerousOperations: this.allowDangerousCheckbox.checked,
+                folderScope: folderScope,
                 createdAt: this.agent?.createdAt || now,
                 updatedAt: now
             };

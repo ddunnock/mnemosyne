@@ -65,11 +65,12 @@ export class AgentManager {
 
     /**
      * Create an agent executor from config
+     * ✨ MCP ENHANCED: Now passes App instance for tool support
      */
     private createAgent(config: AgentConfig): void {
         try {
             console.log(`Creating agent executor for: ${config.name} (ID: ${config.id})`);
-            
+
             // Validate dependencies
             if (!this.retriever) {
                 throw new Error('RAG Retriever not available');
@@ -77,11 +78,20 @@ export class AgentManager {
             if (!this.llmManager) {
                 throw new Error('LLM Manager not available');
             }
-            
-            const executor = new AgentExecutor(config, this.retriever, this.llmManager);
+
+            // ✨ NEW: Pass App instance for MCP tool support
+            const executor = new AgentExecutor(
+                config,
+                this.retriever,
+                this.llmManager,
+                this.plugin.app  // Pass Obsidian App for tool functionality
+            );
             this.agents.set(config.id, executor);
-            
+
             console.log(`✅ Agent executor created and stored: ${config.name}`);
+            if (config.enableTools) {
+                console.log(`  🛠️  Tools enabled for this agent`);
+            }
         } catch (error) {
             console.error(`❌ Failed to create agent executor for ${config.name}:`, error);
             throw error;
@@ -120,7 +130,7 @@ export class AgentManager {
 
         // ✅ NEW: Check if RAG system is available (optional enhancement)
         if (this.retriever.isReady()) {
-            const stats = this.retriever.getStats();
+            const stats = await this.retriever.getStats();
             if (stats && stats.totalChunks > 0) {
                 console.log(`✓ RAG system ready with ${stats.totalChunks} chunks - agent will be enhanced with knowledge base context`);
             } else {

@@ -5,7 +5,7 @@
  */
 
 import { Notice, App } from 'obsidian';
-import { VectorStore } from './vectorStore';
+import type { IVectorStore } from './vectorStore/IVectorStore';
 import { EmbeddingsGenerator } from './embeddings';
 import { RAGChunk } from '../types';
 import { RAGError } from '../types';
@@ -29,7 +29,7 @@ export interface IngestionResult {
 }
 
 export class ChunkIngestor {
-    private vectorStore: VectorStore;
+    private vectorStore: IVectorStore;
     private embeddings: EmbeddingsGenerator;
     private app: App;
     /**
@@ -39,7 +39,7 @@ export class ChunkIngestor {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    constructor(vectorStore: VectorStore, embeddings: EmbeddingsGenerator, app: App) {
+    constructor(vectorStore: IVectorStore, embeddings: EmbeddingsGenerator, app: App) {
         this.vectorStore = vectorStore;
         this.embeddings = embeddings;
         this.app = app;
@@ -107,15 +107,15 @@ export class ChunkIngestor {
 
             console.log(`Loaded ${totalChunks} chunks from ${files.length} files`);
 
-            // Ingest chunks in batches
-            const batchSize = 10; // ← REDUCE from 10 to 5
+            // ✅ OPTIMIZATION: Increase batch size for faster processing
+            const batchSize = 50; // Process 50 chunks at a time
 
             for (let i = 0; i < allChunks.length; i += batchSize) {
                 const batch = allChunks.slice(i, i + batchSize);
 
                 // Add delay between batches to respect rate limits
                 if (i > 0) {
-                    await this.delay(200); // ← ADD 2 second delay between batches
+                    await this.delay(500); // 500ms delay between batches
                 }
 
                 // Report progress
@@ -216,7 +216,7 @@ export class ChunkIngestor {
     }
 
     /**
-     * Ingest a batch of chunks
+     * Ingest a batch of chunks - OPTIMIZED VERSION
      */
     private async ingestChunksBatch(chunks: RAGChunk[]): Promise<{
         ingested: number;
@@ -228,39 +228,24 @@ export class ChunkIngestor {
         const errors: Array<{ chunkId: string; error: string }> = [];
 
         try {
-            // Generate embeddings for all chunks in batch
+            // ✅ OPTIMIZATION: Generate embeddings for all chunks in batch
             const texts = chunks.map(c => c.content);
             const embeddings = await this.embeddings.generateEmbeddings(texts);
 
-            // Create vector entries
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const embedding = embeddings[i];
+            // ✅ OPTIMIZATION: Prepare batch entries (use INSERT OR REPLACE to skip duplicates)
+            const batchEntries = chunks.map((chunk, i) => ({
+                chunkId: chunk.chunk_id,
+                content: chunk.content,
+                embedding: embeddings[i],
+                metadata: chunk.metadata
+            }));
 
-                try {
-                    // Check if chunk already exists
-                    const existing = this.vectorStore.get(chunk.chunk_id);
-                    if (existing) {
-                        skipped++;
-                        continue;
-                    }
+            // ✅ OPTIMIZATION: Insert all chunks in one transaction
+            // SQL databases use INSERT OR REPLACE, so duplicates are handled automatically
+            await this.vectorStore.insertBatch(batchEntries);
+            ingested = batchEntries.length;
 
-                    // Insert into vector store
-                    await this.vectorStore.insert(
-                        chunk.chunk_id,
-                        chunk.content,
-                        embedding,
-                        chunk.metadata
-                    );
-                    ingested++;
-                } catch (error: any) {
-                    console.error(`Error ingesting chunk ${chunk.chunk_id}:`, error);
-                    errors.push({
-                        chunkId: chunk.chunk_id,
-                        error: error.message || 'Failed to ingest',
-                    });
-                }
-            }
+            console.log(`✅ Batch inserted ${ingested} chunks`);
         } catch (error: any) {
             console.error('Error in batch ingestion:', error);
             chunks.forEach(chunk => {

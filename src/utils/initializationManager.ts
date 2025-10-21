@@ -52,8 +52,8 @@ export class InitializationManager {
     /**
      * Get comprehensive initialization status
      */
-    getStatus(): InitializationStatus {
-        const retrieverStats = this.plugin.retriever?.getStats();
+    async getStatus(): Promise<InitializationStatus> {
+        const retrieverStats = await this.plugin.retriever?.getStats();
         const llmStats = this.plugin.llmManager?.getStats();
         const agentStats = this.plugin.agentManager?.getStats();
 
@@ -93,8 +93,8 @@ export class InitializationManager {
     /**
      * Get detailed requirements checklist
      */
-    getRequirements(): InitializationRequirement[] {
-        const status = this.getStatus();
+    async getRequirements(): Promise<InitializationRequirement[]> {
+        const status = await this.getStatus();
         const requirements: InitializationRequirement[] = [];
 
         // Master password
@@ -225,10 +225,13 @@ export class InitializationManager {
                     const hasOpenAI = this.plugin.settings.llmConfigs.some(c => c.provider === 'openai' && c.enabled);
                     if (!hasOpenAI) {
                         warnings.push('RAG needs OpenAI provider for embeddings');
-                    } else if (!this.getStatus().chunksIngested) {
-                        warnings.push('RAG needs chunks ingested');
                     } else {
-                        warnings.push('RAG embeddings initialization issue - check console');
+                        const status = await this.getStatus();
+                        if (!status.chunksIngested) {
+                            warnings.push('RAG needs chunks ingested');
+                        } else {
+                            warnings.push('RAG embeddings initialization issue - check console');
+                        }
                     }
                 }
 
@@ -295,7 +298,7 @@ export class InitializationManager {
         const warnings: string[] = [];
 
         try {
-            const status = this.getStatus();
+            const status = await this.getStatus();
             new Notice('🔍 Checking what needs initialization...');
 
             let didSomething = false;
@@ -461,7 +464,7 @@ export class InitializationManager {
      * Smart chunk ingestion - only if needed
      */
     async ingestChunksIfNeeded(): Promise<boolean> {
-        const status = this.getStatus();
+        const status = await this.getStatus();
 
         if (status.chunksIngested) {
             console.log(`Chunks already ingested (${status.chunkCount} chunks)`);
@@ -474,7 +477,7 @@ export class InitializationManager {
 
         try {
             await this.plugin.retriever.ingestChunks();
-            const newStatus = this.getStatus();
+            const newStatus = await this.getStatus();
             new Notice(`✓ Ingested ${newStatus.chunkCount} chunks`);
             return true;
         } catch (error: any) {
@@ -486,8 +489,9 @@ export class InitializationManager {
     /**
      * Check if system is ready
      */
-    isReady(): boolean {
-        return this.getStatus().overall;
+    async isReady(): Promise<boolean> {
+        const status = await this.getStatus();
+        return status.overall;
     }
 
     /**
@@ -500,14 +504,14 @@ export class InitializationManager {
     /**
      * Get friendly status message
      */
-    getStatusMessage(): string {
-        const status = this.getStatus();
+    async getStatusMessage(): Promise<string> {
+        const status = await this.getStatus();
 
         if (status.overall) {
             return '✓ System ready';
         }
 
-        const requirements = this.getRequirements();
+        const requirements = await this.getRequirements();
         const unmet = requirements.filter(r => !r.met);
 
         if (unmet.length > 0) {
@@ -520,8 +524,8 @@ export class InitializationManager {
     /**
      * Diagnose issues and provide solutions
      */
-    diagnose(): string[] {
-        const status = this.getStatus();
+    async diagnose(): Promise<string[]> {
+        const status = await this.getStatus();
         const issues: string[] = [];
 
         // Check for configured but not initialized

@@ -9,12 +9,13 @@
  */
 
 import OpenAI from 'openai';
-import { BaseLLMProvider } from './base';
+import { BaseLLMProvider, ToolDefinition } from './base';
 import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
 import { LLMError } from '../types';
 
 export class OpenAIProvider extends BaseLLMProvider {
     readonly name = 'OpenAI GPT';
+    readonly supportsFunctionCalling = true; // ✨ NEW: Enable function calling
     private client: OpenAI;
 
     constructor(apiKey: string, model: string, temperature: number = 0.7, maxTokens: number = 4096) {
@@ -182,6 +183,180 @@ export class OpenAIProvider extends BaseLLMProvider {
         } catch (error: any) {
             console.error('OpenAI streaming error:', error);
             throw new LLMError(`OpenAI streaming failed: ${error.message}`, {
+                originalError: error,
+                provider: 'openai',
+                model: this.model
+            });
+        }
+    }
+
+    /**
+     * ✨ NEW: Chat with function calling support
+     */
+    async chatWithFunctions(
+        messages: Message[],
+        tools: unknown[],
+        options?: ChatOptions
+    ): Promise<ChatResponse> {
+        const mergedOptions = this.mergeOptions(options);
+
+        try {
+            // Prepare request parameters
+            const requestParams: any = {
+                model: this.model,
+                messages: messages.map(msg => {
+                    // Handle function role messages
+                    if (msg.role === 'function') {
+                        return {
+                            role: 'function',
+                            name: msg.name || 'unknown',
+                            content: msg.content
+                        };
+                    }
+
+                    // Handle assistant with function call
+                    if (msg.functionCall) {
+                        return {
+                            role: 'assistant',
+                            content: msg.content || null,
+                            function_call: {
+                                name: msg.functionCall.name,
+                                arguments: JSON.stringify(msg.functionCall.arguments)
+                            }
+                        };
+                    }
+
+                    return {
+                        role: msg.role,
+                        content: msg.content
+                    };
+                }),
+                tools: tools, // OpenAI expects tools array
+                tool_choice: 'auto' // Let the model decide when to use functions
+            };
+
+            // Handle model-specific requirements
+            if (this.isGPT5()) {
+                requestParams.max_completion_tokens = mergedOptions.maxTokens;
+                requestParams.temperature = 1.0;
+            } else {
+                requestParams.max_tokens = mergedOptions.maxTokens;
+                requestParams.temperature = mergedOptions.temperature;
+            }
+
+            console.log('OpenAI function calling request:', {
+                model: this.model,
+                toolCount: Array.isArray(tools) ? tools.length : 0
+            });
+
+            // Make API call
+            const response = await this.client.chat.completions.create(requestParams);
+
+            console.log('OpenAI function calling response:', {
+                model: response.model,
+                finishReason: response.choices?.[0]?.finish_reason,
+                hasToolCalls: !!response.choices?.[0]?.message?.tool_calls
+            });
+
+            const choice = response.choices?.[0];
+            const message = choice?.message;
+
+            // Check if model wants to call a function
+            if (message?.tool_calls && message.tool_calls.length > 0) {
+                const toolCall = message.tool_calls[0];
+
+                // Type assertion to access function property
+                const func = (toolCall as any).function;
+                if (!func) {
+                    throw new Error('Tool call missing function property');
+                }
+
+                // ✨ FIXED: Add robust JSON parsing with error handling
+                let parsedArguments;
+                try {
+                    parsedArguments = JSON.parse(func.arguments);
+                } catch (parseError) {
+                    console.error('Failed to parse function arguments:', parseError);
+                    console.error('Function name:', func.name);
+                    console.error('Raw arguments string (first 500 chars):', func.arguments.substring(0, 500));
+                    console.error('Raw arguments string (last 500 chars):', func.arguments.substring(Math.max(0, func.arguments.length - 500)));
+                    console.error('Arguments length:', func.arguments.length);
+
+                    // Try to repair common JSON issues
+                    try {
+                        // Remove any trailing commas before closing braces/brackets
+                        let repairedJson = func.arguments
+                            .replace(/,(\s*[}\]])/g, '$1')
+                            // Remove any control characters that might break JSON
+                            .replace(/[\x00-\x1F\x7F]/g, '');
+
+                        parsedArguments = JSON.parse(repairedJson);
+                        console.log('✓ JSON repaired successfully');
+                    } catch (repairError) {
+                        // If repair fails, throw a more helpful error
+                        throw new LLMError(
+                            `Failed to parse function arguments. The generated content may be too large or contain invalid characters. ` +
+                            `Function: ${func.name}, Error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+                            {
+                                originalError: parseError,
+                                provider: 'openai',
+                                model: this.model,
+                                functionName: func.name,
+                                argumentsLength: func.arguments.length,
+                                argumentsPreview: func.arguments.substring(0, 200) + '...'
+                            }
+                        );
+                    }
+                }
+
+                return {
+                    content: message.content || '',
+                    functionCall: {
+                        name: func.name,
+                        arguments: parsedArguments
+                    },
+                    usage: response.usage ? {
+                        promptTokens: response.usage.prompt_tokens,
+                        completionTokens: response.usage.completion_tokens,
+                        totalTokens: response.usage.total_tokens
+                    } : undefined,
+                    model: response.model,
+                    finishReason: choice.finish_reason
+                };
+            }
+
+            // Normal response without function call
+            return {
+                content: message?.content || '',
+                usage: response.usage ? {
+                    promptTokens: response.usage.prompt_tokens,
+                    completionTokens: response.usage.completion_tokens,
+                    totalTokens: response.usage.total_tokens
+                } : undefined,
+                model: response.model,
+                finishReason: choice.finish_reason
+            };
+        } catch (error: any) {
+            console.error('OpenAI function calling error:', error);
+
+            // Handle specific OpenAI errors
+            if (error.status === 401) {
+                throw new LLMError('Invalid OpenAI API key', {
+                    originalError: error,
+                    provider: 'openai',
+                    model: this.model
+                });
+            }
+
+            if (error.status === 429) {
+                throw new LLMError('OpenAI rate limit exceeded. Please try again later.', {
+                    originalError: error,
+                    provider: 'openai',
+                    model: this.model
+                });
+            }
+
+            throw new LLMError(`OpenAI function calling failed: ${error.message}`, {
                 originalError: error,
                 provider: 'openai',
                 model: this.model

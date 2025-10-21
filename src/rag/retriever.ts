@@ -3,7 +3,8 @@
  */
 
 import { Notice } from 'obsidian';
-import { VectorStore } from './vectorStore';
+import type { IVectorStore } from './vectorStore/IVectorStore';
+import { VectorStoreFactory } from './vectorStore/VectorStoreFactory';
 import { EmbeddingsGenerator } from './embeddings';
 import { ChunkIngestor } from './ingestor';
 import { VaultIngestor } from './VaultIngestor';
@@ -13,7 +14,7 @@ import RagAgentManagerPlugin from '../main';
 
 export class RAGRetriever {
     private plugin: RagAgentManagerPlugin;
-    private vectorStore: VectorStore;
+    private vectorStore: IVectorStore;
     private embeddings: EmbeddingsGenerator;
     private ingestor: ChunkIngestor;
     private isInitialized: boolean = false;
@@ -22,9 +23,10 @@ export class RAGRetriever {
     constructor(plugin: RagAgentManagerPlugin) {
         this.plugin = plugin;
 
-        this.vectorStore = new VectorStore(
+        // Use factory to create vector store based on configuration
+        this.vectorStore = VectorStoreFactory.create(
             plugin.app,
-            plugin.settings.vectorDbPath || 'vector-store-index.json'
+            plugin.settings.vectorStore
         );
 
         this.embeddings = new EmbeddingsGenerator();
@@ -43,9 +45,9 @@ export class RAGRetriever {
             await this.vectorStore.initialize();
 
             // ✅ NEW: Check if vector store already has data
-            const existingStats = this.vectorStore.getStats();
+            const existingStats = await this.vectorStore.getStats();
             if (existingStats && existingStats.totalChunks > 0) {
-                console.log(`✓ Found existing vector store with ${existingStats.totalChunks} chunks`);
+                console.log(`✓ Found existing vector store with ${existingStats.totalChunks} chunks (${existingStats.backend} backend)`);
             }
 
             // Try to initialize embeddings, but don't fail if not configured yet
@@ -62,7 +64,7 @@ export class RAGRetriever {
             console.log('✓ RAG Retriever initialized');
 
             // Provide helpful feedback
-            if (this.vectorStore.isEmpty()) {
+            if (await this.vectorStore.isEmpty()) {
                 console.warn('⚠️ Vector store is empty. Run chunk ingestion to populate it.');
             } else if (existingStats) {
                 console.log(`✓ Vector store ready with ${existingStats.totalChunks} chunks`);
@@ -215,7 +217,7 @@ export class RAGRetriever {
             }
 
             // Get final stats
-            const stats = this.vectorStore.getStats();
+            const stats = await this.vectorStore.getStats();
             if (stats) {
                 totalChunks = stats.totalChunks;
                 console.log(`Vector store verification: ${totalChunks} chunks available`);
@@ -281,21 +283,16 @@ export class RAGRetriever {
      * ✅ FIXED: More accurate check
      */
     isReady(): boolean {
-        if (!this.isInitialized || !this.embeddingsReady) {
-            return false;
-        }
-
-        if (this.vectorStore.isEmpty()) {
-            return false;
-        }
-
-        return true;
+        // Check if initialized and embeddings are ready
+        // Note: We don't check isEmpty() here because it's async
+        // Callers should check isEmpty() separately if needed
+        return this.isInitialized && this.embeddingsReady && this.vectorStore.isReady();
     }
 
     /**
      * Get the vector store instance
      */
-    getVectorStore(): VectorStore {
+    getVectorStore(): IVectorStore {
         return this.vectorStore;
     }
 
@@ -311,16 +308,16 @@ export class RAGRetriever {
     }
 
     async exportIndex(): Promise<string> {
-        return await this.vectorStore.exportToJSON();
+        return await this.vectorStore.export();
     }
 
     async importIndex(json: string): Promise<void> {
-        await this.vectorStore.importFromJSON(json);
+        await this.vectorStore.import(json);
         new Notice('Vector store index imported');
     }
 
-    getStats() {
-        return this.vectorStore.getStats();
+    async getStats() {
+        return await this.vectorStore.getStats();
     }
 
     async test(): Promise<boolean> {
@@ -333,7 +330,7 @@ export class RAGRetriever {
                 return false;
             }
 
-            if (!this.vectorStore.isEmpty()) {
+            if (!await this.vectorStore.isEmpty()) {
                 const results = await this.retrieve('test query', 1);
                 if (results.length === 0) {
                     console.warn('Retrieval returned no results');
@@ -357,7 +354,7 @@ export class RAGRetriever {
     }
 
     async importVectorStore(json: string): Promise<void> {
-        await this.vectorStore.importFromJSON(json);
+        await this.vectorStore.import(json);
         new Notice('Vector store imported successfully');
     }
 
@@ -366,7 +363,11 @@ export class RAGRetriever {
             await this.vectorStore.save();
         }
 
-        this.vectorStore.stopAutoSave();
+        // Note: stopAutoSave is only available on JSONVectorStore, not needed for other backends
+        if ('stopAutoSave' in this.vectorStore && typeof this.vectorStore.stopAutoSave === 'function') {
+            (this.vectorStore as any).stopAutoSave();
+        }
+
         this.embeddings.clearCache();
 
         console.log('RAG Retriever cleaned up');

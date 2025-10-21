@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension for Mnemosyne vector storage
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mnemosyne-postgres
+    restart: unless-stopped
+
+    environment:
+      # Database configuration
+      POSTGRES_DB: mnemosyne
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: changeme  # IMPORTANT: Change this in production!
+
+      # Performance tuning for vector operations
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_WORK_MEM: 64MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 128MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 512MB
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # Persist database data
+      - pgdata:/var/lib/postgresql/data
+
+      # Optional: Custom initialization scripts
+      # - ./init-scripts:/docker-entrypoint-initdb.d
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Optional: Resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 512M
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: mnemosyne-pgadmin
+    restart: unless-stopped
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@mnemosyne.local
+      PGADMIN_DEFAULT_PASSWORD: changeme  # IMPORTANT: Change this in production!
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+
+    ports:
+      - "5050:80"
+
+    depends_on:
+      - postgres
+
+    # Uncomment to persist pgAdmin settings
+    # volumes:
+    #   - pgadmin-data:/var/lib/pgadmin
+
+volumes:
+  # Persistent storage for PostgreSQL data
+  pgdata:
+    driver: local
+
+  # Uncomment if using pgAdmin
+  # pgadmin-data:
+  #   driver: local
+
+# Network configuration (optional)
+# networks:
+#   mnemosyne-net:
+#     driver: bridge

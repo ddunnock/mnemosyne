@@ -412,8 +412,8 @@ export default class RiskManagementPlugin extends Plugin {
         this.addCommand({
             id: 'rag-stats',
             name: 'Show RAG Statistics',
-            callback: () => {
-                const stats = this.retriever.getStats();
+            callback: async () => {
+                const stats = await this.retriever.getStats();
 
                 if (!stats) {
                     new Notice('No RAG statistics available');
@@ -508,10 +508,31 @@ export default class RiskManagementPlugin extends Plugin {
 
     /**
      * Register views
+     * ✨ FIXED: Register all view types to prevent white screen on restart
      */
     registerViews() {
-        // Register the Tailwind chat view
+        // Register the Tailwind chat view (primary)
         this.registerView(VIEW_TYPE_TAILWIND_CHAT, (leaf) => {
+            return new TailwindChatView(leaf, this);
+        });
+
+        // ✨ FIXED: Register legacy view types to handle workspace restoration
+        // When Obsidian restarts, it tries to restore views from the last session.
+        // If a view type isn't registered, Obsidian fails silently with a white screen.
+        // These legacy views redirect to the new TailwindChatView to maintain compatibility.
+
+        this.registerView(VIEW_TYPE_AGENT_CHAT, (leaf) => {
+            console.log('Legacy view type detected, redirecting to TailwindChatView');
+            return new TailwindChatView(leaf, this);
+        });
+
+        this.registerView(VIEW_TYPE_SVELTE_CHAT, (leaf) => {
+            console.log('Legacy view type detected, redirecting to TailwindChatView');
+            return new TailwindChatView(leaf, this);
+        });
+
+        this.registerView(VIEW_TYPE_CLEAN_CHAT, (leaf) => {
+            console.log('Legacy view type detected, redirecting to TailwindChatView');
             return new TailwindChatView(leaf, this);
         });
     }
@@ -525,7 +546,7 @@ export default class RiskManagementPlugin extends Plugin {
      */
     private async openAgentPalette() {
         // Get comprehensive system status
-        const status = this.getSystemStatus();
+        const status = await this.getSystemStatus();
         
         if (!status.ready) {
             console.log('System status check:', status);
@@ -579,9 +600,9 @@ export default class RiskManagementPlugin extends Plugin {
                 try {
                     await this.agentManager.initialize();
                     console.log('Agent Manager reinitialized successfully');
-                    
+
                     // Check again after reinitialization
-                    const newStatus = this.getSystemStatus();
+                    const newStatus = await this.getSystemStatus();
                     if (!newStatus.ready) {
                         new Notice(`System issues: ${newStatus.issues.join(', ')}`);
                         return;
@@ -814,14 +835,14 @@ export default class RiskManagementPlugin extends Plugin {
     /**
      * Check system status and provide diagnostic information
      */
-    private getSystemStatus(): { ready: boolean; issues: string[] } {
+    private async getSystemStatus(): Promise<{ ready: boolean; issues: string[] }> {
         const issues: string[] = [];
         let ready = true;
 
         // Check master password first - check both session and settings
         const hasPasswordInSession = this.keyManager.hasMasterPassword();
         const hasPasswordInSettings = this.settings.masterPassword?.isSet || false;
-        
+
         if (!hasPasswordInSession && !hasPasswordInSettings) {
             issues.push('Master password not set (set master password in Security settings)');
             ready = false;
@@ -838,7 +859,7 @@ export default class RiskManagementPlugin extends Plugin {
             // Check if any providers are configured
             const hasConfiguredProviders = this.settings.llmConfigs && this.settings.llmConfigs.length > 0;
             const hasEnabledProviders = this.settings.llmConfigs && this.settings.llmConfigs.some(config => config.enabled);
-            
+
             if (!hasConfiguredProviders) {
                 issues.push('No AI providers configured (add AI providers in settings)');
             } else if (!hasEnabledProviders) {
@@ -858,7 +879,7 @@ export default class RiskManagementPlugin extends Plugin {
             ready = false;
         } else {
             // Check if vector store has data
-            const stats = this.retriever.getStats();
+            const stats = await this.retriever.getStats();
             if (!stats || stats.totalChunks === 0) {
                 issues.push('Vector store is empty. Run chunk ingestion to populate it.');
                 ready = false;

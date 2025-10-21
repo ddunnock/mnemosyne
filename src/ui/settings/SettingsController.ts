@@ -10,6 +10,10 @@ import { VaultIngestionModal } from '../vaultIngestionModal';
 import { KeyManager, EncryptedData } from '../../encryption/keyManager';
 import { MasterPasswordModal } from '../modals/MasterPasswordModal';
 import { AIProviderModal } from '../modals/AIProviderModal';
+import { VectorStoreFactory } from '../../rag/vectorStore/VectorStoreFactory';
+import { VectorStoreMigration, type MigrationProgress } from '../../rag/vectorStore/VectorStoreMigration';
+import { PgVectorStore } from '../../rag/vectorStore/PgVectorStore';
+import { JSONVectorStore } from '../../rag/vectorStore/JSONVectorStore';
 
 export interface MnemosyneSettings {
     // Core functionality
@@ -200,7 +204,7 @@ export class MnemosyneSettingsController {
                 // Access the vector store through the public getter
                 const vectorStore = this.plugin.retriever.getVectorStore();
                 if (vectorStore && vectorStore.isReady()) {
-                    const stats = vectorStore.getStats();
+                    const stats = await vectorStore.getStats();
                     this.chunkCount = stats ? stats.totalChunks : 0;
                 } else {
                     this.chunkCount = 0;
@@ -258,7 +262,9 @@ export class MnemosyneSettingsController {
           ${this.renderQuickSetup()}
           ${this.renderSecurity()}
           ${this.renderAgentManagement()}
+          ${this.renderMCPToolsSettings()}
           ${this.renderMemoryManagement()}
+          ${this.renderVectorStoreSettings()}
           ${this.renderPlaceholderSections()}
         </div>
         
@@ -702,11 +708,281 @@ export class MnemosyneSettingsController {
     `;
     }
 
+    private renderMCPToolsSettings(): string {
+        // Get MCP tools settings from plugin
+        const mcpSettings = this.plugin?.settings?.mcpTools || {
+            enabled: true,
+            allowedTools: ['read_note', 'write_note', 'search_notes', 'list_notes'],
+            defaultAllowDangerousOperations: false,
+            defaultFolderScope: []
+        };
+
+        const isEnabled = mcpSettings.enabled;
+        const statusIcon = isEnabled ? '🟢' : '🔴';
+        const statusText = isEnabled ? 'Enabled' : 'Disabled';
+        const statusClass = isEnabled ? 'text-success' : 'text-muted';
+
+        // Available tools with descriptions
+        const availableTools = [
+            { id: 'read_note', name: 'Read Notes', description: 'Allow agents to read note contents', dangerous: false },
+            { id: 'write_note', name: 'Write Notes', description: 'Allow agents to create/update notes', dangerous: true },
+            { id: 'search_notes', name: 'Search Notes', description: 'Allow agents to search for notes', dangerous: false },
+            { id: 'list_notes', name: 'List Notes', description: 'Allow agents to list notes in folders', dangerous: false },
+            { id: 'get_active_note', name: 'Get Active Note', description: 'Allow agents to access currently open note', dangerous: false }
+        ];
+
+        return `
+      <div class="settings-section">
+        <h3 class="section-title">🛠️ MCP Tools</h3>
+        <div class="settings-card mcp-tools-card fade-in">
+          <div class="card-header">
+            <p class="card-description">Model Context Protocol tools allow agents to interact with your vault</p>
+            <div class="status-chip" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; margin-top: 8px; background: ${isEnabled ? 'rgba(72, 187, 120, 0.1)' : 'rgba(156, 163, 175, 0.1)'}; color: var(--${statusClass}); border: 1px solid ${isEnabled ? 'rgba(72, 187, 120, 0.3)' : 'rgba(156, 163, 175, 0.3)'}">
+              ${statusIcon} Status: ${statusText}
+            </div>
+          </div>
+
+          <div class="mcp-tools-content">
+            <div class="control-group" style="margin-bottom: 16px;">
+              <div class="toggle-container">
+                <label class="toggle-label" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                  <input type="checkbox" id="mcp-tools-toggle" ${isEnabled ? 'checked' : ''} style="display: none;">
+                  <div class="toggle-switch" style="position: relative; width: 44px; height: 24px; background: ${isEnabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 12px; transition: background-color 0.3s ease; cursor: pointer; border: 1px solid ${isEnabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)'};">
+                    <div class="toggle-slider" style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 10px; transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transform: translateX(${isEnabled ? '20px' : '0px'});"></div>
+                  </div>
+                  <span style="font-weight: 500; font-size: 14px;">Enable MCP Tools</span>
+                </label>
+                <p class="help-text">Allow agents to use tools for reading and writing notes</p>
+              </div>
+            </div>
+
+            ${isEnabled ? `
+            <div style="margin-bottom: 16px;">
+              <label style="font-weight: 500; font-size: 14px; margin-bottom: 8px; display: block;">Allowed Tools</label>
+              <p class="help-text" style="margin-bottom: 12px;">Select which tools agents can use (can be overridden per agent)</p>
+
+              <div class="tools-list" style="display: grid; gap: 8px;">
+                ${availableTools.map(tool => `
+                  <label class="tool-checkbox-label" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; background: var(--background-secondary); cursor: pointer; transition: all 0.2s ease; border: 1px solid var(--background-modifier-border);">
+                    <input type="checkbox" class="mcp-tool-checkbox" data-tool="${tool.id}" ${mcpSettings.allowedTools.includes(tool.id) ? 'checked' : ''} style="cursor: pointer;">
+                    <div style="flex: 1;">
+                      <div style="font-weight: 500; font-size: 13px;">${tool.name} ${tool.dangerous ? '<span style="color: var(--text-error); font-size: 11px;">⚠️ WRITE</span>' : ''}</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">${tool.description}</div>
+                    </div>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <label style="font-weight: 500; font-size: 14px;">Default: Allow Dangerous Operations</label>
+                <p class="help-text">Allow new agents to write/modify notes by default</p>
+              </div>
+              <label class="toggle-label" style="cursor: pointer;">
+                <input type="checkbox" id="mcp-default-dangerous" ${mcpSettings.defaultAllowDangerousOperations ? 'checked' : ''} style="display: none;">
+                <div class="toggle-switch" style="position: relative; width: 44px; height: 24px; background: ${mcpSettings.defaultAllowDangerousOperations ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 12px; transition: background-color 0.3s ease; cursor: pointer; border: 1px solid ${mcpSettings.defaultAllowDangerousOperations ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)'};">
+                  <div class="toggle-slider" style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 10px; transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transform: translateX(${mcpSettings.defaultAllowDangerousOperations ? '20px' : '0px'});"></div>
+                </div>
+              </label>
+            </div>
+            ` : ''}
+
+            <div class="mcp-tools-notice" style="margin-top: 16px;">
+              <div class="security-notice-icon">🔒</div>
+              <div class="security-notice-content">
+                <strong>Security Note:</strong> MCP tools allow agents to read and potentially modify your notes.
+                Configure folder restrictions per agent for fine-grained control.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
+    private renderVectorStoreSettings(): string {
+        const vectorStoreConfig = this.plugin.settings.vectorStore || {
+            backend: 'json',
+            embeddingModel: 'text-embedding-3-small',
+            dimension: 1536
+        };
+
+        const currentBackend = vectorStoreConfig.backend || 'json';
+        const isJson = currentBackend === 'json';
+        const isSqlite = currentBackend === 'sqlite';
+        const isPgVector = currentBackend === 'pgvector';
+
+        return `
+      <div class="settings-section">
+        <h3 class="section-title">🗄️ Vector Store</h3>
+        <div class="settings-card">
+          <div class="card-header">
+            <p class="card-description">Configure vector database backend for embedding storage</p>
+          </div>
+
+          <div style="padding: 20px;">
+            <!-- Backend Selection -->
+            <div class="setting-row" style="margin-bottom: 24px;">
+              <div style="margin-bottom: 12px;">
+                <label style="font-weight: 500; font-size: 14px;">Storage Backend</label>
+                <p class="help-text">Choose how embeddings are stored</p>
+              </div>
+              <select id="vector-store-backend" style="width: 100%; min-height: 52px; height: auto; padding: 12px 12px; border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); color: var(--text-normal); font-size: 14px; line-height: 1.8; display: block; overflow: visible;">
+                <option value="json" ${isJson ? 'selected' : ''}>JSON File (Simplest, 0-10K chunks)</option>
+                <option value="sqlite" ${isSqlite ? 'selected' : ''}>SQLite + VSS (Embedded, 10K-100K chunks)</option>
+                <option value="pgvector" ${isPgVector ? 'selected' : ''}>PostgreSQL + pgvector (Scalable, 100K+ chunks)</option>
+              </select>
+            </div>
+
+            <!-- JSON Backend Settings -->
+            <div id="json-backend-settings" style="display: ${isJson ? 'block' : 'none'}; padding: 16px; background: var(--background-secondary); border-radius: 6px; margin-bottom: 16px;">
+              <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--text-normal);">JSON Storage</h4>
+              <p class="help-text" style="margin-bottom: 12px;">Stores embeddings in a local JSON file. Best for small vaults.</p>
+              <div class="setting-row">
+                <label style="font-size: 13px; color: var(--text-muted);">Index Path:</label>
+                <input type="text" id="json-index-path" value="${vectorStoreConfig.json?.indexPath || 'vector-store-index.json'}" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+            </div>
+
+            <!-- SQLite Backend Settings -->
+            <div id="sqlite-backend-settings" style="display: ${isSqlite ? 'block' : 'none'}; padding: 16px; background: var(--background-secondary); border-radius: 6px; margin-bottom: 16px;">
+              <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--text-normal);">SQLite + VSS</h4>
+              <p class="help-text" style="margin-bottom: 12px;">Embedded database with vector search. Zero setup, better performance than JSON. Perfect for medium vaults.</p>
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Database Path:</label>
+                <input type="text" id="sqlite-db-path" value="${vectorStoreConfig.sqlite?.dbPath || 'vector-store.db'}" placeholder="vector-store.db" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+              <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <label style="font-weight: 500; font-size: 13px;">Enable WAL Mode</label>
+                  <p class="help-text">Write-Ahead Logging for better concurrency</p>
+                </div>
+                <label class="toggle-label" style="cursor: pointer;">
+                  <input type="checkbox" id="sqlite-wal" ${vectorStoreConfig.sqlite?.enableWAL !== false ? 'checked' : ''} style="display: none;">
+                  <div class="toggle-switch" style="position: relative; width: 44px; height: 24px; background: ${vectorStoreConfig.sqlite?.enableWAL !== false ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 12px; transition: background-color 0.3s ease; cursor: pointer; border: 1px solid ${vectorStoreConfig.sqlite?.enableWAL !== false ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)'};">
+                    <div class="toggle-slider" style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 10px; transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transform: translateX(${vectorStoreConfig.sqlite?.enableWAL !== false ? '20px' : '0px'});"></div>
+                  </div>
+                </label>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button id="save-sqlite-config" class="btn btn-primary" style="flex: 1;">
+                  <span>💾</span> Save Configuration
+                </button>
+              </div>
+            </div>
+
+            <!-- PgVector Backend Settings -->
+            <div id="pgvector-backend-settings" style="display: ${isPgVector ? 'block' : 'none'}; padding: 16px; background: var(--background-secondary); border-radius: 6px; margin-bottom: 16px;">
+              <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--text-normal);">PostgreSQL + pgvector</h4>
+              <p class="help-text" style="margin-bottom: 16px;">High-performance vector database with HNSW indexing. Supports millions of chunks.</p>
+
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Host:</label>
+                <input type="text" id="pg-host" value="${vectorStoreConfig.pgvector?.host || 'localhost'}" placeholder="localhost" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Port:</label>
+                <input type="number" id="pg-port" value="${vectorStoreConfig.pgvector?.port || 5432}" placeholder="5432" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Database:</label>
+                <input type="text" id="pg-database" value="${vectorStoreConfig.pgvector?.database || 'mnemosyne'}" placeholder="mnemosyne" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">User:</label>
+                <input type="text" id="pg-user" value="${vectorStoreConfig.pgvector?.user || 'postgres'}" placeholder="postgres" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+              </div>
+
+              <div class="setting-row" style="margin-bottom: 12px;">
+                <label style="font-size: 13px; color: var(--text-muted);">Password:</label>
+                <input type="password" id="pg-password" placeholder="••••••••" style="width: 100%; margin-top: 4px; padding: 6px 10px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); font-size: 13px;" />
+                <p class="help-text" style="margin-top: 4px; font-size: 12px;">Password will be encrypted with your master password</p>
+              </div>
+
+              <div class="setting-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <label style="font-weight: 500; font-size: 13px;">Enable SSL</label>
+                  <p class="help-text">Use encrypted connection to PostgreSQL</p>
+                </div>
+                <label class="toggle-label" style="cursor: pointer;">
+                  <input type="checkbox" id="pg-ssl" ${vectorStoreConfig.pgvector?.ssl ? 'checked' : ''} style="display: none;">
+                  <div class="toggle-switch" style="position: relative; width: 44px; height: 24px; background: ${vectorStoreConfig.pgvector?.ssl ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 12px; transition: background-color 0.3s ease; cursor: pointer; border: 1px solid ${vectorStoreConfig.pgvector?.ssl ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)'};">
+                    <div class="toggle-slider" style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 10px; transition: transform 0.3s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transform: translateX(${vectorStoreConfig.pgvector?.ssl ? '20px' : '0px'});"></div>
+                  </div>
+                </label>
+              </div>
+
+              <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button id="test-pg-connection" class="btn btn-secondary" style="flex: 1;">
+                  <span>🔍</span> Test Connection
+                </button>
+                <button id="save-pg-config" class="btn btn-primary" style="flex: 1;">
+                  <span>💾</span> Save Configuration
+                </button>
+              </div>
+            </div>
+
+            <!-- Migration Section -->
+            <div style="padding: 16px; background: var(--background-secondary); border-radius: 6px; border-left: 3px solid var(--interactive-accent);">
+              <h4 style="margin-bottom: 8px; font-size: 14px; color: var(--text-normal);">⚡ Migration</h4>
+              <p class="help-text" style="margin-bottom: 12px;">Migrate data between storage backends</p>
+
+              <div id="migration-status" style="display: none; margin-bottom: 12px; padding: 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <div class="migration-spinner" style="width: 16px; height: 16px; border: 2px solid var(--interactive-accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                  <span id="migration-phase" style="font-weight: 500; font-size: 13px;"></span>
+                </div>
+                <div style="background: var(--background-modifier-border); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
+                  <div id="migration-progress-bar" style="background: var(--interactive-accent); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+                <p id="migration-details" style="font-size: 12px; color: var(--text-muted);"></p>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button id="migrate-to-pgvector" class="btn btn-secondary" style="flex: 1;" ${isPgVector ? 'disabled' : ''}>
+                  <span>→</span> Migrate to PostgreSQL
+                </button>
+                <button id="migrate-to-json" class="btn btn-secondary" style="flex: 1;" ${!isPgVector ? 'disabled' : ''}>
+                  <span>←</span> Migrate to JSON
+                </button>
+              </div>
+            </div>
+
+            <!-- Info Box -->
+            <div style="margin-top: 16px; padding: 12px; background: var(--background-modifier-hover); border-radius: 6px; border-left: 3px solid var(--text-accent);">
+              <div style="display: flex; align-items: start; gap: 8px;">
+                <span style="font-size: 16px;">💡</span>
+                <div style="flex: 1;">
+                  <p style="font-size: 13px; color: var(--text-normal); margin-bottom: 8px;"><strong>Choosing the Right Backend:</strong></p>
+                  <div style="font-size: 12px; color: var(--text-muted);">
+                    <p style="margin-bottom: 4px;"><strong>JSON (0-10K chunks):</strong> Simplest setup, good for small vaults, loads entirely into memory</p>
+                    <p style="margin-bottom: 4px;"><strong>SQLite (10K-100K chunks):</strong> No external server needed, better performance than JSON, efficient memory usage, perfect sweet spot for most users</p>
+                    <p style="margin-bottom: 0;"><strong>PostgreSQL (100K+ chunks):</strong> Maximum scalability, advanced features, requires external database server</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+    `;
+    }
+
     private renderPlaceholderSections(): string {
         // Placeholder sections for future phases + Auto Ingestion
         return `
       ${this.renderAutoIngestionSettings()}
-      
+
       <div class="settings-section">
         <h3 class="section-title">🤖 AI Providers</h3>
         <div class="settings-card">
@@ -714,7 +990,7 @@ export class MnemosyneSettingsController {
           <div class="provider-management-container"></div>
         </div>
       </div>
-      
+
       <div class="settings-section">
         <h3 class="section-title">🏛️ Goddess Persona</h3>
         <div class="settings-card">
@@ -809,6 +1085,30 @@ export class MnemosyneSettingsController {
             });
         }
 
+        // Attach MCP tools toggle
+        const mcpToolsToggle = this.container.querySelector('#mcp-tools-toggle') as HTMLInputElement;
+        if (mcpToolsToggle) {
+            mcpToolsToggle.addEventListener('change', async () => {
+                await this.handleMCPToolsToggle(mcpToolsToggle.checked);
+            });
+        }
+
+        // Attach MCP tool checkboxes
+        const mcpToolCheckboxes = this.container.querySelectorAll('.mcp-tool-checkbox') as NodeListOf<HTMLInputElement>;
+        mcpToolCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.handleMCPToolCheckboxChange();
+            });
+        });
+
+        // Attach MCP default dangerous operations toggle
+        const mcpDefaultDangerousToggle = this.container.querySelector('#mcp-default-dangerous') as HTMLInputElement;
+        if (mcpDefaultDangerousToggle) {
+            mcpDefaultDangerousToggle.addEventListener('change', async () => {
+                await this.handleMCPDefaultDangerousToggle(mcpDefaultDangerousToggle.checked);
+            });
+        }
+
         // Attach action buttons
         const actionButtons = this.container.querySelectorAll('[data-action]');
         actionButtons.forEach(button => {
@@ -820,6 +1120,63 @@ export class MnemosyneSettingsController {
                 }
             });
         });
+
+        // Attach Vector Store event handlers
+        const vectorStoreBackendSelect = this.container.querySelector('#vector-store-backend') as HTMLSelectElement;
+        if (vectorStoreBackendSelect) {
+            vectorStoreBackendSelect.addEventListener('change', async () => {
+                await this.handleVectorStoreBackendChange(vectorStoreBackendSelect.value as 'json' | 'sqlite' | 'pgvector');
+            });
+        }
+
+        const saveSqliteConfigBtn = this.container.querySelector('#save-sqlite-config') as HTMLButtonElement;
+        if (saveSqliteConfigBtn) {
+            saveSqliteConfigBtn.addEventListener('click', async () => {
+                await this.handleSaveSqliteConfig();
+            });
+        }
+
+        const sqliteWalToggle = this.container.querySelector('#sqlite-wal') as HTMLInputElement;
+        if (sqliteWalToggle) {
+            sqliteWalToggle.addEventListener('change', () => {
+                this.handleSqliteWalToggle(sqliteWalToggle.checked);
+            });
+        }
+
+        const pgSslToggle = this.container.querySelector('#pg-ssl') as HTMLInputElement;
+        if (pgSslToggle) {
+            pgSslToggle.addEventListener('change', () => {
+                this.handlePgSslToggle(pgSslToggle.checked);
+            });
+        }
+
+        const testPgConnectionBtn = this.container.querySelector('#test-pg-connection') as HTMLButtonElement;
+        if (testPgConnectionBtn) {
+            testPgConnectionBtn.addEventListener('click', async () => {
+                await this.handleTestPgConnection();
+            });
+        }
+
+        const savePgConfigBtn = this.container.querySelector('#save-pg-config') as HTMLButtonElement;
+        if (savePgConfigBtn) {
+            savePgConfigBtn.addEventListener('click', async () => {
+                await this.handleSavePgConfig();
+            });
+        }
+
+        const migrateToPgVectorBtn = this.container.querySelector('#migrate-to-pgvector') as HTMLButtonElement;
+        if (migrateToPgVectorBtn) {
+            migrateToPgVectorBtn.addEventListener('click', async () => {
+                await this.handleMigrateToPgVector();
+            });
+        }
+
+        const migrateToJsonBtn = this.container.querySelector('#migrate-to-json') as HTMLButtonElement;
+        if (migrateToJsonBtn) {
+            migrateToJsonBtn.addEventListener('click', async () => {
+                await this.handleMigrateToJson();
+            });
+        }
     }
 
     private async handleSettingUpdate(field: string, value: any): Promise<void> {
@@ -2347,7 +2704,652 @@ export class MnemosyneSettingsController {
         new Notice('Advanced auto ingestion settings coming soon!');
         // TODO: Open advanced configuration modal
     }
-    
+
+    // MCP Tools handler methods
+    private async handleMCPToolsToggle(enabled: boolean): Promise<void> {
+        try {
+            // Update plugin settings directly
+            if (this.plugin.settings && this.plugin.settings.mcpTools) {
+                this.plugin.settings.mcpTools.enabled = enabled;
+                await this.plugin.saveSettings();
+
+                // Re-render the MCP tools section
+                await this.renderMCPToolsSection();
+
+                new Notice(`MCP Tools ${enabled ? 'enabled' : 'disabled'}`);
+            } else {
+                throw new Error('MCP Tools settings not available');
+            }
+        } catch (error) {
+            console.error('Failed to toggle MCP tools:', error);
+            new Notice('Error updating MCP tools setting');
+        }
+    }
+
+    private async handleMCPToolCheckboxChange(): Promise<void> {
+        try {
+            if (this.plugin.settings && this.plugin.settings.mcpTools && this.container) {
+                // Get all checked checkboxes
+                const checkboxes = this.container.querySelectorAll('.mcp-tool-checkbox') as NodeListOf<HTMLInputElement>;
+                const allowedTools: string[] = [];
+
+                checkboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        const toolId = checkbox.getAttribute('data-tool');
+                        if (toolId) {
+                            allowedTools.push(toolId);
+                        }
+                    }
+                });
+
+                // Update settings
+                this.plugin.settings.mcpTools.allowedTools = allowedTools;
+                await this.plugin.saveSettings();
+
+                console.log('MCP allowed tools updated:', allowedTools);
+            }
+        } catch (error) {
+            console.error('Failed to update MCP allowed tools:', error);
+            new Notice('Error updating allowed tools');
+        }
+    }
+
+    private async handleMCPDefaultDangerousToggle(enabled: boolean): Promise<void> {
+        try {
+            if (this.plugin.settings && this.plugin.settings.mcpTools) {
+                this.plugin.settings.mcpTools.defaultAllowDangerousOperations = enabled;
+                await this.plugin.saveSettings();
+
+                console.log(`MCP default dangerous operations: ${enabled}`);
+                new Notice(`Default: ${enabled ? 'Allow' : 'Restrict'} write operations for new agents`);
+            }
+        } catch (error) {
+            console.error('Failed to update MCP default dangerous operations:', error);
+            new Notice('Error updating default permissions');
+        }
+    }
+
+    // Vector Store handler methods
+    private async handleVectorStoreBackendChange(backend: 'json' | 'sqlite' | 'pgvector'): Promise<void> {
+        try {
+            // Update settings
+            if (!this.plugin.settings.vectorStore) {
+                this.plugin.settings.vectorStore = {
+                    backend: 'json',
+                    embeddingModel: 'text-embedding-3-small',
+                    dimension: 1536,
+                    json: { indexPath: 'vector-store-index.json' }
+                };
+            }
+
+            this.plugin.settings.vectorStore.backend = backend;
+
+            // Ensure backend-specific config exists
+            if (backend === 'json' && !this.plugin.settings.vectorStore.json) {
+                this.plugin.settings.vectorStore.json = { indexPath: 'vector-store-index.json' };
+            } else if (backend === 'sqlite' && !this.plugin.settings.vectorStore.sqlite) {
+                this.plugin.settings.vectorStore.sqlite = {
+                    dbPath: 'vector-store.db',
+                    enableWAL: true,
+                    cacheSize: 10000
+                };
+            }
+
+            await this.plugin.saveSettings();
+
+            // Toggle visibility of backend-specific settings
+            const jsonSettings = this.container?.querySelector('#json-backend-settings') as HTMLElement;
+            const sqliteSettings = this.container?.querySelector('#sqlite-backend-settings') as HTMLElement;
+            const pgSettings = this.container?.querySelector('#pgvector-backend-settings') as HTMLElement;
+            const migrateToPg = this.container?.querySelector('#migrate-to-pgvector') as HTMLButtonElement;
+            const migrateToJson = this.container?.querySelector('#migrate-to-json') as HTMLButtonElement;
+
+            if (jsonSettings && sqliteSettings && pgSettings) {
+                jsonSettings.style.display = backend === 'json' ? 'block' : 'none';
+                sqliteSettings.style.display = backend === 'sqlite' ? 'block' : 'none';
+                pgSettings.style.display = backend === 'pgvector' ? 'block' : 'none';
+            }
+
+            if (migrateToPg && migrateToJson) {
+                migrateToPg.disabled = backend === 'pgvector';
+                migrateToJson.disabled = backend === 'json';
+            }
+
+            const backendName = backend === 'json' ? 'JSON' : backend === 'sqlite' ? 'SQLite' : 'PostgreSQL';
+            new Notice(`Switched to ${backendName} backend`);
+            console.log(`Vector store backend changed to: ${backend}`);
+        } catch (error) {
+            console.error('Failed to change vector store backend:', error);
+            new Notice('Error changing backend');
+        }
+    }
+
+    private handleSqliteWalToggle(enabled: boolean): void {
+        // Update the toggle switch UI
+        const toggleSwitch = this.container?.querySelector('#sqlite-wal')?.parentElement?.querySelector('.toggle-switch') as HTMLElement;
+        if (toggleSwitch) {
+            toggleSwitch.style.background = enabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border)';
+            toggleSwitch.style.borderColor = enabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)';
+
+            const slider = toggleSwitch.querySelector('.toggle-slider') as HTMLElement;
+            if (slider) {
+                slider.style.transform = enabled ? 'translateX(20px)' : 'translateX(0px)';
+            }
+        }
+    }
+
+    private async handleSaveSqliteConfig(): Promise<void> {
+        const saveBtn = this.container?.querySelector('#save-sqlite-config') as HTMLButtonElement;
+        if (!saveBtn) return;
+
+        try {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span>💾</span> Saving...';
+
+            // Get SQLite configuration from form
+            const dbPath = (this.container?.querySelector('#sqlite-db-path') as HTMLInputElement)?.value || 'vector-store.db';
+            const enableWAL = (this.container?.querySelector('#sqlite-wal') as HTMLInputElement)?.checked ?? true;
+
+            // Update settings
+            if (!this.plugin.settings.vectorStore) {
+                this.plugin.settings.vectorStore = {
+                    backend: 'sqlite',
+                    embeddingModel: 'text-embedding-3-small',
+                    dimension: 1536
+                };
+            }
+
+            this.plugin.settings.vectorStore.sqlite = {
+                dbPath,
+                enableWAL,
+                cacheSize: 10000 // 10MB default
+            };
+
+            await this.plugin.saveSettings();
+
+            // Reinitialize retriever with new config if we're using sqlite backend
+            if (this.plugin.settings.vectorStore.backend === 'sqlite') {
+                try {
+                    const newVectorStore = VectorStoreFactory.create(
+                        this.plugin.app,
+                        this.plugin.settings.vectorStore
+                    );
+                    await newVectorStore.initialize();
+
+                    // Update the retriever's vector store
+                    if (this.plugin.retriever) {
+                        (this.plugin.retriever as any).vectorStore = newVectorStore;
+                    }
+
+                    new Notice('✅ SQLite configuration saved and connected!');
+                } catch (error) {
+                    console.error('Failed to initialize with new config:', error);
+                    new Notice('⚠️ Configuration saved but initialization failed. Check your settings.');
+                }
+            } else {
+                new Notice('✅ SQLite configuration saved!');
+            }
+
+            saveBtn.innerHTML = '<span>✅</span> Saved';
+            setTimeout(() => {
+                saveBtn.innerHTML = '<span>💾</span> Save Configuration';
+                saveBtn.disabled = false;
+            }, 2000);
+
+        } catch (error) {
+            console.error('Failed to save SQLite configuration:', error);
+            new Notice('Error saving configuration');
+            saveBtn.innerHTML = '<span>❌</span> Error';
+
+            setTimeout(() => {
+                saveBtn.innerHTML = '<span>💾</span> Save Configuration';
+                saveBtn.disabled = false;
+            }, 2000);
+        }
+    }
+
+    private handlePgSslToggle(enabled: boolean): void {
+        // Update the toggle switch UI
+        const toggleSwitch = this.container?.querySelector('#pg-ssl')?.parentElement?.querySelector('.toggle-switch') as HTMLElement;
+        if (toggleSwitch) {
+            toggleSwitch.style.background = enabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border)';
+            toggleSwitch.style.borderColor = enabled ? 'var(--interactive-accent)' : 'var(--background-modifier-border-hover)';
+
+            const slider = toggleSwitch.querySelector('.toggle-slider') as HTMLElement;
+            if (slider) {
+                slider.style.transform = enabled ? 'translateX(20px)' : 'translateX(0px)';
+            }
+        }
+    }
+
+    private async handleTestPgConnection(): Promise<void> {
+        const testBtn = this.container?.querySelector('#test-pg-connection') as HTMLButtonElement;
+        if (!testBtn) return;
+
+        // Get PostgreSQL configuration from form first
+        const host = (this.container?.querySelector('#pg-host') as HTMLInputElement)?.value || 'localhost';
+        const port = parseInt((this.container?.querySelector('#pg-port') as HTMLInputElement)?.value) || 5432;
+        const database = (this.container?.querySelector('#pg-database') as HTMLInputElement)?.value || 'mnemosyne';
+        const user = (this.container?.querySelector('#pg-user') as HTMLInputElement)?.value || 'postgres';
+        const password = (this.container?.querySelector('#pg-password') as HTMLInputElement)?.value || '';
+        const ssl = (this.container?.querySelector('#pg-ssl') as HTMLInputElement)?.checked || false;
+
+        // Validate before disabling button
+        if (!password) {
+            new Notice('Please enter a password');
+            return;
+        }
+
+        try {
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span>🔄</span> Testing...';
+
+            // Create temporary PgVectorStore to test connection with short timeout
+            const testStore = new PgVectorStore({
+                host,
+                port,
+                database,
+                user,
+                encryptedPassword: password, // For testing, pass plain password as PgVectorStore uses it directly
+                ssl,
+                poolSize: 1,
+                connectionTimeout: 10000 // 10 second timeout for testing
+            });
+
+            // Try to initialize with timeout
+            const initPromise = testStore.initialize();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
+            );
+
+            await Promise.race([initPromise, timeoutPromise]);
+
+            // Test is successful if we get here
+            await testStore.close();
+
+            new Notice('✅ Connection successful!');
+            testBtn.innerHTML = '<span>✅</span> Connected';
+
+            setTimeout(() => {
+                testBtn.innerHTML = '<span>🔍</span> Test Connection';
+                testBtn.disabled = false;
+            }, 2000);
+
+        } catch (error) {
+            console.error('PostgreSQL connection test failed:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice(`❌ Connection failed: ${errorMessage}`);
+            testBtn.innerHTML = '<span>❌</span> Failed';
+
+            setTimeout(() => {
+                testBtn.innerHTML = '<span>🔍</span> Test Connection';
+                testBtn.disabled = false;
+            }, 2000);
+        } finally {
+            // Ensure button is always re-enabled after a delay
+            setTimeout(() => {
+                if (testBtn.disabled) {
+                    testBtn.innerHTML = '<span>🔍</span> Test Connection';
+                    testBtn.disabled = false;
+                }
+            }, 12000); // Extra safety timeout
+        }
+    }
+
+    private async handleSavePgConfig(): Promise<void> {
+        const saveBtn = this.container?.querySelector('#save-pg-config') as HTMLButtonElement;
+        if (!saveBtn) return;
+
+        // Get PostgreSQL configuration from form first
+        const host = (this.container?.querySelector('#pg-host') as HTMLInputElement)?.value || 'localhost';
+        const port = parseInt((this.container?.querySelector('#pg-port') as HTMLInputElement)?.value) || 5432;
+        const database = (this.container?.querySelector('#pg-database') as HTMLInputElement)?.value || 'mnemosyne';
+        const user = (this.container?.querySelector('#pg-user') as HTMLInputElement)?.value || 'postgres';
+        const password = (this.container?.querySelector('#pg-password') as HTMLInputElement)?.value || '';
+        const ssl = (this.container?.querySelector('#pg-ssl') as HTMLInputElement)?.checked || false;
+
+        // Validate before disabling button
+        if (!password) {
+            new Notice('Please enter a password');
+            return;
+        }
+
+        try {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span>💾</span> Saving...';
+
+            // Encrypt password with master password
+            const encryptedPassword = this.plugin.keyManager.encrypt(password);
+
+            // Update settings
+            if (!this.plugin.settings.vectorStore) {
+                this.plugin.settings.vectorStore = {
+                    backend: 'pgvector',
+                    embeddingModel: 'text-embedding-3-small',
+                    dimension: 1536
+                };
+            }
+
+            this.plugin.settings.vectorStore.pgvector = {
+                host,
+                port,
+                database,
+                user,
+                encryptedPassword: JSON.stringify(encryptedPassword),
+                ssl
+            };
+
+            await this.plugin.saveSettings();
+
+            // Reinitialize retriever with new config if we're using pgvector backend
+            if (this.plugin.settings.vectorStore.backend === 'pgvector') {
+                try {
+                    const newVectorStore = VectorStoreFactory.create(
+                        this.plugin.app,
+                        this.plugin.settings.vectorStore
+                    );
+                    await newVectorStore.initialize();
+
+                    // Update the retriever's vector store
+                    if (this.plugin.retriever) {
+                        (this.plugin.retriever as any).vectorStore = newVectorStore;
+                    }
+
+                    new Notice('✅ PostgreSQL configuration saved and connected!');
+                } catch (error) {
+                    console.error('Failed to initialize with new config:', error);
+                    new Notice('⚠️ Configuration saved but connection failed. Check your settings.');
+                }
+            } else {
+                new Notice('✅ PostgreSQL configuration saved!');
+            }
+
+            // Clear password field
+            const passwordField = this.container?.querySelector('#pg-password') as HTMLInputElement;
+            if (passwordField) {
+                passwordField.value = '';
+            }
+
+            saveBtn.innerHTML = '<span>✅</span> Saved';
+            setTimeout(() => {
+                saveBtn.innerHTML = '<span>💾</span> Save Configuration';
+                saveBtn.disabled = false;
+            }, 2000);
+
+        } catch (error) {
+            console.error('Failed to save PostgreSQL configuration:', error);
+            new Notice('Error saving configuration');
+            saveBtn.innerHTML = '<span>❌</span> Error';
+
+            setTimeout(() => {
+                saveBtn.innerHTML = '<span>💾</span> Save Configuration';
+                saveBtn.disabled = false;
+            }, 2000);
+        }
+    }
+
+    private async handleMigrateToPgVector(): Promise<void> {
+        const migrateBtn = this.container?.querySelector('#migrate-to-pgvector') as HTMLButtonElement;
+        const migrationStatus = this.container?.querySelector('#migration-status') as HTMLElement;
+        const migrationPhase = this.container?.querySelector('#migration-phase') as HTMLElement;
+        const migrationProgressBar = this.container?.querySelector('#migration-progress-bar') as HTMLElement;
+        const migrationDetails = this.container?.querySelector('#migration-details') as HTMLElement;
+
+        if (!migrateBtn || !migrationStatus) return;
+
+        try {
+            migrateBtn.disabled = true;
+            migrationStatus.style.display = 'block';
+
+            // Create source (JSON) vector store
+            const jsonStore = new JSONVectorStore(this.plugin.app, {
+                indexPath: this.plugin.settings.vectorStore?.json?.indexPath || 'vector-store-index.json'
+            });
+            await jsonStore.initialize();
+
+            // Check if JSON store has data
+            const jsonStats = await jsonStore.getStats();
+            if (jsonStats.totalChunks === 0) {
+                new Notice('No data to migrate. JSON vector store is empty.');
+                migrationStatus.style.display = 'none';
+                migrateBtn.disabled = false;
+                return;
+            }
+
+            // Get PostgreSQL config
+            const pgConfig = this.plugin.settings.vectorStore?.pgvector;
+            if (!pgConfig || !pgConfig.encryptedPassword) {
+                new Notice('Please configure and save PostgreSQL settings first');
+                migrationStatus.style.display = 'none';
+                migrateBtn.disabled = false;
+                return;
+            }
+
+            // Decrypt password
+            const encryptedData = JSON.parse(pgConfig.encryptedPassword);
+            const password = this.plugin.keyManager.decrypt(encryptedData);
+
+            // Create target (PgVector) vector store
+            const pgStore = new PgVectorStore({
+                ...pgConfig,
+                encryptedPassword: password // Override with decrypted password
+            });
+            await pgStore.initialize();
+
+            // Create migration instance with progress tracking
+            const migration = VectorStoreMigration.createJSONtoPgVector(
+                jsonStore,
+                pgStore,
+                (progress: MigrationProgress) => {
+                    migrationPhase.textContent = progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
+                    migrationProgressBar.style.width = `${progress.percentage}%`;
+                    migrationDetails.textContent = `${progress.migratedChunks} / ${progress.totalChunks} chunks`;
+
+                    if (progress.error) {
+                        migrationDetails.textContent = `Error: ${progress.error}`;
+                    }
+                }
+            );
+
+            // Execute migration
+            const result = await migration.migrate(false);
+
+            if (result.success) {
+                new Notice(`✅ Migration complete! Migrated ${result.migratedChunks} chunks in ${(result.duration / 1000).toFixed(1)}s`);
+
+                // Switch backend to pgvector
+                this.plugin.settings.vectorStore.backend = 'pgvector';
+                await this.plugin.saveSettings();
+
+                // Update retriever
+                if (this.plugin.retriever) {
+                    (this.plugin.retriever as any).vectorStore = pgStore;
+                }
+
+                // Refresh UI
+                setTimeout(() => {
+                    this.renderUI();
+                    this.initializeComponents();
+                }, 1000);
+            } else {
+                new Notice(`⚠️ Migration completed with ${result.errors.length} errors`);
+                console.error('Migration errors:', result.errors);
+            }
+
+        } catch (error) {
+            console.error('Migration failed:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice(`❌ Migration failed: ${errorMessage}`);
+
+            if (migrationPhase && migrationDetails) {
+                migrationPhase.textContent = 'Failed';
+                migrationDetails.textContent = errorMessage;
+            }
+        } finally {
+            setTimeout(() => {
+                if (migrationStatus) {
+                    migrationStatus.style.display = 'none';
+                }
+                migrateBtn.disabled = false;
+            }, 3000);
+        }
+    }
+
+    private async handleMigrateToJson(): Promise<void> {
+        const migrateBtn = this.container?.querySelector('#migrate-to-json') as HTMLButtonElement;
+        const migrationStatus = this.container?.querySelector('#migration-status') as HTMLElement;
+        const migrationPhase = this.container?.querySelector('#migration-phase') as HTMLElement;
+        const migrationProgressBar = this.container?.querySelector('#migration-progress-bar') as HTMLElement;
+        const migrationDetails = this.container?.querySelector('#migration-details') as HTMLElement;
+
+        if (!migrateBtn || !migrationStatus) return;
+
+        try {
+            migrateBtn.disabled = true;
+            migrationStatus.style.display = 'block';
+
+            // Get PostgreSQL config
+            const pgConfig = this.plugin.settings.vectorStore?.pgvector;
+            if (!pgConfig || !pgConfig.encryptedPassword) {
+                new Notice('PostgreSQL not configured');
+                migrationStatus.style.display = 'none';
+                migrateBtn.disabled = false;
+                return;
+            }
+
+            // Decrypt password
+            const encryptedData = JSON.parse(pgConfig.encryptedPassword);
+            const password = this.plugin.keyManager.decrypt(encryptedData);
+
+            // Create source (PgVector) vector store
+            const pgStore = new PgVectorStore({
+                ...pgConfig,
+                encryptedPassword: password // Override with decrypted password
+            });
+            await pgStore.initialize();
+
+            // Check if PgVector store has data
+            const pgStats = await pgStore.getStats();
+            if (pgStats.totalChunks === 0) {
+                new Notice('No data to migrate. PostgreSQL vector store is empty.');
+                migrationStatus.style.display = 'none';
+                migrateBtn.disabled = false;
+                return;
+            }
+
+            // Create target (JSON) vector store
+            const jsonStore = new JSONVectorStore(this.plugin.app, {
+                indexPath: this.plugin.settings.vectorStore?.json?.indexPath || 'vector-store-index.json'
+            });
+            await jsonStore.initialize();
+
+            // Create migration instance with progress tracking
+            const migration = VectorStoreMigration.createPgVectorToJSON(
+                pgStore,
+                jsonStore,
+                (progress: MigrationProgress) => {
+                    migrationPhase.textContent = progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
+                    migrationProgressBar.style.width = `${progress.percentage}%`;
+                    migrationDetails.textContent = `${progress.migratedChunks} / ${progress.totalChunks} chunks`;
+
+                    if (progress.error) {
+                        migrationDetails.textContent = `Error: ${progress.error}`;
+                    }
+                }
+            );
+
+            // Execute migration
+            const result = await migration.migrate(false);
+
+            if (result.success) {
+                new Notice(`✅ Migration complete! Migrated ${result.migratedChunks} chunks in ${(result.duration / 1000).toFixed(1)}s`);
+
+                // Switch backend to json
+                this.plugin.settings.vectorStore.backend = 'json';
+                await this.plugin.saveSettings();
+
+                // Update retriever
+                if (this.plugin.retriever) {
+                    (this.plugin.retriever as any).vectorStore = jsonStore;
+                }
+
+                // Refresh UI
+                setTimeout(() => {
+                    this.renderUI();
+                    this.initializeComponents();
+                }, 1000);
+            } else {
+                new Notice(`⚠️ Migration completed with ${result.errors.length} errors`);
+                console.error('Migration errors:', result.errors);
+            }
+
+        } catch (error) {
+            console.error('Migration failed:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice(`❌ Migration failed: ${errorMessage}`);
+
+            if (migrationPhase && migrationDetails) {
+                migrationPhase.textContent = 'Failed';
+                migrationDetails.textContent = errorMessage;
+            }
+        } finally {
+            setTimeout(() => {
+                if (migrationStatus) {
+                    migrationStatus.style.display = 'none';
+                }
+                migrateBtn.disabled = false;
+            }, 3000);
+        }
+    }
+
+    private async renderMCPToolsSection(): Promise<void> {
+        if (!this.container) return;
+
+        const mcpToolsCard = this.container.querySelector('.mcp-tools-card');
+        if (mcpToolsCard) {
+            // Find the parent section and re-render just the MCP tools part
+            const mcpToolsSection = mcpToolsCard.closest('.settings-section');
+            if (mcpToolsSection) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = this.renderMCPToolsSettings();
+                const newSection = tempDiv.firstElementChild;
+
+                if (newSection) {
+                    mcpToolsSection.replaceWith(newSection);
+
+                    // Re-attach event listeners for the new section
+                    this.attachMCPToolsEventListeners(newSection as HTMLElement);
+                }
+            }
+        }
+    }
+
+    private attachMCPToolsEventListeners(section: HTMLElement): void {
+        // Attach MCP tools toggle
+        const mcpToolsToggle = section.querySelector('#mcp-tools-toggle') as HTMLInputElement;
+        if (mcpToolsToggle) {
+            mcpToolsToggle.addEventListener('change', async () => {
+                await this.handleMCPToolsToggle(mcpToolsToggle.checked);
+            });
+        }
+
+        // Attach MCP tool checkboxes
+        const mcpToolCheckboxes = section.querySelectorAll('.mcp-tool-checkbox') as NodeListOf<HTMLInputElement>;
+        mcpToolCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', async () => {
+                await this.handleMCPToolCheckboxChange();
+            });
+        });
+
+        // Attach MCP default dangerous operations toggle
+        const mcpDefaultDangerousToggle = section.querySelector('#mcp-default-dangerous') as HTMLInputElement;
+        if (mcpDefaultDangerousToggle) {
+            mcpDefaultDangerousToggle.addEventListener('change', async () => {
+                await this.handleMCPDefaultDangerousToggle(mcpDefaultDangerousToggle.checked);
+            });
+        }
+    }
+
     private async handleClearAutoQueue(): Promise<void> {
         try {
             if (this.plugin.autoIngestionManager) {

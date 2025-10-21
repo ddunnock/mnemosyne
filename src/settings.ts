@@ -85,14 +85,37 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     },
 
     // Conversation Memory Configuration
+    // ✨ ADAPTIVE: Settings auto-adjust based on vector store backend
+    // JSON: maxMessages=15 (conservative), addToVectorStore=false
+    // SQLite: maxMessages=30 (balanced), addToVectorStore=true
+    // PostgreSQL: maxMessages=50 (aggressive), addToVectorStore=true
     memory: {
         enabled: true,
-        maxMessages: 20, // Maximum messages before compression
-        compressionThreshold: 15, // When to start showing compression warnings
+        maxMessages: 30, // Balanced default (adapts: JSON=15, SQLite=30, PG=50)
+        compressionThreshold: 25, // When to show compression warnings
         compressionRatio: 0.3, // Keep 30% of original messages after compression
         autoCompress: true, // Automatically compress when maxMessages reached
-        addToVectorStore: true, // Add compressed memory to vector store
+        addToVectorStore: true, // Store compressed memories for semantic retrieval
         compressionPrompt: 'Summarize this conversation, focusing on key decisions, important context, and actionable items. Preserve the essential information while making it concise.'
+    },
+
+    // ✨ NEW: MCP Tools Configuration
+    mcpTools: {
+        enabled: true, // Master switch - enable MCP functionality by default
+        allowedTools: ['read_note', 'write_note', 'search_notes', 'list_notes', 'get_active_note'], // All tools enabled by default
+        defaultAllowDangerousOperations: false, // Require explicit permission for writes
+        defaultFolderScope: [] // No folder restrictions by default
+    },
+
+    // ✨ NEW: Vector Store Configuration
+    vectorStore: {
+        backend: 'json', // Default to JSON for simplicity
+        embeddingModel: 'text-embedding-3-small',
+        dimension: 1536,
+        json: {
+            indexPath: 'vector-store-index.json'
+        }
+        // pgvector config will be undefined unless user configures it
     },
 
     // Feature flags
@@ -115,6 +138,16 @@ export function mergeSettings(loadedSettings: Partial<PluginSettings>): PluginSe
         autoIngestion: {
             ...DEFAULT_SETTINGS.autoIngestion,
             ...(loadedSettings.autoIngestion || {})
+        },
+        // ✨ NEW: Ensure mcpTools config exists with defaults
+        mcpTools: {
+            ...DEFAULT_SETTINGS.mcpTools,
+            ...(loadedSettings.mcpTools || {})
+        },
+        // ✨ NEW: Ensure vectorStore config exists with defaults
+        vectorStore: {
+            ...DEFAULT_SETTINGS.vectorStore,
+            ...(loadedSettings.vectorStore || {})
         }
     };
 }
@@ -243,6 +276,7 @@ Your role:
 - Answer questions using the context from the user's knowledge vault (when available)
 - Help users discover connections between different pieces of information
 - Provide thoughtful analysis and insights based on their stored knowledge
+- Use available tools to read notes when you need additional information
 - Be concise, helpful, and accurate in your responses
 
 Context from the user's knowledge vault:
@@ -252,12 +286,17 @@ Guidelines:
 - If context is available, base your answers primarily on the provided context
 - If no context is available, use your general knowledge to provide helpful responses
 - If the context doesn't contain relevant information, say so clearly
+- You can use the read_note, search_notes, and list_notes tools to explore the vault
 - Cite specific sources when referencing information from the context
 - Be conversational but professional
 - Help users think through complex topics by asking clarifying questions when appropriate`,
         llmId: llmId || 'default-openai-provider',
         enabled: true,
         isPermanent: true, // Mark as permanent so it can't be deleted
+        // ✨ MCP Tool Support - Enable tools for reading notes
+        enableTools: true,
+        allowDangerousOperations: false, // Read-only by default (cannot write/modify notes)
+        folderScope: [], // No folder restrictions - can access entire vault
         retrievalSettings: {
             topK: 5,
             scoreThreshold: 0.3,  // Lowered from 0.7 to be more permissive
@@ -328,7 +367,15 @@ export function ensureMnemosyneAgent(settings: PluginSettings): void {
     } else {
         // Ensure existing agent is marked as permanent
         existingAgent.isPermanent = true;
-        
+
+        // ✨ Update existing agent with MCP tool support if not set
+        if (existingAgent.enableTools === undefined) {
+            existingAgent.enableTools = true;
+            existingAgent.allowDangerousOperations = false; // Read-only by default
+            existingAgent.folderScope = [];
+            console.log('Updated Mnemosyne Agent with MCP tool support');
+        }
+
         // Update LLM ID if it's invalid
         if (!settings.llmConfigs.find(c => c.id === existingAgent.llmId && c.enabled)) {
             const defaultLlmId = settings.llmConfigs.find(c => c.enabled)?.id;
