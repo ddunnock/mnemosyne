@@ -128,6 +128,11 @@ export class SQLiteVectorStore implements IVectorStore {
         this.ensureReady();
 
         try {
+            // Ensure all required fields have values (sql.js doesn't accept undefined)
+            const documentId = metadata.document_id || chunkId.split('_chunk_')[0] || 'unknown';
+            const section = metadata.section || 'default';
+            const contentType = metadata.content_type || 'markdown';
+
             this.db!.run(
                 `INSERT OR REPLACE INTO embeddings (
                     id, content, embedding, metadata,
@@ -138,9 +143,9 @@ export class SQLiteVectorStore implements IVectorStore {
                     content,
                     JSON.stringify(embedding),
                     JSON.stringify(metadata),
-                    metadata.document_id,
-                    metadata.section,
-                    metadata.content_type
+                    documentId,
+                    section,
+                    contentType
                 ]
             );
         } catch (error) {
@@ -152,32 +157,75 @@ export class SQLiteVectorStore implements IVectorStore {
         if (!entries || entries.length === 0) return;
         this.ensureReady();
 
+        let successCount = 0;
+        let skippedCount = 0;
+
         try {
             // Use transaction for batch insert
             this.db!.run('BEGIN TRANSACTION');
 
-            for (const entry of entries) {
-                this.db!.run(
-                    `INSERT OR REPLACE INTO embeddings (
-                        id, content, embedding, metadata,
-                        document_id, section, content_type
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        entry.chunkId,
-                        entry.content,
-                        JSON.stringify(entry.embedding),
-                        JSON.stringify(entry.metadata),
-                        entry.metadata.document_id,
-                        entry.metadata.section,
-                        entry.metadata.content_type
-                    ]
-                );
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+
+                // Skip entries with invalid embeddings
+                if (!entry.embedding || !Array.isArray(entry.embedding) || entry.embedding.length === 0) {
+                    console.warn(`Skipping chunk ${entry.chunkId}: invalid or missing embedding`);
+                    skippedCount++;
+                    continue;
+                }
+
+                try {
+                    // Ensure all required fields have values (sql.js doesn't accept undefined)
+                    const documentId = entry.metadata.document_id || entry.chunkId.split('_chunk_')[0] || 'unknown';
+                    const section = entry.metadata.section || 'default';
+                    const contentType = entry.metadata.content_type || 'markdown';
+
+                    this.db!.run(
+                        `INSERT OR REPLACE INTO embeddings (
+                            id, content, embedding, metadata,
+                            document_id, section, content_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            entry.chunkId,
+                            entry.content,
+                            JSON.stringify(entry.embedding),
+                            JSON.stringify(entry.metadata),
+                            documentId,
+                            section,
+                            contentType
+                        ]
+                    );
+                    successCount++;
+                } catch (entryError) {
+                    console.error(`Failed to insert entry ${i + 1}/${entries.length}:`, {
+                        chunkId: entry.chunkId,
+                        contentLength: entry.content?.length,
+                        embeddingLength: entry.embedding?.length,
+                        metadata: entry.metadata,
+                        metadataKeys: Object.keys(entry.metadata || {}),
+                        documentId: entry.metadata?.document_id,
+                        section: entry.metadata?.section,
+                        contentType: entry.metadata?.content_type,
+                        error: entryError
+                    });
+                    throw entryError;
+                }
             }
 
             this.db!.run('COMMIT');
-            console.log(`✅ Batch inserted ${entries.length} chunks`);
+
+            if (skippedCount > 0) {
+                console.log(`✅ Batch inserted ${successCount} chunks (${skippedCount} skipped due to missing embeddings)`);
+            } else {
+                console.log(`✅ Batch inserted ${successCount} chunks`);
+            }
         } catch (error) {
-            this.db!.run('ROLLBACK');
+            try {
+                this.db!.run('ROLLBACK');
+            } catch (rollbackError) {
+                console.error('Failed to rollback transaction:', rollbackError);
+            }
+            console.error('insertBatch failed:', error);
             throw new RAGError('Failed to insert batch', error);
         }
     }
@@ -253,11 +301,12 @@ export class SQLiteVectorStore implements IVectorStore {
                 : '';
 
             // Get all chunks (with filtering)
+            // NOTE: Always select embedding column for similarity calculation
             const stmt = this.db!.prepare(
                 `SELECT
                     id,
                     content,
-                    ${includeEmbeddings ? 'embedding,' : ''}
+                    embedding,
                     metadata
                 FROM embeddings
                 ${whereClause}`
@@ -591,10 +640,20 @@ export class SQLiteVectorStore implements IVectorStore {
             const view = new Uint8Array(arrayBuffer);
             view.set(data);
 
+            // Ensure parent directory exists
+            const dirPath = this.dbPath.substring(0, this.dbPath.lastIndexOf('/'));
+            try {
+                await this.app.vault.adapter.exists(dirPath);
+            } catch {
+                // Directory doesn't exist, create it
+                console.log(`Creating directory: ${dirPath}`);
+                await this.app.vault.adapter.mkdir(dirPath);
+            }
+
             // Save to vault using adapter
             await this.app.vault.adapter.writeBinary(this.dbPath, arrayBuffer);
 
-            console.log('✅ SQLite database saved');
+            console.log(`✅ SQLite database saved to ${this.dbPath} (${(arrayBuffer.byteLength / 1024).toFixed(2)} KB)`);
         } catch (error) {
             console.error('Failed to save SQLite database:', error);
             throw new RAGError('Failed to save SQLite database', error);

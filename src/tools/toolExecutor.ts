@@ -21,10 +21,32 @@ export class ToolExecutor {
     private vaultTools: VaultTools;
     private registry: ToolRegistry;
     private auditLog: ToolAuditEntry[] = [];
+    private agentExecutor?: (agentId: string, query: string, context?: Record<string, any>) => Promise<any>;
+    private agentLister?: () => Array<{ id: string; name: string; description: string; enabled: boolean }>;
 
     constructor(private app: App) {
         this.vaultTools = new VaultTools(app);
         this.registry = new ToolRegistry(this.vaultTools);
+    }
+
+    /**
+     * Set the agent executor callback (called by AgentManager)
+     * This avoids circular dependencies
+     */
+    setAgentExecutor(
+        executor: (agentId: string, query: string, context?: Record<string, any>) => Promise<any>,
+        lister: () => Array<{ id: string; name: string; description: string; enabled: boolean }>
+    ): void {
+        this.agentExecutor = executor;
+        this.agentLister = lister;
+        console.log('🔗 Agent executor callback registered with ToolExecutor');
+    }
+
+    /**
+     * Update agent tools in registry (called by AgentManager when agents change)
+     */
+    updateAgentTools(agents: Array<{ id: string; name: string; description: string; enabled: boolean }>): void {
+        this.registry.updateAgentTools(agents);
     }
 
     /**
@@ -240,6 +262,79 @@ export class ToolExecutor {
         parameters: Record<string, unknown>,
         context: ToolExecutionContext
     ): Promise<ToolResult> {
+        const startTime = Date.now();
+
+        // Handle agent tools
+        if (toolName === 'list_agents') {
+            if (!this.agentLister) {
+                throw new ToolExecutionError(
+                    'Agent lister not configured',
+                    'NOT_CONFIGURED',
+                    toolName
+                );
+            }
+
+            const agents = this.agentLister();
+            return {
+                success: true,
+                data: agents.map(a => ({
+                    id: a.id,
+                    name: a.name,
+                    description: a.description,
+                    enabled: a.enabled
+                })),
+                metadata: {
+                    executionTime: Date.now() - startTime,
+                    operationType: 'read'
+                }
+            };
+        }
+
+        if (toolName.startsWith('call_')) {
+            if (!this.agentExecutor) {
+                throw new ToolExecutionError(
+                    'Agent executor not configured',
+                    'NOT_CONFIGURED',
+                    toolName
+                );
+            }
+
+            // Extract agent ID from tool name (e.g., call_risk_discovery -> risk_discovery)
+            const agentId = toolName.substring(5).replace(/_/g, '-');
+            const query = parameters.query as string;
+            const additionalContext = parameters.context as string | undefined;
+
+            try {
+                const response = await this.agentExecutor(
+                    agentId,
+                    query,
+                    additionalContext ? { additionalContext } : undefined
+                );
+
+                return {
+                    success: true,
+                    data: {
+                        answer: response.answer,
+                        sources: response.sources,
+                        agentUsed: response.agentUsed,
+                        usage: response.usage
+                    },
+                    metadata: {
+                        executionTime: Date.now() - startTime,
+                        operationType: 'read'
+                    }
+                };
+            } catch (error) {
+                throw new ToolExecutionError(
+                    `Agent execution failed: ${error instanceof Error ? error.message : String(error)}`,
+                    'AGENT_EXECUTION_FAILED',
+                    toolName,
+                    { agentId, originalError: error }
+                );
+            }
+        }
+
+        // Handle vault tools
         switch (toolName) {
             case 'read_note':
                 return this.vaultTools.executeReadNote(

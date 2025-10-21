@@ -6,6 +6,7 @@
 
 import { ToolDefinition } from './toolTypes';
 import { VaultTools } from './vaultTools';
+import { AgentTools } from './agentTools';
 
 export class ToolRegistry {
     private tools: Map<string, ToolDefinition> = new Map();
@@ -25,16 +26,45 @@ export class ToolRegistry {
         this.registerTool(VaultTools.getListNotesDefinition());
         this.registerTool(VaultTools.getActiveNoteDefinition());
 
-        // Add more tools here as you implement them
-        // this.registerTool(MetadataTools.getUpdateFrontmatterDefinition());
-        // this.registerTool(MetadataTools.getAddTagsDefinition());
+        // Agent coordination tool
+        this.registerTool(AgentTools.getListAgentsDefinition());
+
+        // Dynamic agent tools are registered via updateAgentTools()
     }
 
     /**
      * Register a single tool
      */
-    private registerTool(definition: ToolDefinition): void {
+    registerTool(definition: ToolDefinition): void {
         this.tools.set(definition.name, definition);
+    }
+
+    /**
+     * Unregister a tool
+     */
+    unregisterTool(toolName: string): void {
+        this.tools.delete(toolName);
+    }
+
+    /**
+     * Update agent-specific tools
+     * Called by AgentManager when agents are added/removed/updated
+     */
+    updateAgentTools(agents: Array<{ id: string; name: string; description: string; enabled: boolean }>): void {
+        // Remove all existing agent call tools
+        const existingAgentTools = Array.from(this.tools.values())
+            .filter(tool => tool.name.startsWith('call_'));
+        existingAgentTools.forEach(tool => this.unregisterTool(tool.name));
+
+        // Register new agent tools (only for enabled agents)
+        agents
+            .filter(agent => agent.enabled)
+            .forEach(agent => {
+                const toolDef = AgentTools.generateAgentToolDefinition(agent);
+                this.registerTool(toolDef);
+            });
+
+        console.log(`🔄 Updated agent tools: ${agents.filter(a => a.enabled).length} agents available`);
     }
 
     /**

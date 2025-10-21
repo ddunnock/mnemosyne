@@ -1,5 +1,6 @@
 /**
  * Agent Manager (Fixed with proper async handling and state checking)
+ * ✨ ENHANCED: Now supports master agent orchestration
  */
 
 import { Notice } from 'obsidian';
@@ -13,6 +14,11 @@ import {
     AgentInfo
 } from '../types';
 import RiskManagementPlugin from '../main';
+import {
+    MASTER_AGENT_ID,
+    createMasterAgentConfig,
+    updateMasterAgentPrompt
+} from './masterAgent';
 
 export class AgentManager {
     private plugin: RiskManagementPlugin;
@@ -33,6 +39,7 @@ export class AgentManager {
 
     /**
      * Initialize all configured agents
+     * ✨ ENHANCED: Now ensures master agent exists and sets up synchronization
      */
     async initialize(): Promise<void> {
         // Clear existing agents
@@ -40,10 +47,13 @@ export class AgentManager {
 
         console.log(`Initializing ${this.plugin.settings.agents.length} agents...`);
 
-        // Create executor for each enabled agent
+        // ✨ STEP 1: Ensure master agent exists
+        await this.ensureMasterAgentExists();
+
+        // ✨ STEP 2: Create executor for each enabled agent
         for (const config of this.plugin.settings.agents) {
             console.log(`Processing agent: ${config.name} (enabled: ${config.enabled}, permanent: ${config.isPermanent})`);
-            
+
             if (!config.enabled) {
                 console.log(`Skipping disabled agent: ${config.name}`);
                 continue;
@@ -55,12 +65,21 @@ export class AgentManager {
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 console.error(`❌ Failed to initialize agent ${config.name}:`, error);
-                new Notice(`Failed to initialize agent ${config.name}: ${errorMessage}`);
+                new Notice(`Failed to initialized agent ${config.name}: ${errorMessage}`);
             }
         }
 
+        // ✨ STEP 3: Set up tool executor callbacks for all agents
+        this.setupToolExecutorCallbacks();
+
+        // ✨ STEP 4: Synchronize agent tools (update tool executors with agent list)
+        this.syncAgentTools();
+
+        // ✨ STEP 5: Update master agent's system prompt with current agent list
+        await this.updateMasterAgentPrompt();
+
         this.initialized = true;
-        console.log(`Agent Manager initialization complete. ${this.agents.size} agents loaded.`);
+        console.log(`🎭 Agent Manager initialization complete. ${this.agents.size} agents loaded (including master).`);
     }
 
     /**
@@ -101,6 +120,7 @@ export class AgentManager {
     /**
      * Add a new agent
      * ✅ FIXED: Don't test immediately, just create and notify
+     * ✨ ENHANCED: Now syncs agent tools and updates master agent
      */
     async addAgent(config: AgentConfig): Promise<void> {
         // Validate config
@@ -113,6 +133,12 @@ export class AgentManager {
         // Create executor if enabled
         if (config.enabled) {
             this.createAgent(config);
+        }
+
+        // ✨ Sync agent tools and update master
+        if (config.id !== MASTER_AGENT_ID) {
+            this.syncAgentTools();
+            await this.updateMasterAgentPrompt();
         }
 
         // ✅ FIXED: Don't test immediately - let user test manually when ready
@@ -284,6 +310,12 @@ export class AgentManager {
         await this.plugin.saveSettings();
 
         await this.reloadAgent(agentId);
+
+        // ✨ Sync agent tools and update master if not updating master itself
+        if (agentId !== MASTER_AGENT_ID) {
+            this.syncAgentTools();
+            await this.updateMasterAgentPrompt();
+        }
     }
 
     async deleteAgent(agentId: string): Promise<void> {
@@ -293,6 +325,12 @@ export class AgentManager {
         await this.plugin.saveSettings();
 
         this.agents.delete(agentId);
+
+        // ✨ Sync agent tools and update master
+        if (agentId !== MASTER_AGENT_ID) {
+            this.syncAgentTools();
+            await this.updateMasterAgentPrompt();
+        }
     }
 
     /**
@@ -316,6 +354,12 @@ export class AgentManager {
             this.createAgent(config);
         } else {
             this.agents.delete(agentId);
+        }
+
+        // ✨ Sync agent tools and update master
+        if (agentId !== MASTER_AGENT_ID) {
+            this.syncAgentTools();
+            await this.updateMasterAgentPrompt();
         }
     }
 
@@ -464,5 +508,157 @@ export class AgentManager {
     cleanup(): void {
         this.agents.clear();
         this.initialized = false;
+    }
+
+    // ============================================================================
+    // ✨ Master Agent Orchestration Methods
+    // ============================================================================
+
+    /**
+     * Ensure the master agent exists, creating it if necessary
+     */
+    private async ensureMasterAgentExists(): Promise<void> {
+        // Check if master agent already exists
+        let masterAgent = this.plugin.settings.agents.find(a => a.id === MASTER_AGENT_ID);
+
+        if (!masterAgent) {
+            console.log('🎭 Master agent not found, creating...');
+
+            // Get default LLM (or first available)
+            const defaultLLM =
+                this.plugin.settings.llmConfigs.find(l => l.isDefault && l.enabled) ||
+                this.plugin.settings.llmConfigs.find(l => l.enabled);
+
+            if (!defaultLLM) {
+                console.error('❌ Cannot create master agent: No LLM configured');
+                new Notice('Please configure an LLM provider before using agents');
+                return;
+            }
+
+            // Create master agent
+            masterAgent = createMasterAgentConfig(defaultLLM.id);
+            this.plugin.settings.agents.unshift(masterAgent); // Add at beginning
+            this.plugin.settings.masterAgentId = MASTER_AGENT_ID;
+            await this.plugin.saveSettings();
+
+            console.log('✅ Master agent created successfully');
+        } else {
+            console.log('✓ Master agent exists');
+        }
+    }
+
+    /**
+     * Set up tool executor callbacks for all agents
+     * This allows the master agent to call other agents via tools
+     */
+    private setupToolExecutorCallbacks(): void {
+        console.log('🔗 Setting up tool executor callbacks...');
+
+        for (const [id, executor] of this.agents.entries()) {
+            // Get the tool executor from the AgentExecutor
+            const toolExecutor = (executor as any).toolExecutor;
+
+            if (toolExecutor) {
+                // Set the agent executor callback
+                toolExecutor.setAgentExecutor(
+                    async (agentId: string, query: string, context?: Record<string, any>) => {
+                        return this.executeAgent(agentId, query, context);
+                    },
+                    () => {
+                        return this.listAgentInfoForTools();
+                    }
+                );
+            }
+        }
+
+        console.log('✅ Tool executor callbacks configured');
+    }
+
+    /**
+     * Synchronize agent tools across all tool executors
+     */
+    private syncAgentTools(): void {
+        const agentList = this.listAgentInfoForTools();
+
+        // Exclude master agent from the callable agent list
+        const callableAgents = agentList.filter(a => a.id !== MASTER_AGENT_ID);
+
+        console.log(`🔄 Syncing agent tools: ${callableAgents.length} callable agents`);
+
+        for (const [id, executor] of this.agents.entries()) {
+            const toolExecutor = (executor as any).toolExecutor;
+
+            if (toolExecutor) {
+                toolExecutor.updateAgentTools(callableAgents);
+            }
+        }
+    }
+
+    /**
+     * Update the master agent's system prompt with current agent list
+     */
+    private async updateMasterAgentPrompt(): Promise<void> {
+        const masterAgentConfig = this.plugin.settings.agents.find(a => a.id === MASTER_AGENT_ID);
+
+        if (!masterAgentConfig) {
+            console.warn('⚠️ Master agent not found, cannot update prompt');
+            return;
+        }
+
+        // Get all agents except master
+        const otherAgents = this.plugin.settings.agents
+            .filter(a => a.id !== MASTER_AGENT_ID && a.enabled)
+            .map(a => ({
+                id: a.id,
+                name: a.name,
+                description: a.description,
+                capabilities: a.capabilities,
+                category: a.category
+            }));
+
+        // Update the master agent's prompt
+        const updatedMaster = updateMasterAgentPrompt(masterAgentConfig, otherAgents);
+
+        // Update in settings
+        const index = this.plugin.settings.agents.findIndex(a => a.id === MASTER_AGENT_ID);
+        if (index !== -1) {
+            this.plugin.settings.agents[index] = updatedMaster;
+            await this.plugin.saveSettings();
+        }
+
+        // Reload the master agent executor if it exists
+        if (this.agents.has(MASTER_AGENT_ID)) {
+            this.agents.delete(MASTER_AGENT_ID);
+            this.createAgent(updatedMaster);
+            console.log('✅ Master agent prompt updated and executor reloaded');
+        }
+    }
+
+    /**
+     * Get agent info formatted for tools
+     */
+    private listAgentInfoForTools(): Array<{
+        id: string;
+        name: string;
+        description: string;
+        enabled: boolean;
+        capabilities?: string[];
+        category?: string;
+    }> {
+        return this.plugin.settings.agents.map(a => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            enabled: a.enabled,
+            capabilities: a.capabilities,
+            category: a.category
+        }));
+    }
+
+    /**
+     * Get the master agent
+     */
+    getMasterAgent(): AgentExecutor | null {
+        return this.getAgent(MASTER_AGENT_ID);
     }
 }

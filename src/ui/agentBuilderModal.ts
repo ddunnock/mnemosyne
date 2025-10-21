@@ -32,6 +32,10 @@ export class AgentBuilderModal extends Modal {
     private enableToolsCheckbox: HTMLInputElement;
     private allowDangerousCheckbox: HTMLInputElement;
     private folderScopeTextarea: HTMLTextAreaElement;
+    // ✨ NEW: Agent Orchestration fields
+    private capabilitiesTextarea: HTMLTextAreaElement;
+    private categoryInput: TextComponent;
+    private visibilitySelect: DropdownComponent;
 
     constructor(
         app: App,
@@ -67,6 +71,9 @@ export class AgentBuilderModal extends Modal {
 
         // Basic Info Section
         this.createBasicInfoSection(contentEl);
+
+        // ✨ NEW: Agent Orchestration Metadata
+        this.createOrchestrationSection(contentEl);
 
         // LLM Configuration
         this.createLLMSection(contentEl);
@@ -320,6 +327,82 @@ export class AgentBuilderModal extends Modal {
         if (this.agent) {
             this.descriptionTextarea.value = this.agent.description;
         }
+    }
+
+    /**
+     * ✨ NEW: Agent Orchestration Metadata Section
+     */
+    private createOrchestrationSection(containerEl: HTMLElement) {
+        const section = containerEl.createDiv({ cls: 'modal-section' });
+        section.style.marginBottom = '25px';
+        section.style.padding = '16px';
+        section.style.backgroundColor = 'var(--background-secondary)';
+        section.style.borderRadius = '8px';
+        section.style.border = '1px solid var(--background-modifier-border)';
+
+        const header = section.createEl('h3', { text: '🎭 Agent Orchestration' });
+        header.style.marginTop = '0';
+        header.style.marginBottom = '8px';
+
+        const headerDesc = section.createDiv({ cls: 'setting-item-description' });
+        headerDesc.style.marginBottom = '15px';
+        headerDesc.style.color = 'var(--text-muted)';
+        headerDesc.setText(
+            'Configure how the master agent understands and routes to this specialized agent.'
+        );
+
+        // Capabilities (tags)
+        const capabilitiesSetting = new Setting(section)
+            .setName('Capabilities')
+            .setDesc('Tags describing what this agent does (one per line). Examples: risk-discovery, security-analysis, code-review');
+
+        this.capabilitiesTextarea = capabilitiesSetting.controlEl.createEl('textarea', {
+            placeholder: 'risk-discovery\nsecurity-analysis\ncompliance-checking'
+        });
+        this.capabilitiesTextarea.style.width = '100%';
+        this.capabilitiesTextarea.style.minHeight = '80px';
+        this.capabilitiesTextarea.style.resize = 'vertical';
+        this.capabilitiesTextarea.style.padding = '8px';
+        this.capabilitiesTextarea.style.borderRadius = '4px';
+        this.capabilitiesTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.capabilitiesTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.capabilitiesTextarea.style.color = 'var(--text-normal)';
+        this.capabilitiesTextarea.style.fontFamily = 'var(--font-monospace)';
+
+        if (this.agent && this.agent.capabilities) {
+            this.capabilitiesTextarea.value = this.agent.capabilities.join('\n');
+        }
+
+        // Category
+        new Setting(section)
+            .setName('Category')
+            .setDesc('Domain or area this agent specializes in (e.g., risk-management, research, development)')
+            .addText(text => {
+                this.categoryInput = text;
+                text.setPlaceholder('e.g., risk-management');
+                text.inputEl.style.width = '100%';
+                if (this.agent && this.agent.category) {
+                    text.setValue(this.agent.category);
+                } else {
+                    text.setValue('general');
+                }
+            });
+
+        // Visibility
+        new Setting(section)
+            .setName('Visibility')
+            .setDesc('How this agent can be accessed')
+            .addDropdown(dropdown => {
+                this.visibilitySelect = dropdown;
+                dropdown.addOption('public', 'Public - Directly callable and via master');
+                dropdown.addOption('specialist', 'Specialist - Only via master agent');
+
+                if (this.agent && this.agent.visibility) {
+                    dropdown.setValue(this.agent.visibility);
+                } else {
+                    dropdown.setValue('public');
+                }
+            });
     }
 
     /**
@@ -699,6 +782,12 @@ Please provide detailed, accurate, and helpful responses based on the context pr
                 ? folderScopeText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
                 : [];
 
+            // ✨ NEW: Parse capabilities
+            const capabilitiesText = this.capabilitiesTextarea.value.trim();
+            const capabilities: string[] = capabilitiesText
+                ? capabilitiesText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+                : [];
+
             // Build config
             const now = Date.now();
             const config: AgentConfig = {
@@ -718,6 +807,11 @@ Please provide detailed, accurate, and helpful responses based on the context pr
                 enableTools: this.enableToolsCheckbox.checked,
                 allowDangerousOperations: this.allowDangerousCheckbox.checked,
                 folderScope: folderScope,
+                // ✨ NEW: Agent Orchestration Metadata
+                capabilities: capabilities,
+                category: this.categoryInput.getValue().trim() || 'general',
+                visibility: this.visibilitySelect.getValue() as 'public' | 'specialist',
+                isSpecialized: true, // All user-created agents are specialized (master is auto-created)
                 createdAt: this.agent?.createdAt || now,
                 updatedAt: now
             };
