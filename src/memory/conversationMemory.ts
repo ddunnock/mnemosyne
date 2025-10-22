@@ -334,6 +334,12 @@ Please provide a concise summary that captures the key points, decisions, and co
             const embeddings = await this.retriever['embeddings'].generateEmbeddings([summary]);
             const embedding = embeddings[0];
 
+            // Skip if embedding is undefined
+            if (!embedding) {
+                console.warn('⚠️ Failed to generate embedding for compressed memory');
+                return;
+            }
+
             // Create chunk ID
             const chunkId = `memory_${this.currentConversationId}_chunk_${this.compressedChunks}`;
 

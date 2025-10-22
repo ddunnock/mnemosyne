@@ -8,8 +8,51 @@
 import OpenAI from 'openai';
 import { RAGError } from '../types';
 
-// Lazy import for Transformers.js to avoid bundling issues
-// Will be loaded dynamically when LocalEmbeddingProvider is instantiated
+// Pre-configure the global import_meta for transformers.js
+// This must happen BEFORE the module is loaded
+if (typeof (globalThis as any).import_meta === 'undefined') {
+    (globalThis as any).import_meta = { url: 'file:///' };
+}
+
+// Lazy-loaded transformers module
+// We use a getter function so esbuild will bundle it, but it's only loaded when needed
+let transformersModule: any = null;
+let transformersPromise: Promise<any> | null = null;
+
+function getTransformersModule() {
+    if (transformersModule) {
+        return Promise.resolve(transformersModule);
+    }
+    if (!transformersPromise) {
+        // Use dynamic import - esbuild will inline this during bundling
+        transformersPromise = (async () => {
+            try {
+                // For CJS bundled output, we need to handle the default export
+                const module = await import('@xenova/transformers');
+                // Handle both ESM default export and CJS module.exports
+                transformersModule = module.default || module;
+
+                // Configure transformers.js environment for Electron/browser
+                if (transformersModule.env) {
+                    // Skip local model check (use remote models from HuggingFace)
+                    transformersModule.env.allowLocalModels = false;
+                    // Allow remote models (downloads from HuggingFace)
+                    transformersModule.env.allowRemoteModels = true;
+                    // Use browser cache API for model storage
+                    transformersModule.env.useBrowserCache = true;
+                    console.log('✓ Transformers.js environment configured for browser/Electron');
+                }
+
+                return transformersModule;
+            } catch (error) {
+                console.error('Failed to load transformers module:', error);
+                throw error;
+            }
+        })();
+    }
+    return transformersPromise;
+}
+
 type FeatureExtractionPipeline = any;
 
 /**
@@ -240,8 +283,9 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
                 console.log('First load may take 10-30s to download model (~23MB)');
                 console.log('Subsequent loads will be instant (cached)');
 
-                // Dynamically import Transformers.js to avoid bundling issues
-                const { pipeline } = await import('@xenova/transformers');
+                // Load transformers module
+                const transformers = await getTransformersModule();
+                const { pipeline } = transformers;
 
                 // Create feature extraction pipeline
                 // @ts-ignore - Transformers.js types are sometimes incomplete

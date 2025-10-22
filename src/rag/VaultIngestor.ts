@@ -100,13 +100,15 @@ export class VaultIngestor {
 
             const embeddings = await this.embeddings.generateEmbeddings(contents);
 
-            // ✅ OPTIMIZATION: Prepare batch entries
-            const batchEntries: BatchEntry[] = chunks.map((chunk, i) => ({
-                chunkId: chunk.chunk_id,
-                content: chunk.content,
-                embedding: embeddings[i],
-                metadata: chunk.metadata
-            }));
+            // ✅ OPTIMIZATION: Prepare batch entries (filter out undefined embeddings)
+            const batchEntries: BatchEntry[] = chunks
+                .map((chunk, i) => ({
+                    chunkId: chunk.chunk_id,
+                    content: chunk.content,
+                    embedding: embeddings[i],
+                    metadata: chunk.metadata
+                }))
+                .filter(entry => entry.embedding !== undefined) as BatchEntry[];
 
             // ✅ OPTIMIZATION: Insert all chunks in one transaction
             await this.vectorStore.insertBatch(batchEntries);
@@ -172,13 +174,15 @@ export class VaultIngestor {
                 const contents = chunks.map(c => c.content);
                 const embeddings = await this.embeddings.generateEmbeddings(contents);
 
-                // Prepare batch entries
-                const fileBatchEntries: BatchEntry[] = chunks.map((chunk, j) => ({
-                    chunkId: chunk.chunk_id,
-                    content: chunk.content,
-                    embedding: embeddings[j],
-                    metadata: chunk.metadata
-                }));
+                // Prepare batch entries (filter out undefined embeddings)
+                const fileBatchEntries: BatchEntry[] = chunks
+                    .map((chunk, j) => ({
+                        chunkId: chunk.chunk_id,
+                        content: chunk.content,
+                        embedding: embeddings[j],
+                        metadata: chunk.metadata
+                    }))
+                    .filter(entry => entry.embedding !== undefined) as BatchEntry[];
 
                 allBatchEntries.push(...fileBatchEntries);
 
@@ -289,25 +293,51 @@ export class VaultIngestor {
      * Initialize embeddings using the same logic as the retriever
      */
     private async initializeEmbeddings(): Promise<void> {
-        const openAIConfig = this.plugin.settings.llmConfigs.find(
-            c => c.provider === 'openai' && c.enabled
-        );
-
-        if (!openAIConfig) {
-            throw new Error(
-                'No OpenAI configuration found. Please add an OpenAI provider in settings for embeddings.'
-            );
-        }
-
         try {
-            const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
-            const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+            // Import the enum
+            const { EmbeddingProviderType } = await import('./embeddings');
 
-            this.embeddings.initialize(apiKey, {
-                model: this.plugin.settings.embeddingModel || 'text-embedding-3-small',
-            });
+            // Check if we have embeddingProvider config (new format)
+            const embeddingProvider = this.plugin.settings.embeddingProvider;
 
-            console.log('✓ VaultIngestor embeddings initialized');
+            // Support both string and object formats for embeddingProvider
+            const provider = typeof embeddingProvider === 'string'
+                ? embeddingProvider
+                : embeddingProvider?.provider || 'openai';
+
+            if (provider === 'local') {
+                // Use local embeddings
+                const model = typeof embeddingProvider === 'object'
+                    ? embeddingProvider.model || 'Xenova/all-MiniLM-L6-v2'
+                    : 'Xenova/all-MiniLM-L6-v2';
+
+                await this.embeddings.initialize(EmbeddingProviderType.LOCAL, {
+                    model: model
+                });
+
+                console.log('✓ VaultIngestor local embeddings initialized');
+            } else {
+                // Use OpenAI embeddings
+                const openAIConfig = this.plugin.settings.llmConfigs.find(
+                    c => c.provider === 'openai' && c.enabled
+                );
+
+                if (!openAIConfig) {
+                    throw new Error(
+                        'No OpenAI configuration found. Please add an OpenAI provider in settings for embeddings.'
+                    );
+                }
+
+                const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
+                const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+
+                await this.embeddings.initialize(EmbeddingProviderType.OPENAI, {
+                    apiKey: apiKey,
+                    model: this.plugin.settings.embeddingModel || 'text-embedding-3-small',
+                });
+
+                console.log('✓ VaultIngestor OpenAI embeddings initialized');
+            }
         } catch (error: any) {
             throw new Error(`Failed to initialize embeddings: ${error.message}`);
         }

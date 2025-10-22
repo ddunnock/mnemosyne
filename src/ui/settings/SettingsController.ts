@@ -1,4 +1,4 @@
-// Main Settings Controller - Modern UI with Agent Management
+// Main Settings Controller - Modern UI with Tabbed Navigation
 
 import { AgentManagement, AgentManagementState } from './components/AgentManagement';
 import { ProviderManagement, ProviderManagementState } from './components/ProviderManagement';
@@ -14,6 +14,15 @@ import { VectorStoreFactory } from '../../rag/vectorStore/VectorStoreFactory';
 import { VectorStoreMigration, type MigrationProgress } from '../../rag/vectorStore/VectorStoreMigration';
 import { PgVectorStore } from '../../rag/vectorStore/PgVectorStore';
 import { JSONVectorStore } from '../../rag/vectorStore/JSONVectorStore';
+
+// Tab system
+import { TabManager } from './tabs/TabManager';
+import { QuickStartTab } from './tabs/QuickStartTab';
+import { ProvidersTab } from './tabs/ProvidersTab';
+import { AgentsTab } from './tabs/AgentsTab';
+import { KnowledgeBaseTab } from './tabs/KnowledgeBaseTab';
+import { AdvancedTab } from './tabs/AdvancedTab';
+import type { TabId } from './tabs/BaseTab';
 
 export interface MnemosyneSettings {
     // Core functionality
@@ -67,6 +76,9 @@ export class MnemosyneSettingsController {
     private providerManagement: ProviderManagement | null = null;
     private goddessPersonaManagement: GoddessPersonaManagement | null = null;
     private memoryManagement: MemoryManagement | null = null;
+
+    // Tab system
+    private tabManager: TabManager | null = null;
 
     // State
     private chunkCount = 0;
@@ -272,7 +284,7 @@ export class MnemosyneSettingsController {
             return;
         }
 
-        // Render main structure
+        // Render main structure with tabs
         const mainHTML = `
       <div class="mnemosyne-settings">
         <div class="settings-header">
@@ -284,17 +296,36 @@ export class MnemosyneSettingsController {
             Mnemosyne Settings
           </h1>
         </div>
-        
-        <div class="settings-content">
-          ${this.renderQuickSetup()}
-          ${this.renderSecurity()}
-          ${this.renderAgentManagement()}
-          ${this.renderMCPToolsSettings()}
-          ${this.renderMemoryManagement()}
-          ${this.renderVectorStoreSettings()}
-          ${this.renderPlaceholderSections()}
+
+        <!-- Tab Navigation -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="quick-start">
+            <span class="tab-icon">🚀</span>
+            <span class="tab-label">Quick Start</span>
+          </button>
+          <button class="settings-tab" data-tab="providers">
+            <span class="tab-icon">🤖</span>
+            <span class="tab-label">LLM Providers</span>
+          </button>
+          <button class="settings-tab" data-tab="agents">
+            <span class="tab-icon">🎭</span>
+            <span class="tab-label">Agents</span>
+          </button>
+          <button class="settings-tab" data-tab="knowledge">
+            <span class="tab-icon">📚</span>
+            <span class="tab-label">Knowledge Base</span>
+          </button>
+          <button class="settings-tab" data-tab="advanced">
+            <span class="tab-icon">⚙️</span>
+            <span class="tab-label">Advanced</span>
+          </button>
         </div>
-        
+
+        <!-- Tab Content -->
+        <div class="settings-tab-content">
+          <!-- Tab content will be rendered here -->
+        </div>
+
         <div class="settings-footer">
           <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 24px;">
             Mnemosyne v${this.settings.version} • Named after the Greek goddess of memory
@@ -305,8 +336,88 @@ export class MnemosyneSettingsController {
 
         this.container.innerHTML = mainHTML;
 
+        // Initialize tab system
+        this.initializeTabSystem();
+
         // Initialize components
         this.initializeComponents();
+    }
+
+    private initializeTabSystem(): void {
+        if (!this.container) return;
+
+        // Create tab manager
+        this.tabManager = new TabManager(this.container, 'quick-start');
+
+        // Register tabs
+        this.tabManager.registerTab({
+            id: 'quick-start',
+            label: 'Quick Start',
+            icon: '🚀',
+            instance: new QuickStartTab(this.plugin)
+        });
+
+        this.tabManager.registerTab({
+            id: 'providers',
+            label: 'LLM Providers',
+            icon: '🤖',
+            instance: new ProvidersTab(
+                this.plugin,
+                this.keyManager,
+                this.settings,
+                this.saveSettings.bind(this),
+                this.updateComponents.bind(this)
+            )
+        });
+
+        this.tabManager.registerTab({
+            id: 'agents',
+            label: 'Agents',
+            icon: '🎭',
+            instance: new AgentsTab(
+                this.plugin,
+                this.settings,
+                this.saveSettings.bind(this),
+                this.updateComponents.bind(this),
+                this.handleAgentAction.bind(this)
+            )
+        });
+
+        this.tabManager.registerTab({
+            id: 'knowledge',
+            label: 'Knowledge Base',
+            icon: '📚',
+            instance: new KnowledgeBaseTab(
+                this.plugin,
+                this.settings,
+                this.saveSettings.bind(this),
+                this.updateComponents.bind(this),
+                this.chunkCount,
+                this.vectorStoreBackend,
+                this.handleRefreshStats.bind(this)
+            )
+        });
+
+        this.tabManager.registerTab({
+            id: 'advanced',
+            label: 'Advanced',
+            icon: '⚙️',
+            instance: new AdvancedTab(
+                this.plugin,
+                this.settings,
+                this.saveSettings.bind(this),
+                this.updateComponents.bind(this),
+                this.handlePersonaAction.bind(this),
+                this.handleMemoryAction.bind(this),
+                this.handleSetMasterPassword.bind(this)
+            )
+        });
+
+        // Attach tab button handlers
+        this.tabManager.attachTabButtonHandlers();
+
+        // Render initial tab
+        this.tabManager.renderActiveTab();
     }
 
     private renderPasswordRequiredScreen(): void {
@@ -1675,6 +1786,17 @@ export class MnemosyneSettingsController {
         }
     }
 
+    private async handleMemoryAction(action: string, data?: any): Promise<void> {
+        try {
+            // Memory actions are currently handled directly in the AdvancedTab
+            // This is a placeholder for future memory-related actions
+            console.log('Memory action:', action, data);
+        } catch (error) {
+            console.error('Failed to handle memory action:', error);
+            new Notice('Failed to update memory settings');
+        }
+    }
+
     private async handleProviderAction(action: string, data?: any): Promise<void> {
         try {
             switch (action) {
@@ -2756,6 +2878,59 @@ export class MnemosyneSettingsController {
       @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
+      }
+
+      /* Tab Navigation Styles */
+      .settings-tabs {
+        display: flex;
+        gap: 0;
+        padding: 0 20px;
+        border-bottom: 2px solid var(--background-modifier-border);
+        background: var(--background-primary);
+        margin-bottom: 24px;
+        overflow-x: auto;
+      }
+
+      .settings-tab {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 20px;
+        background: transparent;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-muted);
+        font-family: var(--font-interface);
+        white-space: nowrap;
+        position: relative;
+        top: 2px;
+      }
+
+      .settings-tab:hover {
+        color: var(--text-normal);
+        background: var(--background-modifier-hover);
+      }
+
+      .settings-tab.active {
+        color: var(--interactive-accent);
+        border-bottom-color: var(--interactive-accent);
+        font-weight: 600;
+      }
+
+      .tab-icon {
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      .tab-label {
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .settings-tab-content {
+        padding: 0 20px 20px 20px;
       }
     `;
 
