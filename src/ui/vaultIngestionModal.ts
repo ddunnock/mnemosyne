@@ -811,24 +811,33 @@ export class VaultIngestionModal extends Modal {
 
         // Ensure embeddings are ready
         if (!this.plugin.retriever.isReady()) {
-            // Try to initialize embeddings
-            const openAIConfig = this.plugin.settings.llmConfigs?.find(
-                (config: any) => config.provider === 'openai' && config.enabled
-            );
+            // Check embedding provider configuration
+            const embeddingProvider = this.plugin.settings.embeddingProvider;
+            const provider = (typeof embeddingProvider === 'string'
+                ? embeddingProvider
+                : (embeddingProvider as any)?.provider) || 'openai';
 
-            if (!openAIConfig) {
-                throw new Error('No OpenAI configuration found. Please configure an OpenAI provider for embeddings.');
-            }
+            // If using OpenAI, ensure we have a config and master password
+            if (provider === 'openai') {
+                const openAIConfig = this.plugin.settings.llmConfigs?.find(
+                    (config: any) => config.provider === 'openai' && config.enabled
+                );
 
-            // Ensure master password is loaded before decrypting API key
-            if (this.plugin.settingsController) {
-                const passwordLoaded = await this.plugin.settingsController.ensureMasterPasswordLoaded();
-                if (!passwordLoaded) {
-                    throw new Error('Master password is required to decrypt API keys. Please set up your master password in settings.');
+                if (!openAIConfig) {
+                    throw new Error('No OpenAI configuration found. Please configure an OpenAI provider for embeddings, or switch to local embeddings in Knowledge Base settings.');
                 }
-            } else if (!this.plugin.keyManager.hasMasterPassword()) {
-                throw new Error('Master password not loaded. Please check your settings.');
+
+                // Ensure master password is loaded before decrypting API key
+                if (this.plugin.settingsController) {
+                    const passwordLoaded = await this.plugin.settingsController.ensureMasterPasswordLoaded();
+                    if (!passwordLoaded) {
+                        throw new Error('Master password is required to decrypt API keys. Please set up your master password in settings.');
+                    }
+                } else if (!this.plugin.keyManager.hasMasterPassword()) {
+                    throw new Error('Master password not loaded. Please check your settings.');
+                }
             }
+            // For local embeddings, no API key or password needed
 
             // Re-initialize the retriever to set up embeddings
             await this.plugin.retriever.initialize();

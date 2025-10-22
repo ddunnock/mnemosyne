@@ -176,7 +176,7 @@ export interface PluginSettings {
 
     // RAG Configuration
     vectorDbPath: string;
-    embeddingProvider: string; // 'openai' or 'local'
+    embeddingProvider: string | { provider: 'openai' | 'local'; model: string; dimension: number; }; // 'openai' | 'local' (old format) or object (new format)
     embeddingModel: string;
     chunkSize: number;
     chunkOverlap: number;

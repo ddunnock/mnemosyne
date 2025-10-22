@@ -9,6 +9,7 @@ import type { IVectorStore } from './vectorStore/IVectorStore';
 import { EmbeddingsGenerator } from './embeddings';
 import { RAGChunk } from '../types';
 import { RAGError } from '../types';
+import { BatchEntry } from './vectorStore/types';
 
 export interface IngestionProgress {
     total: number;
@@ -232,13 +233,15 @@ export class ChunkIngestor {
             const texts = chunks.map(c => c.content);
             const embeddings = await this.embeddings.generateEmbeddings(texts);
 
-            // ✅ OPTIMIZATION: Prepare batch entries (use INSERT OR REPLACE to skip duplicates)
-            const batchEntries = chunks.map((chunk, i) => ({
-                chunkId: chunk.chunk_id,
-                content: chunk.content,
-                embedding: embeddings[i],
-                metadata: chunk.metadata
-            }));
+            // ✅ OPTIMIZATION: Prepare batch entries (use INSERT OR REPLACE to skip duplicates, filter undefined)
+            const batchEntries = chunks
+                .map((chunk, i) => ({
+                    chunkId: chunk.chunk_id,
+                    content: chunk.content,
+                    embedding: embeddings[i],
+                    metadata: chunk.metadata
+                }))
+                .filter(entry => entry.embedding !== undefined) as BatchEntry[];
 
             // ✅ OPTIMIZATION: Insert all chunks in one transaction
             // SQL databases use INSERT OR REPLACE, so duplicates are handled automatically

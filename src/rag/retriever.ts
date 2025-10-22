@@ -79,25 +79,53 @@ export class RAGRetriever {
      * Initialize embeddings generator with API key from settings
      */
     private async initializeEmbeddings(): Promise<void> {
-        const openAIConfig = this.plugin.settings.llmConfigs.find(
-            c => c.provider === 'openai' && c.enabled
-        );
-
-        if (!openAIConfig) {
-            throw new RAGError(
-                'No OpenAI configuration found. Please add an OpenAI provider in settings for embeddings.'
-            );
-        }
-
         try {
-            const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
-            const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+            // Import the enum
+            const { EmbeddingProviderType } = await import('./embeddings');
 
-            this.embeddings.initialize(apiKey, {
-                model: this.plugin.settings.embeddingModel || 'text-embedding-3-small',
-            });
+            // Check if we have embeddingProvider config (new format)
+            const embeddingProvider = this.plugin.settings.embeddingProvider;
 
-            this.embeddingsReady = true;
+            // Support both string and object formats for embeddingProvider
+            const provider = typeof embeddingProvider === 'string'
+                ? embeddingProvider
+                : embeddingProvider?.provider || 'openai';
+
+            if (provider === 'local') {
+                // Use local embeddings
+                const model = typeof embeddingProvider === 'object'
+                    ? embeddingProvider.model || 'Xenova/all-MiniLM-L6-v2'
+                    : 'Xenova/all-MiniLM-L6-v2';
+
+                await this.embeddings.initialize(EmbeddingProviderType.LOCAL, {
+                    model: model
+                });
+
+                this.embeddingsReady = true;
+                console.log('✓ Retriever local embeddings initialized');
+            } else {
+                // Use OpenAI embeddings
+                const openAIConfig = this.plugin.settings.llmConfigs.find(
+                    c => c.provider === 'openai' && c.enabled
+                );
+
+                if (!openAIConfig) {
+                    throw new RAGError(
+                        'No OpenAI configuration found. Please add an OpenAI provider in settings for embeddings.'
+                    );
+                }
+
+                const encryptedData = JSON.parse(openAIConfig.encryptedApiKey);
+                const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+
+                await this.embeddings.initialize(EmbeddingProviderType.OPENAI, {
+                    apiKey: apiKey,
+                    model: this.plugin.settings.embeddingModel || 'text-embedding-3-small',
+                });
+
+                this.embeddingsReady = true;
+                console.log('✓ Retriever OpenAI embeddings initialized');
+            }
         } catch (error) {
             throw new RAGError('Failed to initialize embeddings', { originalError: error });
         }
