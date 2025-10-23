@@ -3,11 +3,20 @@
  * Updated for Phase 5: Agent System
  */
 
-import { LLMProvider, SearchStrategy } from '../constants';
-
-// ============================================================================
+import { LLMProvider, SearchStrategy } from '../constant// ============================================================================
 // Settings Types
 // ============================================================================
+
+// Inline AI Configuration
+export interface InlineAISettings {
+    enabled: boolean;
+    autoCompletion: boolean;
+    showIndicator: boolean;
+    indicatorDelay: number;
+    maxSuggestions: number;
+    allowedActions: string[];
+    customPrompts: Record<string, string>;
+}=========
 
 export interface LLMConfig {
     id: string;
@@ -184,10 +193,12 @@ export interface PluginSettings {
     // Auto Ingestion Configuration
     autoIngestion: AutoIngestionConfig;
 
-    // Conversation Memory Configuration
-    memory: MemoryConfig;
+    // Conversation Memory Config    // Feature flags
+    enableLogging: boolean;
+    enableCaching: boolean;
 
-    // ✨ NEW: MCP Tools Configuration
+    // Inline AI Configuration
+    inlineAI: InlineAISettings;
     mcpTools: MCPToolsConfig;
 
     // ✨ NEW: Vector Store Configuration

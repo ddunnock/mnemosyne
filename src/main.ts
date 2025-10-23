@@ -9,6 +9,7 @@ import { PluginSettings, Message } from './types';
 import { mergeSettings, validateSettings, DEFAULT_SETTINGS, ensureMnemosyneAgent, ensureDefaultLlmProvider } from './settings';
 import { PLUGIN_NAME } from './constants';
 import './styles.css';
+import './inlineAI/inlineAI.css';
 import { AgentChatSidebar } from './ui/sidebar/AgentChatSidebar';
 import { AgentChatView, VIEW_TYPE_AGENT_CHAT } from './views/AgentChatView';
 import { SvelteChatView, VIEW_TYPE_SVELTE_CHAT } from './views/SvelteChatView';
@@ -25,12 +26,13 @@ import { InitializationManager } from './utils/initializationManager';
 // Phase 5: Agent System imports
 import { AgentManager } from './agents/agentManager';
 import { AgentBuilderModal } from './ui/agentBuilderModal';
-import { exposePublicAPI } from './integration/publicAPI';
-
-// Auto Ingestion imports
+import { exposePublicAPI } from '// Auto Ingestion imports
 import { ConversationMemoryManager } from './memory/conversationMemory';
 import { AutoIngestionManager } from './rag/AutoIngestionManager';
 import { VaultIngestor } from './rag/VaultIngestor';
+
+// Inline AI imports
+import { InlineAIHandler } from './inlineAI/InlineAIHandler';or } from './rag/VaultIngestor';
 
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
@@ -44,10 +46,11 @@ export default class RiskManagementPlugin extends Plugin {
     
     // Auto Ingestion components
     vaultIngestor: VaultIngestor;
-    autoIngestionManager: AutoIngestionManager;
-    
-    // Conversation Memory
+    autoInge    // Conversation Memory
     memoryManager: ConversationMemoryManager;
+    
+    // Inline AI
+    inlineAIHandler: InlineAIHandler | null = null;   memoryManager: ConversationMemoryManager;
     
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
@@ -67,10 +70,11 @@ export default class RiskManagementPlugin extends Plugin {
         // Load settings
         await this.loadSettings();
 
-        // Initialize core managers
-        await this.initializeManagers();
-
-        // Create initialization manager
+        // Initia        // Create initialization manager
+        this.initManager = new InitializationManager(this);
+        
+        // Initialize inline AI handler
+        this.inlineAIHandler = new InlineAIHandler(this);ager
         this.initManager = new InitializationManager(this);
 
         // Add ribbon icon with custom Mnemosyne SVG
@@ -120,11 +124,16 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Stop auto ingestion
         if (this.autoIngestionManager) {
-            this.autoIngestionManager.stop();
-            console.log('✓ Auto Ingestion Manager stopped');
+               // Phase 5: Cleanup agent manager
+        if (this.agentManager) {
+            this.agentManager.cleanup();
         }
 
-        // Phase 5: Cleanup agent manager
+        // Cleanup inline AI handler
+        if (this.inlineAIHandler) {
+            this.inlineAIHandler.destroy();
+            this.inlineAIHandler = null;
+        } Phase 5: Cleanup agent manager
         if (this.agentManager) {
             this.agentManager.cleanup();
         }
@@ -468,29 +477,42 @@ export default class RiskManagementPlugin extends Plugin {
             name: 'Show LLM Statistics',
             callback: () => {
                 if (!this.llmManager) {
-                    new Notice('LLM system not initialized');
-                    return;
-                }
-
-                const stats = this.llmManager.getStats();
-
-                new Notice(
-                    `LLM Stats:\n` +
-                    `Total Providers: ${stats.totalProviders}\n` +
-                    `Enabled: ${stats.enabledProviders}\n` +
-                    `Initialized: ${stats.initializedProviders}`,
-                    10000
-                );
-            },
-        });
-
-        // Command: Test encryption
+                    new Notice('LLM syste        // Command: Test encryption
         this.addCommand({
             id: 'test-encryption',
             name: 'Test Encryption System',
             callback: async () => {
                 if (!this.keyManager.hasMasterPassword()) {
                     new Notice('Please set master password in settings first');
+                    return;
+                }
+
+                new Notice('Testing encryption...');
+                const result = await this.keyManager.testEncryption();
+
+                if (result) {
+                    new Notice('✓ Encryption system working correctly!');
+                } else {
+                    new Notice('✗ Encryption test failed. Check console.');
+                }
+            },
+        });
+
+        // ========== Inline AI Commands ==========
+
+        // Command: Toggle Inline AI
+        this.addCommand({
+            id: 'toggle-inline-ai',
+            name: 'Toggle Inline AI',
+            callback: () => {
+                if (this.inlineAIHandler) {
+                    // For now, just show a notice - toggle functionality can be added later
+                    new Notice('Inline AI is enabled. Select text and right-click or use Ctrl+Shift+I');
+                } else {
+                    new Notice('Inline AI not available');
+                }
+            },
+        });new Notice('Please set master password in settings first');
                     return;
                 }
 

@@ -114,9 +114,20 @@ export const DEFAULT_SETTINGS: PluginSettings = {
         embeddingModel: 'text-embedding-3-small',
         dimension: 1536,
         json: {
-            indexPath: 'vector-store-index.json'
-        }
-        // pgvector config will be undefined unless user configures it
+            indexPath:    // Feature flags
+    enableLogging: false,
+    enableCaching: false,
+
+    // Inline AI Configuration
+    inlineAI: {
+        enabled: true,
+        autoCompletion: true,
+        showIndicator: true,
+        indicatorDelay: 3000,
+        maxSuggestions: 5,
+        allowedActions: ['summarize', 'explain', 'improve', 'expand', 'simplify', 'translate', 'analyze', 'rewrite'],
+        customPrompts: {}
+    }be undefined unless user configures it
     },
 
     // Feature flags
@@ -140,12 +151,16 @@ export function mergeSettings(loadedSettings: Partial<PluginSettings>): PluginSe
             ...DEFAULT_SETTINGS.autoIngestion,
             ...(loadedSettings.autoIngestion || {})
         },
-        // ✨ NEW: Ensure mcpTools config exists with defaults
-        mcpTools: {
-            ...DEFAULT_SETTINGS.mcpTools,
-            ...(loadedSettings.mcpTools || {})
+        // ✨ NEW: Ensure mcpTools config e        // ✨ NEW: Ensure vectorStore config exists with defaults
+        vectorStore: {
+            ...DEFAULT_SETTINGS.vectorStore,
+            ...(loadedSettings.vectorStore || {})
         },
-        // ✨ NEW: Ensure vectorStore config exists with defaults
+        // ✨ NEW: Ensure inlineAI config exists with defaults
+        inlineAI: {
+            ...DEFAULT_SETTINGS.inlineAI,
+            ...(loadedSettings.inlineAI || {})
+        }sts with defaults
         vectorStore: {
             ...DEFAULT_SETTINGS.vectorStore,
             ...(loadedSettings.vectorStore || {})
