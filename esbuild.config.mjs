@@ -21,7 +21,7 @@ const context = await esbuild.context({
     },
     entryPoints: ["src/main.ts"],
     bundle: true,
-    inject: ['/tmp/transformers-shim.js'], // Inject shim for transformers.js
+    // inject: ['/tmp/transformers-shim.js'], // Temporarily disabled to test
     external: [
         "obsidian",
         "electron",
