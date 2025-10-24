@@ -171,8 +171,8 @@ function migrateAgentConfigs(agents: any[]): any[] {
         // Add new fields with defaults
         return {
             ...agent,
-            isMaster: agent.id === 'mnemosyne-master', // Mark master agent
-            isSpecialized: agent.id !== 'mnemosyne-master', // All others are specialized
+            isMaster: agent.id === 'mnemosyne-archon' || agent.id === 'mnemosyne-master', // Mark archon agent (support legacy)
+            isSpecialized: agent.id !== 'mnemosyne-archon' && agent.id !== 'mnemosyne-master', // All others are specialized
             capabilities: agent.capabilities || [], // Empty array if not set
             category: agent.category || 'general', // Default category
             visibility: agent.visibility || 'public' // Default to public

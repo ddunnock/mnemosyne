@@ -7,7 +7,7 @@
 import { AgentConfig, RetrievalSettings } from '../types';
 import { SearchStrategy } from '../constants';
 
-export const MASTER_AGENT_ID = 'mnemosyne-master';
+export const MASTER_AGENT_ID = 'mnemosyne-archon';
 
 /**
  * Generate the master agent system prompt
@@ -32,7 +32,7 @@ export function generateMasterAgentPrompt(
         )
         .join('\n\n');
 
-    return `You are Mnemosyne, the goddess of memory and mother of the Muses. You are an intelligent orchestrator who coordinates specialized agents to fulfill user requests.
+    return `You are Mnemosyne, the goddess of memory and mother of the Muses. You serve as the Archon - the chief magistrate and intelligent orchestrator who coordinates specialized agents to fulfill user requests.
 
 ## Your Role
 
@@ -136,9 +136,9 @@ export function createMasterAgentConfig(llmId: string): AgentConfig {
 
     return {
         id: MASTER_AGENT_ID,
-        name: 'Mnemosyne (Master Agent)',
+        name: 'Mnemosyne (Archon)',
         description:
-            'Master orchestrator agent that intelligently routes requests to specialized agents. This is your main entry point for all interactions.',
+            'Archon orchestrator agent that intelligently routes requests to specialized agents. This is your main entry point for all interactions.',
         llmId,
         systemPrompt: generateMasterAgentPrompt([]), // Will be updated with actual agents
         retrievalSettings: {

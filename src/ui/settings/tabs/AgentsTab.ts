@@ -61,7 +61,7 @@ export class AgentsTab implements BaseTab {
                             <div class="settings-card" style="border: 2px solid var(--interactive-accent); background: var(--background-secondary);">
                                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                                     <div>
-                                        <h3 style="margin: 0 0 8px 0; color: var(--interactive-accent);">🎭 Master Agent (Orchestrator)</h3>
+                                        <h3 style="margin: 0 0 8px 0; color: var(--interactive-accent);">🎭 Archon Agent (Orchestrator)</h3>
                                         <p style="margin: 0; font-size: 14px; color: var(--text-muted);">
                                             ${masterAgent.description}
                                         </p>
@@ -73,7 +73,7 @@ export class AgentsTab implements BaseTab {
 
                                 <div style="padding: 12px; background: var(--background-primary-alt); border-radius: 6px; margin-top: 12px;">
                                     <p style="margin: 0; font-size: 13px; color: var(--text-muted); font-style: italic;">
-                                        💡 The Master Agent automatically routes your requests to the most appropriate specialized agent.
+                                        💡 The Archon Agent automatically routes your requests to the most appropriate specialized agent.
                                         It updates dynamically when you add, remove, or modify agents.
                                     </p>
                                 </div>
@@ -165,7 +165,7 @@ export class AgentsTab implements BaseTab {
                     <div style="padding: 16px; background: var(--background-modifier-hover); border-radius: 6px; border-left: 3px solid var(--text-accent);">
                         <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">💡 Agent Tips</h4>
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: var(--text-muted);">
-                            <li><strong>Master Agent:</strong> Automatically routes requests to specialized agents - no manual selection needed</li>
+                            <li><strong>Archon Agent:</strong> Automatically routes requests to specialized agents - no manual selection needed</li>
                             <li><strong>Specialized Agents:</strong> Create agents for specific domains (coding, research, writing, etc.)</li>
                             <li><strong>Templates:</strong> Start with pre-configured agents for common use cases</li>
                             <li><strong>Testing:</strong> Always test agents after creation to ensure they work correctly</li>
