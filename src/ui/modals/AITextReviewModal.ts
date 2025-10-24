@@ -307,6 +307,8 @@ export class AITextReviewModal extends Modal {
                 flex: 1;
                 min-height: 0;
                 min-width: 0;
+                max-height: 100%;
+                box-sizing: border-box;
             }
 
             .text-box pre {
@@ -318,6 +320,8 @@ export class AITextReviewModal extends Modal {
                 font-size: 13px;
                 line-height: 1.6;
                 min-width: 0;
+                max-width: 100%;
+                display: block;
             }
 
             .text-box.original {
