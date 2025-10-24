@@ -41,30 +41,6 @@ export class AITextReviewModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-text-review-modal');
 
-        // Calculate dynamic size based on content length
-        const charCount = Math.max(this.originalText.length, this.generatedText.length);
-        const lineCount = Math.max(
-            this.originalText.split('\n').length,
-            this.generatedText.split('\n').length
-        );
-
-        // Dynamic width: wider for better readability
-        // Min 700px, max 90vw or 1400px
-        const baseWidth = Math.min(1400, Math.max(700, 500 + charCount * 0.8));
-        const width = Math.min(window.innerWidth * 0.9, baseWidth);
-
-        // Dynamic height: based on line count
-        // Min 400px, max 85vh
-        const estimatedHeight = Math.min(
-            window.innerHeight * 0.85,
-            Math.max(400, 250 + lineCount * 20)
-        );
-
-        // Apply dynamic sizing - use maxHeight to allow flex to work properly
-        contentEl.style.width = `${width}px`;
-        contentEl.style.maxWidth = '90vw';
-        contentEl.style.maxHeight = `${estimatedHeight}px`;
-
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
 
@@ -82,6 +58,24 @@ export class AITextReviewModal extends Modal {
         generatedSection.createEl('h3', { text: 'AI Generated' });
         this.resultElement = generatedSection.createDiv({ cls: 'text-box generated' });
         this.resultElement.createEl('pre', { text: this.generatedText });
+
+        // Synchronized scrolling between text boxes
+        let isScrolling = false;
+        originalBox.addEventListener('scroll', () => {
+            if (isScrolling) return;
+            isScrolling = true;
+            this.resultElement.scrollTop = originalBox.scrollTop;
+            this.resultElement.scrollLeft = originalBox.scrollLeft;
+            setTimeout(() => { isScrolling = false; }, 50);
+        });
+
+        this.resultElement.addEventListener('scroll', () => {
+            if (isScrolling) return;
+            isScrolling = true;
+            originalBox.scrollTop = this.resultElement.scrollTop;
+            originalBox.scrollLeft = this.resultElement.scrollLeft;
+            setTimeout(() => { isScrolling = false; }, 50);
+        });
 
         // Word count comparison
         const originalWords = this.originalText.split(/\s+/).length;
@@ -217,11 +211,16 @@ export class AITextReviewModal extends Modal {
         style.textContent = `
             .ai-text-review-modal {
                 padding: 0;
+                width: 95vw !important;
+                max-width: 1600px !important;
+                height: 70vh !important;
+                max-height: 600px !important;
             }
 
             .ai-text-review-modal .modal-content {
                 padding: 20px;
-                max-height: 100%;
+                height: 100%;
+                width: 100%;
                 display: flex;
                 flex-direction: column;
                 box-sizing: border-box;
@@ -236,16 +235,19 @@ export class AITextReviewModal extends Modal {
             .review-container {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 20px;
+                gap: 15px;
                 flex: 1;
                 min-height: 0;
+                min-width: 0;
                 overflow: hidden;
+                width: 100%;
             }
 
             .review-section {
                 display: flex;
                 flex-direction: column;
                 min-height: 0;
+                min-width: 0;
                 overflow: hidden;
             }
 
@@ -263,19 +265,21 @@ export class AITextReviewModal extends Modal {
                 border-radius: 8px;
                 border: 1px solid var(--background-modifier-border);
                 background: var(--background-primary-alt);
-                overflow-y: auto;
-                overflow-x: auto;
+                overflow: auto;
                 flex: 1;
                 min-height: 0;
+                min-width: 0;
             }
 
             .text-box pre {
                 margin: 0;
                 white-space: pre-wrap;
                 word-wrap: break-word;
+                overflow-wrap: break-word;
                 font-family: var(--font-text);
                 font-size: 13px;
                 line-height: 1.6;
+                min-width: 0;
             }
 
             .text-box.original {
@@ -363,10 +367,47 @@ export class AITextReviewModal extends Modal {
                 background: var(--interactive-accent-hover);
             }
 
-            /* Mobile responsiveness */
+            /* Responsive breakpoints */
+
+            /* Large screens - extra wide for comparison */
+            @media (min-width: 1400px) {
+                .ai-text-review-modal {
+                    width: 90vw !important;
+                    max-width: 1800px !important;
+                }
+            }
+
+            /* Medium-large screens */
+            @media (min-width: 1025px) and (max-width: 1399px) {
+                .ai-text-review-modal {
+                    width: 92vw !important;
+                    max-width: 1400px !important;
+                }
+            }
+
+            /* Medium screens */
+            @media (min-width: 769px) and (max-width: 1024px) {
+                .ai-text-review-modal {
+                    width: 95vw !important;
+                    max-width: none !important;
+                }
+            }
+
+            /* Small screens - stack vertically */
             @media (max-width: 768px) {
+                .ai-text-review-modal {
+                    width: 98vw !important;
+                    height: 85vh !important;
+                    max-width: none !important;
+                }
+
                 .review-container {
                     grid-template-columns: 1fr;
+                    gap: 12px;
+                }
+
+                .text-box {
+                    max-height: 250px;
                 }
             }
         `;

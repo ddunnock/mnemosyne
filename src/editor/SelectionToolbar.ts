@@ -227,8 +227,9 @@ export class SelectionToolbar {
                 border: 1px solid var(--background-modifier-border);
                 border-radius: 8px;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                z-index: 1000;
+                z-index: 9999;
                 animation: mnemosyne-toolbar-appear 0.15s ease-out;
+                pointer-events: auto;
             }
 
             @keyframes mnemosyne-toolbar-appear {
