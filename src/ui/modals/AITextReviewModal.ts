@@ -209,8 +209,15 @@ export class AITextReviewModal extends Modal {
         const style = document.createElement('style');
         style.id = 'ai-text-review-modal-styles';
         style.textContent = `
-            /* Target the outer modal container */
-            .modal:has(.ai-text-review-modal) {
+            /* Target the modal container wrapper */
+            .modal-container:has(.ai-text-review-modal) {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Target the outer modal */
+            .modal-container:has(.ai-text-review-modal) > .modal {
                 width: 95vw;
                 max-width: 1600px;
                 min-width: 800px;
@@ -374,7 +381,7 @@ export class AITextReviewModal extends Modal {
 
             /* Large screens - extra wide for comparison */
             @media (min-width: 1400px) {
-                .modal:has(.ai-text-review-modal) {
+                .modal-container:has(.ai-text-review-modal) > .modal {
                     width: 90vw;
                     max-width: 1800px;
                 }
@@ -382,7 +389,7 @@ export class AITextReviewModal extends Modal {
 
             /* Medium-large screens */
             @media (min-width: 1025px) and (max-width: 1399px) {
-                .modal:has(.ai-text-review-modal) {
+                .modal-container:has(.ai-text-review-modal) > .modal {
                     width: 92vw;
                     max-width: 1400px;
                 }
@@ -390,7 +397,7 @@ export class AITextReviewModal extends Modal {
 
             /* Medium screens */
             @media (min-width: 769px) and (max-width: 1024px) {
-                .modal:has(.ai-text-review-modal) {
+                .modal-container:has(.ai-text-review-modal) > .modal {
                     width: 95vw;
                     max-width: 1200px;
                 }
@@ -398,7 +405,7 @@ export class AITextReviewModal extends Modal {
 
             /* Small screens - stack vertically */
             @media (max-width: 768px) {
-                .modal:has(.ai-text-review-modal) {
+                .modal-container:has(.ai-text-review-modal) > .modal {
                     width: 98vw;
                     height: 85vh;
                     max-width: none;
