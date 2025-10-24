@@ -14,23 +14,15 @@ import RagAgentManagerPlugin from '../main';
 
 export class RAGRetriever {
     private plugin: RagAgentManagerPlugin;
-    private vectorStore: IVectorStore;
+    private vectorStore!: IVectorStore;
     private embeddings: EmbeddingsGenerator;
-    private ingestor: ChunkIngestor;
+    private ingestor!: ChunkIngestor;
     private isInitialized: boolean = false;
     private embeddingsReady: boolean = false;
 
     constructor(plugin: RagAgentManagerPlugin) {
         this.plugin = plugin;
-
-        // Use factory to create vector store based on configuration
-        this.vectorStore = VectorStoreFactory.create(
-            plugin.app,
-            plugin.settings.vectorStore
-        );
-
         this.embeddings = new EmbeddingsGenerator();
-        this.ingestor = new ChunkIngestor(this.vectorStore, this.embeddings, plugin.app);
     }
 
     /**
@@ -40,6 +32,15 @@ export class RAGRetriever {
     async initialize(): Promise<void> {
         try {
             console.log('Initializing RAG Retriever...');
+
+            // Use factory to create vector store based on configuration
+            this.vectorStore = await VectorStoreFactory.create(
+                this.plugin.app,
+                this.plugin.settings.vectorStore
+            );
+
+            // Create ingestor now that we have vector store
+            this.ingestor = new ChunkIngestor(this.vectorStore, this.embeddings, this.plugin.app);
 
             // Initialize vector store (always succeeds)
             await this.vectorStore.initialize();
