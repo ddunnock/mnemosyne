@@ -263,19 +263,6 @@ export default class RiskManagementPlugin extends Plugin {
             );
             console.log('✓ Conversation Memory Manager initialized');
 
-            // Initialize Inline AI Manager
-            this.inlineAIManager = new InlineAIManager(this, this.settings.inlineAI);
-            if (this.settings.inlineAI.enabled) {
-                this.inlineAIManager.enable();
-            }
-            console.log('✓ Inline AI Manager initialized');') {
-                            (leaf.view as any).updateMemoryStatus();
-                        }
-                    });
-                }
-            );
-            console.log('✓ Conversation Memory Manager initialized');
-
             // Initialize Inline AI Controller
             this.inlineAIController = new InlineAIController(
                 this,

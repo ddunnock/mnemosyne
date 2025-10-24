@@ -48,21 +48,22 @@ export class AITextReviewModal extends Modal {
             this.generatedText.split('\n').length
         );
 
-        // Dynamic width: 500px for short text, up to 1200px for long text
-        const width = Math.min(1200, Math.max(500, 300 + charCount * 0.5));
+        // Dynamic width: wider for better readability
+        // Min 700px, max 90vw or 1400px
+        const baseWidth = Math.min(1400, Math.max(700, 500 + charCount * 0.8));
+        const width = Math.min(window.innerWidth * 0.9, baseWidth);
 
-        // Dynamic height: based on line count and character density
-        // Min 300px, max 85vh
+        // Dynamic height: based on line count
+        // Min 400px, max 85vh
         const estimatedHeight = Math.min(
             window.innerHeight * 0.85,
-            Math.max(300, 200 + lineCount * 25)
+            Math.max(400, 250 + lineCount * 20)
         );
 
-        // Apply dynamic sizing
+        // Apply dynamic sizing - use maxHeight to allow flex to work properly
         contentEl.style.width = `${width}px`;
-        contentEl.style.maxWidth = '95vw';
-        contentEl.style.height = `${estimatedHeight}px`;
-        contentEl.style.maxHeight = '85vh';
+        contentEl.style.maxWidth = '90vw';
+        contentEl.style.maxHeight = `${estimatedHeight}px`;
 
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
@@ -214,19 +215,28 @@ export class AITextReviewModal extends Modal {
         const style = document.createElement('style');
         style.id = 'ai-text-review-modal-styles';
         style.textContent = `
+            .ai-text-review-modal {
+                padding: 0;
+            }
+
             .ai-text-review-modal .modal-content {
                 padding: 20px;
-                height: 100%;
+                max-height: 100%;
                 display: flex;
                 flex-direction: column;
                 box-sizing: border-box;
+                overflow: hidden;
+            }
+
+            .ai-text-review-modal h2 {
+                margin: 0 0 15px 0;
+                flex-shrink: 0;
             }
 
             .review-container {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 20px;
-                margin: 20px 0;
                 flex: 1;
                 min-height: 0;
                 overflow: hidden;
@@ -236,6 +246,7 @@ export class AITextReviewModal extends Modal {
                 display: flex;
                 flex-direction: column;
                 min-height: 0;
+                overflow: hidden;
             }
 
             .review-section h3 {
@@ -253,6 +264,7 @@ export class AITextReviewModal extends Modal {
                 border: 1px solid var(--background-modifier-border);
                 background: var(--background-primary-alt);
                 overflow-y: auto;
+                overflow-x: auto;
                 flex: 1;
                 min-height: 0;
             }
@@ -291,8 +303,8 @@ export class AITextReviewModal extends Modal {
             }
 
             .stats {
-                margin: 10px 0;
-                padding: 8px 0;
+                margin: 15px 0 0 0;
+                padding: 12px 0 8px 0;
                 font-size: 13px;
                 color: var(--text-muted);
                 flex-shrink: 0;
@@ -319,8 +331,9 @@ export class AITextReviewModal extends Modal {
                 display: flex;
                 gap: 10px;
                 justify-content: flex-end;
-                padding-top: 16px;
+                padding-top: 12px;
                 flex-shrink: 0;
+                margin-top: auto;
             }
 
             .button-container button {
