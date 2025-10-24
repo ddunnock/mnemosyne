@@ -2,10 +2,9 @@
  * Plugin Settings
  *
  * Default settings and validation - Updated for Phase 5
- */
-
-import { PluginSettings, AgentConfig, GoddessPersonaSettings, LLMConfig } from './types';
+ import { PluginSettings, AgentConfig, GoddessPersonaSettings, LLMConfig } from './types';
 import { SearchStrategy, LLMProvider } from './constants';
+import { DEFAULT_INLINE_AI_SETTINGS } from './ui/inlineAI/types';tants';
 
 /**
  * Default plugin settings
@@ -124,9 +123,12 @@ export const DEFAULT_SETTINGS: PluginSettings = {
         embeddingModel: 'text-embedding-3-small',
         dimension: 1536,
         json: {
-            indexPath: 'vector-store-index.json'
-        }
-        // pgvector config will be undefined unless user configures it
+            indexPath: 'v    // Feature flags
+    enableLogging: false,
+    enableCaching: false,
+
+    // Inline AI Configuration
+    inlineAI: DEFAULT_INLINE_AI_SETTINGSundefined unless user configures it
     },
 
     // Feature flags
