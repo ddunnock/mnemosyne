@@ -15,10 +15,10 @@ export class AITextReviewModal extends Modal {
     private originalText: string;
     private generatedText: string;
     private action: AITextAction;
-    private onAccept: (text: string) => void;
-    private plugin: RiskManagementPlugin;
+    private onAccept: (text:     private plugin: RiskManagementPlugin;
     private resultElement: HTMLElement;
     private isRegenerating: boolean = false;
+    private resizeHandler: (() => void) | null = null;ng: boolean = false;
 
     constructor(
         app: App,
@@ -33,25 +33,94 @@ export class AITextReviewModal extends Modal {
         this.originalText = originalText;
         this.generatedText = generatedText;
         this.action = action;
-        this.onAccept = onAccept;
-    }
-
-    onOpen() {
+          onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-text-review-modal');
+
+        // Calculate content-based sizing
+        const textLength = Math.max(this.originalText.length, this.generatedText.length);
+        const wordCount = Math.max(
+            this.originalText.split(/\s+/).length,
+            this.generatedText.split(/\s+/).length
+        );
+
+        // Determine modal size based on content
+        let modalWidth = '95vw';
+        let modalMaxWidth = '1600px';
+        let modalMinWidth = '800px';
+        let modalHeight = '60vh';
+        let modalMaxHeight = '500px';
+        let modalMinHeight = '400px';
+
+        // Content-based breakpoints
+        if (textLength > 10000 || wordCount > 2000) {
+            // Very large content - maximize space
+            modalWidth = '98vw';
+            modalMaxWidth = '2000px';
+            modalMinWidth = '1200px';
+            modalHeight = '85vh';
+            modalMaxHeight = '800px';
+            modalMinHeight = '600px';
+        } else if (textLength > 5000 || wordCount > 1000) {
+            // Large content
+            modalWidth = '96vw';
+            modalMaxWidth = '1800px';
+            modalMinWidth = '1000px';
+            modalHeight = '75vh';
+            modalMaxHeight = '700px';
+            modalMinHeight = '500px';
+        } else if (textLength > 2000 || wordCount > 400) {
+            // Medium content
+            modalWidth = '95vw';
+            modalMaxWidth = '1600px';
+            modalMinWidth = '900px';
+            modalHeight = '70vh';
+            modalMaxHeight = '600px';
+            modalMinHeight = '450px';
+        } else if (textLength > 500 || wordCount > 100) {
+            // Small content
+            modalWidth = '90vw';
+            modalMaxWidth = '1200px';
+            modalMinWidth = '800px';
+            modalHeight = '65vh';
+            modalMaxHeight = '550px';
+            modalMinHeight = '400px';
+        } else {
+            // Very small content
+            modalWidth = '85vw';
+            modalMaxWidth = '1000px';
+            modalMinWidth = '700px';
+            modalHeight = '60vh';
+            modalMaxHeight = '500px';
+            modalMinHeight = '350px';
+        }
+
+        // Ensure we don't exceed viewport bounds
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Adjust width if it would exceed viewport
+        if (parseInt(modalWidth) > 95) {
+            modalWidth = '95vw';
+        }
+        
+        // Adjust height if it would exceed viewport
+        if (parseInt(modalHeight) > 90) {
+            modalHeight = '90vh';
+        }
 
         // Directly set modal size via inline styles for maximum specificity
         const modalEl = contentEl.closest('.modal') as HTMLElement;
         const modalContainer = contentEl.closest('.modal-container') as HTMLElement;
 
         if (modalEl) {
-            modalEl.style.width = '95vw';
-            modalEl.style.maxWidth = '1600px';
-            modalEl.style.minWidth = '800px';
-            modalEl.style.height = '60vh';
-            modalEl.style.maxHeight = '500px';
-            modalEl.style.minHeight = '400px';
+            modalEl.style.width = modalWidth;
+            modalEl.style.maxWidth = modalMaxWidth;
+            modalEl.style.minWidth = modalMinWidth;
+            modalEl.style.height = modalHeight;
+            modalEl.style.maxHeight = modalMaxHeight;
+            modalEl.style.minHeight = modalMinHeight;
             // Prevent modal itself from scrolling
             modalEl.style.overflow = 'hidden';
         }
@@ -64,6 +133,7 @@ export class AITextReviewModal extends Modal {
 
         // Ensure contentEl uses full height and doesn't scroll
         contentEl.style.height = '100%';
+        contentEl.style.overflow = 'hidden';yle.height = '100%';
         contentEl.style.overflow = 'hidden';
 
         // Title
@@ -143,11 +213,7 @@ export class AITextReviewModal extends Modal {
             await this.regenerate();
         };
 
-        // Reject button
-        const rejectBtn = buttonContainer.createEl('button', {
-            text: '✗ Reject'
-        });
-        rejectBtn.onclick = () => {
+        // Rej        rejectBtn.onclick = () => {
             new Notice('Changes rejected');
             this.close();
         };
@@ -155,11 +221,19 @@ export class AITextReviewModal extends Modal {
         // Add styles
         this.addStyles();
 
+        // Add resize listener to adjust modal size on window resize
+        this.resizeHandler = () => this.adjustModalSize();
+        window.addEventListener('resize', this.resizeHandler);
+
         // Focus accept button
         acceptBtn.focus();
     }
 
     /**
+        rejectBtn.onclick = () => {
+            new Notice('Changes rejected');
+            this.close();
+        /**
      * Regenerate the AI result
      */
     private async regenerate(): Promise<void> {
@@ -209,6 +283,9 @@ export class AITextReviewModal extends Modal {
                 }
             }
 
+            // Adjust modal size based on new content
+            this.adjustModalSize();
+
             new Notice('✓ Regenerated successfully');
         } catch (error) {
             console.error('Regeneration failed:', error);
@@ -216,6 +293,102 @@ export class AITextReviewModal extends Modal {
             this.resultElement.createEl('p', {
                 text: `✗ Failed to regenerate: ${error.message}`,
                 cls: 'error'
+            });
+            new Notice(`Failed to regenerate: ${error.message}`);
+        } finally {
+            this.isRegenerating = false;
+        }
+    }
+
+    /**
+     * Adjust modal size based on current content
+     */
+    private adjustModalSize(): void {
+        const textLength = Math.max(this.originalText.length, this.generatedText.length);
+        const wordCount = Math.max(
+            this.originalText.split(/\s+/).length,
+            this.generatedText.split(/\s+/).length
+        );
+
+        // Determine modal size based on content
+        let modalWidth = '95vw';
+        let modalMaxWidth = '1600px';
+        let modalMinWidth = '800px';
+        let modalHeight = '60vh';
+        let modalMaxHeight = '500px';
+        let modalMinHeight = '400px';
+
+        // Content-based breakpoints (same logic as in onOpen)
+        if (textLength > 10000 || wordCount > 2000) {
+            modalWidth = '98vw';
+            modalMaxWidth = '2000px';
+            modalMinWidth = '1200px';
+            modalHeight = '85vh';
+            modalMaxHeight = '800px';
+            modalMinHeight = '600px';
+        } else if (textLength > 5000 || wordCount > 1000) {
+            modalWidth = '96vw';
+            modalMaxWidth = '1800px';
+            modalMinWidth = '1000px';
+            modalHeight = '75vh';
+            modalMaxHeight = '700px';
+            modalMinHeight = '500px';
+        } else if (textLength > 2000 || wordCount > 400) {
+            modalWidth = '95vw';
+            modalMaxWidth = '1600px';
+            modalMinWidth = '900px';
+            modalHeight = '70vh';
+            modalMaxHeight = '600px';
+            modalMinHeight = '450px';
+        } else if (textLength > 500 || wordCount > 100) {
+            modalWidth = '90vw';
+            modalMaxWidth = '1200px';
+            modalMinWidth = '800px';
+            modalHeight = '65vh';
+            modalMaxHeight = '550px';
+            modalMinHeight = '400px';
+        } else {
+            modalWidth = '85vw';
+            modalMaxWidth = '1000px';
+            modalMinWidth = '700px';
+            modalHeight = '60vh';
+            modalMaxHeight = '500px';
+            modalMinHeight = '350px';
+        }
+
+        // Ensure we don't exceed viewport bounds
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Adjust width if it would exceed viewport
+        if (parseInt(modalWidth) > 95) {
+            modalWidth = '95vw';
+        }
+        
+        // Adjust height if it would exceed viewport
+        if (parseInt(modalHeight) > 90) {
+            modalHeight = '90vh';
+        }
+
+        // Apply the sizing with smooth transition
+        const modalEl = this.contentEl.closest('.modal') as HTMLElement;
+        if (modalEl) {
+            // Add transition for smooth resizing
+            modalEl.style.transition = 'width 0.3s ease, height 0.3s ease, max-width 0.3s ease, max-height 0.3s ease';
+            
+            modalEl.style.width = modalWidth;
+            modalEl.style.maxWidth = modalMaxWidth;
+            modalEl.style.minWidth = modalMinWidth;
+            modalEl.style.height = modalHeight;
+            modalEl.style.maxHeight = modalMaxHeight;
+            modalEl.style.minHeight = modalMinHeight;
+            
+            // Remove transition after animation completes
+            setTimeout(() => {
+                modalEl.style.transition = '';
+            }, 300);
+        }
+    }                cls: 'error'
             });
             new Notice(`Failed to regenerate: ${error.message}`);
         } finally {
@@ -260,17 +433,7 @@ export class AITextReviewModal extends Modal {
                 height: 100%;
                 width: 100%;
                 display: flex;
-                flex-direction: column;
-                box-sizing: border-box;
-                overflow: hidden;
-            }
-
-            .ai-text-review-modal h2 {
-                margin: 0 0 15px 0;
-                flex-shrink: 0;
-            }
-
-            .review-container {
+                fle            .review-container {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 15px;
@@ -279,6 +442,7 @@ export class AITextReviewModal extends Modal {
                 min-width: 0;
                 overflow: hidden;
                 width: 100%;
+                max-height: calc(100% - 120px); /* Reserve space for stats and buttons */
             }
 
             .review-section {
@@ -287,6 +451,7 @@ export class AITextReviewModal extends Modal {
                 min-height: 0;
                 min-width: 0;
                 overflow: hidden;
+                height: 100%;
             }
 
             .review-section h3 {
@@ -305,18 +470,52 @@ export class AITextReviewModal extends Modal {
                 background: var(--background-primary-alt);
                 overflow: auto;
                 flex: 1;
-                min-height: 0;
+                min-height: 200px;
                 min-width: 0;
                 max-height: 100%;
                 box-sizing: border-box;
+                /* Ensure proper scrolling behavior */
+                scroll-behavior: smooth;
+                /* Custom scrollbar styling */
+                scrollbar-width: thin;
+                scrollbar-color: var(--background-modifier-border) transparent;
             }
 
-            .text-box pre {
+            .text-box::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            .text-box::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            .text-box::-webkit-scrollbar-thumb {
+                background: var(--background-modifier-border);
+                border-radius: 4px;
+            }
+
+            .text-box::-webkit-scrollbar-thumb:hover {
+                background: var(--interactive-accent);
+            }border);
+                background: var(--background-primary-alt);
+                overflow: auto;
+                       .text-box pre {
                 margin: 0;
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 overflow-wrap: break-word;
                 font-family: var(--font-text);
+                font-size: 13px;
+                line-height: 1.6;
+                min-width: 0;
+                max-width: 100%;
+                display: block;
+                /* Ensure very long lines don't break layout */
+                word-break: break-word;
+                hyphens: auto;
+                /* Improve readability for long content */
+                tab-size: 2;
+            }
                 font-size: 13px;
                 line-height: 1.6;
                 min-width: 0;
@@ -335,20 +534,18 @@ export class AITextReviewModal extends Modal {
             .text-box.loading {
                 display: flex;
                 align-items: center;
-                justify-content: center;
-                min-height: 100px;
-            }
-
-            .text-box.loading p {
+                justify-content: center;            .stats {
+                margin: 15px 0 0 0;
+                padding: 12px 0 8px 0;
+                font-size: 13px;
                 color: var(--text-muted);
-                font-style: italic;
-            }
-
-            .text-box .error {
-                color: var(--text-error);
-            }
-
-            .stats {
+                flex-shrink: 0;
+                border-top: 1px solid var(--background-modifier-border);
+                background: var(--background-primary);
+                position: sticky;
+                bottom: 0;
+                z-index: 10;
+            }  .stats {
                 margin: 15px 0 0 0;
                 padding: 12px 0 8px 0;
                 font-size: 13px;
@@ -359,18 +556,19 @@ export class AITextReviewModal extends Modal {
 
             .word-count {
                 font-weight: 500;
-            }
-
-            .word-change {
-                font-weight: 600;
-            }
-
-            .word-change.positive {
-                color: var(--text-success);
-            }
-
-            .word-change.negative {
-                color: var(--text-warning);
+                .button-container {
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+                padding-top: 12px;
+                flex-shrink: 0;
+                margin-top: auto;
+                background: var(--background-primary);
+                position: sticky;
+                bottom: 0;
+                z-index: 10;
+                border-top: 1px solid var(--background-modifier-border);
+            }lor: var(--text-warning);
             }
 
             .button-container {
@@ -399,24 +597,15 @@ export class AITextReviewModal extends Modal {
                 border-color: var(--interactive-accent);
             }
 
-            .button-container button.mod-cta {
-                background: var(--interactive-accent);
-                color: var(--text-on-accent);
-                border-color: var(--interactive-accent);
-            }
-
-            .button-container button.mod-cta:hover {
-                background: var(--interactive-accent-hover);
-            }
-
-            /* Responsive breakpoints */
+            .button            /* Responsive breakpoints - these work in conjunction with content-based sizing */
 
             /* Large screens - extra wide for comparison */
             @media (min-width: 1400px) {
                 body > .modal-container:has(.ai-text-review-modal) > .modal,
                 .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
-                    width: 90vw;
-                    max-width: 1800px;
+                    /* Content-based sizing takes precedence, but ensure minimums */
+                    min-width: 1200px;
+                    min-height: 500px;
                 }
             }
 
@@ -424,8 +613,8 @@ export class AITextReviewModal extends Modal {
             @media (min-width: 1025px) and (max-width: 1399px) {
                 body > .modal-container:has(.ai-text-review-modal) > .modal,
                 .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
-                    width: 92vw;
-                    max-width: 1400px;
+                    min-width: 1000px;
+                    min-height: 450px;
                 }
             }
 
@@ -433,26 +622,74 @@ export class AITextReviewModal extends Modal {
             @media (min-width: 769px) and (max-width: 1024px) {
                 body > .modal-container:has(.ai-text-review-modal) > .modal,
                 .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
-                    width: 95vw;
-                    max-width: 1200px;
+                    min-width: 800px;
+                    min-height: 400px;
                 }
             }
 
-            /* Small screens - stack vertically */
+            /* Small screens - stack vertically and adjust for mobile */
             @media (max-width: 768px) {
                 body > .modal-container:has(.ai-text-review-modal) > .modal,
                 .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
-                    width: 98vw;
-                    height: 85vh;
-                    max-width: none;
+                    width: 98vw !important;
+                    height: 90vh !important;
+                    max-width: none !important;
+                    min-width: 300px !important;
+                    min-height: 400px !important;
                 }
 
                 .ai-text-review-modal .review-container {
                     grid-template-columns: 1fr;
                     gap: 12px;
+                    max-height: calc(100% - 100px);
                 }
 
                 .ai-text-review-modal .text-box {
+                    min-height: 200px;
+                    max-height: 300px;
+                }
+
+                .ai-text-review-modal .button-container {
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+
+                .ai-text-review-modal .button-container button {
+                    flex: 1;
+                    min-width: 120px;
+                }
+            }
+
+            /* Very small screens */
+            @media (max-width: 480px) {
+                body > .modal-container:has(.ai-text-review-modal) > .modal,
+                .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                    width: 100vw !important;
+                    height: 95vh !important;
+                    margin: 0 !important;
+                    border-radius: 0 !important;
+                }
+
+                .ai-text-review-modal .text-box {
+                    min-height: 150px;
+                    max-height: 250px;
+                }
+            } 98vw;
+                    height: 85vh;
+                    max-width: none;
+                }
+
+                .ai-text-review-modal .review-container {
+                    grid-template-colu    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+        
+        // Clean up resize listener
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+        }
+    }text-review-modal .text-box {
                     max-height: 250px;
                 }
             }
