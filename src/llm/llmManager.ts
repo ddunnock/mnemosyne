@@ -63,18 +63,39 @@ export class LLMManager {
      */
     private async initializeProvider(config: LLMConfig): Promise<void> {
         try {
+            console.log(`Initializing provider: ${config.name} (${config.provider})`);
+            console.log(`  - Config ID: ${config.id}`);
+            console.log(`  - Encrypted API key exists: ${!!config.encryptedApiKey}`);
+            console.log(`  - Encrypted API key length: ${config.encryptedApiKey?.length || 0}`);
+
             // Decrypt API key
-            if (!config.encryptedApiKey) {
-                throw new Error('No API key configured');
+            if (!config.encryptedApiKey || config.encryptedApiKey.trim() === '') {
+                throw new Error(`No API key configured for ${config.name}. Please configure an API key in settings.`);
             }
 
-            console.log(`Initializing provider: ${config.name} (${config.provider})`);
+            let encryptedData;
+            try {
+                encryptedData = JSON.parse(config.encryptedApiKey);
+            } catch (parseError) {
+                console.error('Failed to parse encrypted API key:', parseError);
+                throw new Error(`Invalid encrypted API key format for ${config.name}`);
+            }
 
-            const encryptedData = JSON.parse(config.encryptedApiKey);
-            const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+            // Check if KeyManager is ready
+            if (!this.plugin.keyManager || !this.plugin.keyManager.hasMasterPassword()) {
+                throw new Error(`Master password not set. Please set up your master password in settings before initializing providers.`);
+            }
 
-            if (!apiKey) {
-                throw new Error('Failed to decrypt API key');
+            let apiKey;
+            try {
+                apiKey = this.plugin.keyManager.decrypt(encryptedData);
+            } catch (decryptError) {
+                console.error('Decryption failed:', decryptError);
+                throw new Error(`Failed to decrypt API key for ${config.name}. Your master password may have changed.`);
+            }
+
+            if (!apiKey || apiKey.trim() === '') {
+                throw new Error(`Decrypted API key is empty for ${config.name}`);
             }
 
             console.log(`API key decrypted successfully for ${config.name}`);
