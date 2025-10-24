@@ -12,7 +12,6 @@ import { MasterPasswordModal } from '../modals/MasterPasswordModal';
 import { AIProviderModal } from '../modals/AIProviderModal';
 import { VectorStoreFactory } from '../../rag/vectorStore/VectorStoreFactory';
 import { VectorStoreMigration, type MigrationProgress } from '../../rag/vectorStore/VectorStoreMigration';
-import { PgVectorStore } from '../../rag/vectorStore/PgVectorStore';
 import { JSONVectorStore } from '../../rag/vectorStore/JSONVectorStore';
 
 // Tab system
@@ -3348,6 +3347,9 @@ export class MnemosyneSettingsController {
             testBtn.disabled = true;
             testBtn.innerHTML = '<span>🔄</span> Testing...';
 
+            // Dynamic import to avoid loading pg unless actually using PostgreSQL
+            const { PgVectorStore } = await import('../../rag/vectorStore/PgVectorStore');
+
             // Create temporary PgVectorStore to test connection with short timeout
             const testStore = new PgVectorStore({
                 host,
@@ -3533,6 +3535,9 @@ export class MnemosyneSettingsController {
             const encryptedData = JSON.parse(pgConfig.encryptedPassword);
             const password = this.plugin.keyManager.decrypt(encryptedData);
 
+            // Dynamic import to avoid loading pg unless actually using PostgreSQL
+            const { PgVectorStore } = await import('../../rag/vectorStore/PgVectorStore');
+
             // Create target (PgVector) vector store
             const pgStore = new PgVectorStore({
                 ...pgConfig,
@@ -3624,6 +3629,9 @@ export class MnemosyneSettingsController {
             // Decrypt password
             const encryptedData = JSON.parse(pgConfig.encryptedPassword);
             const password = this.plugin.keyManager.decrypt(encryptedData);
+
+            // Dynamic import to avoid loading pg unless actually using PostgreSQL
+            const { PgVectorStore } = await import('../../rag/vectorStore/PgVectorStore');
 
             // Create source (PgVector) vector store
             const pgStore = new PgVectorStore({
