@@ -41,6 +41,25 @@ export class AITextReviewModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-text-review-modal');
 
+        // Directly set modal size via inline styles for maximum specificity
+        const modalEl = contentEl.closest('.modal') as HTMLElement;
+        const modalContainer = contentEl.closest('.modal-container') as HTMLElement;
+
+        if (modalEl) {
+            modalEl.style.width = '95vw';
+            modalEl.style.maxWidth = '1600px';
+            modalEl.style.minWidth = '800px';
+            modalEl.style.height = '60vh';
+            modalEl.style.maxHeight = '500px';
+            modalEl.style.minHeight = '400px';
+        }
+
+        if (modalContainer) {
+            modalContainer.style.display = 'flex';
+            modalContainer.style.alignItems = 'center';
+            modalContainer.style.justifyContent = 'center';
+        }
+
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
 
