@@ -12,6 +12,42 @@ import OpenAI from 'openai';
 import { BaseLLMProvider, ToolDefinition } from './base';
 import { Message, ChatOptions, ChatResponse, StreamChunk } from '../types';
 import { LLMError } from '../types';
+import { requestUrl } from 'obsidian';
+
+/**
+ * Custom fetch implementation using Obsidian's requestUrl to bypass CORS
+ */
+async function obsidianFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    try {
+        const urlString = url.toString();
+        const method = init?.method || 'GET';
+        const headers = init?.headers as Record<string, string> || {};
+        const body = init?.body as string;
+
+        console.debug(`[ObsidianFetch] ${method} ${urlString}`);
+
+        const response = await requestUrl({
+            url: urlString,
+            method: method,
+            headers: headers,
+            body: body,
+            contentType: headers['Content-Type'] || 'application/json',
+            throw: false // Don't throw on non-200 status codes
+        });
+
+        // Convert Obsidian response to standard Response object
+        const responseHeaders = new Headers(response.headers);
+
+        return new Response(response.text, {
+            status: response.status,
+            statusText: `${response.status}`,
+            headers: responseHeaders
+        });
+    } catch (error) {
+        console.error('[ObsidianFetch] Error:', error);
+        throw error;
+    }
+}
 
 export class OpenAIProvider extends BaseLLMProvider {
     readonly name = 'OpenAI GPT';
@@ -30,7 +66,9 @@ export class OpenAIProvider extends BaseLLMProvider {
         // - Any OpenAI-compatible API endpoint
         const clientConfig: any = {
             apiKey,
-            dangerouslyAllowBrowser: true
+            dangerouslyAllowBrowser: true,
+            // Use Obsidian's requestUrl to bypass CORS restrictions
+            fetch: obsidianFetch
         };
 
         if (baseUrl) {
@@ -38,6 +76,7 @@ export class OpenAIProvider extends BaseLLMProvider {
             console.log(`🔗 Using custom OpenAI-compatible endpoint: ${baseUrl}`);
         }
 
+        console.log('✓ OpenAI client configured with Obsidian fetch (CORS bypass enabled)');
         this.client = new OpenAI(clientConfig);
     }
 
