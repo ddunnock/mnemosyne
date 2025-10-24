@@ -211,15 +211,16 @@ export class AITextReviewModal extends Modal {
         style.textContent = `
             .ai-text-review-modal {
                 padding: 0;
-                width: 90vw;
-                max-width: 1400px;
-                height: 85vh;
-                max-height: 800px;
+                width: 95vw !important;
+                max-width: 1600px !important;
+                height: 70vh !important;
+                max-height: 600px !important;
             }
 
             .ai-text-review-modal .modal-content {
                 padding: 20px;
                 height: 100%;
+                width: 100%;
                 display: flex;
                 flex-direction: column;
                 box-sizing: border-box;
@@ -234,16 +235,19 @@ export class AITextReviewModal extends Modal {
             .review-container {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 20px;
+                gap: 15px;
                 flex: 1;
                 min-height: 0;
+                min-width: 0;
                 overflow: hidden;
+                width: 100%;
             }
 
             .review-section {
                 display: flex;
                 flex-direction: column;
                 min-height: 0;
+                min-width: 0;
                 overflow: hidden;
             }
 
@@ -365,36 +369,45 @@ export class AITextReviewModal extends Modal {
 
             /* Responsive breakpoints */
 
-            /* Large screens (default) - side by side */
-            @media (min-width: 1025px) {
+            /* Large screens - extra wide for comparison */
+            @media (min-width: 1400px) {
                 .ai-text-review-modal {
-                    width: 85vw;
-                    max-width: 1400px;
+                    width: 90vw !important;
+                    max-width: 1800px !important;
                 }
             }
 
-            /* Medium screens - narrower */
+            /* Medium-large screens */
+            @media (min-width: 1025px) and (max-width: 1399px) {
+                .ai-text-review-modal {
+                    width: 92vw !important;
+                    max-width: 1400px !important;
+                }
+            }
+
+            /* Medium screens */
             @media (min-width: 769px) and (max-width: 1024px) {
                 .ai-text-review-modal {
-                    width: 90vw;
-                    max-width: 900px;
+                    width: 95vw !important;
+                    max-width: none !important;
                 }
             }
 
             /* Small screens - stack vertically */
             @media (max-width: 768px) {
                 .ai-text-review-modal {
-                    width: 95vw;
-                    height: 90vh;
+                    width: 98vw !important;
+                    height: 85vh !important;
+                    max-width: none !important;
                 }
 
                 .review-container {
                     grid-template-columns: 1fr;
-                    gap: 15px;
+                    gap: 12px;
                 }
 
                 .text-box {
-                    max-height: 200px;
+                    max-height: 250px;
                 }
             }
         `;
