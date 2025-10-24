@@ -25,12 +25,14 @@ import { InitializationManager } from './utils/initializationManager';
 // Phase 5: Agent System imports
 import { AgentManager } from './agents/agentManager';
 import { AgentBuilderModal } from './ui/agentBuilderModal';
-import { exposePublicAPI } from './integration/publicAPI';
-
-// Auto Ingestion imports
+import { exposePublicAPI } from '// Auto Ingestion imports
 import { ConversationMemoryManager } from './memory/conversationMemory';
 import { AutoIngestionManager } from './rag/AutoIngestionManager';
 import { VaultIngestor } from './rag/VaultIngestor';
+
+// Inline AI imports
+import { InlineAIManager } from './ui/inlineAI/InlineAIManager';
+import { InlineAISettings, DEFAULT_INLINE_AI_SETTINGS } from './ui/inlineAI/types';or } from './rag/VaultIngestor';
 
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
@@ -44,10 +46,11 @@ export default class RiskManagementPlugin extends Plugin {
     
     // Auto Ingestion components
     vaultIngestor: VaultIngestor;
-    autoIngestionManager: AutoIngestionManager;
-    
-    // Conversation Memory
+    autoInge    // Conversation Memory
     memoryManager: ConversationMemoryManager;
+    
+    // Inline AI
+    inlineAIManager: InlineAIManager;
     
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
@@ -56,6 +59,7 @@ export default class RiskManagementPlugin extends Plugin {
     private sessionPasswordCache: string | null = null;
     
     // Sidebar chat
+    chatSidebar: AgentChatSidebar | null = null;hat
     chatSidebar: AgentChatSidebar | null = null;
 
     /**
@@ -124,9 +128,9 @@ export default class RiskManagementPlugin extends Plugin {
             console.log('✓ Auto Ingestion Manager stopped');
         }
 
-        // Phase 5: Cleanup agent manager
-        if (this.agentManager) {
-            this.agentManager.cleanup();
+        // Phase         // Cleanup Inline AI
+        if (this.inlineAIManager) {
+            this.inlineAIManager.cleanup();
         }
 
         // Cleanup LLM system
@@ -140,6 +144,9 @@ export default class RiskManagementPlugin extends Plugin {
         }
 
         // Clear master password from memory
+        if (this.keyManager) {
+            this.keyManager.clearMasterPassword();
+        }Clear master password from memory
         if (this.keyManager) {
             this.keyManager.clearMasterPassword();
         }
@@ -225,14 +232,7 @@ export default class RiskManagementPlugin extends Plugin {
             }
 
             // Initialize Auto Ingestion System
-            this.vaultIngestor = new VaultIngestor(this);
-            this.autoIngestionManager = new AutoIngestionManager(
-                this.app.vault, 
-                this.vaultIngestor, 
-                this.settings
-            );
-
-            // Initialize Conversation Memory Manager
+            this.vaultIngesto            // Initialize Conversation Memory Manager
             this.memoryManager = new ConversationMemoryManager(
                 this.retriever,
                 this.llmManager,
@@ -241,6 +241,19 @@ export default class RiskManagementPlugin extends Plugin {
                     // Trigger UI update for all chat views
                     this.app.workspace.getLeavesOfType('tailwind-chat').forEach(leaf => {
                         if (leaf.view && typeof (leaf.view as any).updateMemoryStatus === 'function') {
+                            (leaf.view as any).updateMemoryStatus();
+                        }
+                    });
+                }
+            );
+            console.log('✓ Conversation Memory Manager initialized');
+
+            // Initialize Inline AI Manager
+            this.inlineAIManager = new InlineAIManager(this, this.settings.inlineAI);
+            if (this.settings.inlineAI.enabled) {
+                this.inlineAIManager.enable();
+            }
+            console.log('✓ Inline AI Manager initialized');') {
                             (leaf.view as any).updateMemoryStatus();
                         }
                     });
@@ -469,28 +482,100 @@ export default class RiskManagementPlugin extends Plugin {
             callback: () => {
                 if (!this.llmManager) {
                     new Notice('LLM system not initialized');
-                    return;
-                }
-
-                const stats = this.llmManager.getStats();
-
-                new Notice(
-                    `LLM Stats:\n` +
-                    `Total Providers: ${stats.totalProviders}\n` +
-                    `Enabled: ${stats.enabledProviders}\n` +
-                    `Initialized: ${stats.initializedProviders}`,
-                    10000
-                );
-            },
-        });
-
-        // Command: Test encryption
+                     // Command: Test encryption
         this.addCommand({
             id: 'test-encryption',
             name: 'Test Encryption System',
             callback: async () => {
                 if (!this.keyManager.hasMasterPassword()) {
                     new Notice('Please set master password in settings first');
+                    return;
+                }
+
+                new Notice('Testing encryption...');
+                const result = await this.keyManager.testEncryption();
+
+                if (result) {
+                    new Notice('✓ Encryption system working correctly!');
+                } else {
+                    new Notice('✗ Encryption test failed. Check console.');
+                }
+            },
+        });
+
+        // ========== Inline AI Commands ==========
+
+        // Command: Toggle Inline AI
+        this.addCommand({
+            id: 'toggle-inline-ai',
+            name: 'Toggle Inline AI',
+            callback: () => {
+                this.settings.inlineAI.enabled = !this.settings.inlineAI.enabled;
+                this.saveSettings();
+
+                if (this.settings.inlineAI.enabled) {
+                    this.inlineAIManager.enable();
+                    new Notice('Inline AI enabled');
+                } else {
+                    this.inlineAIManager.disable();
+                    new Notice('Inline AI disabled');
+                }
+            },
+        });
+
+        // Command: Explain Selected Text
+        this.addCommand({
+            id: 'explain-selected-text',
+            name: 'Explain Selected Text',
+            callback: () => {
+                const selection = window.getSelection();
+                if (!selection || selection.toString().trim().length === 0) {
+                    new Notice('Please select some text first');
+                    return;
+                }
+
+                const selectedText = selection.toString().trim();
+                const activeFile = this.app.workspace.getActiveFile();
+                
+                this.inlineAIManager['explainText'](selectedText, activeFile);
+            },
+        });
+
+        // Command: Summarize Selected Text
+        this.addCommand({
+            id: 'summarize-selected-text',
+            name: 'Summarize Selected Text',
+            callback: () => {
+                const selection = window.getSelection();
+                if (!selection || selection.toString().trim().length === 0) {
+                    new Notice('Please select some text first');
+                    return;
+                }
+
+                const selectedText = selection.toString().trim();
+                const activeFile = this.app.workspace.getActiveFile();
+                
+                this.inlineAIManager['summarizeText'](selectedText, activeFile);
+            },
+        });
+
+        // Command: Improve Selected Text
+        this.addCommand({
+            id: 'improve-selected-text',
+            name: 'Improve Selected Text',
+            callback: () => {
+                const selection = window.getSelection();
+                if (!selection || selection.toString().trim().length === 0) {
+                    new Notice('Please select some text first');
+                    return;
+                }
+
+                const selectedText = selection.toString().trim();
+                const activeFile = this.app.workspace.getActiveFile();
+                
+                this.inlineAIManager['improveText'](selectedText, activeFile);
+            },
+        });ord in settings first');
                     return;
                 }
 

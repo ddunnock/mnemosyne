@@ -4,6 +4,7 @@
  */
 
 import { LLMProvider, SearchStrategy } from '../constants';
+import { InlineAISettings } from '../ui/inlineAI/types';
 
 // ============================================================================
 // Settings Types
@@ -184,10 +185,12 @@ export interface PluginSettings {
     // Auto Ingestion Configuration
     autoIngestion: AutoIngestionConfig;
 
-    // Conversation Memory Configuration
-    memory: MemoryConfig;
+    // Conversation Memory Co    // Feature flags
+    enableLogging: boolean;
+    enableCaching: boolean;
 
-    // ✨ NEW: MCP Tools Configuration
+    // Inline AI Configuration
+    inlineAI: InlineAISettings;ion
     mcpTools: MCPToolsConfig;
 
     // ✨ NEW: Vector Store Configuration
