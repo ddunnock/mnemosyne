@@ -129,6 +129,8 @@ export class AutoCompletionPlugin {
             return;
         }
 
+        console.debug('[AutoCompletion] Requesting completion...');
+
         // Get current cursor position
         const state = this.view.state;
         const cursor = state.selection.main.head;
@@ -164,10 +166,13 @@ export class AutoCompletionPlugin {
             });
 
             if (completion) {
+                console.debug('[AutoCompletion] Got completion:', completion.substring(0, 50) + '...');
                 this.showCompletion(completion);
+            } else {
+                console.debug('[AutoCompletion] No completion returned');
             }
         } catch (error) {
-            console.error('Completion request failed:', error);
+            console.error('[AutoCompletion] Completion request failed:', error);
         }
     }
 

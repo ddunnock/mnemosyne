@@ -68,7 +68,13 @@ export class InlineAIController {
             // Get the agent to use
             const agentId = this.settings.autoCompletionAgentId || this.plugin.settings.defaultAgentId;
             if (!agentId) {
-                console.warn('No agent configured for auto-completion');
+                console.warn('No agent configured for auto-completion. Please set a default agent in settings.');
+                return null;
+            }
+
+            // Check if agent manager is ready
+            if (!this.plugin.agentManager) {
+                console.warn('Agent manager not initialized. Auto-completion unavailable.');
                 return null;
             }
 
@@ -119,7 +125,12 @@ ${context}`;
         // Get the agent to use
         const agentId = this.settings.autoCompletionAgentId || this.plugin.settings.defaultAgentId;
         if (!agentId) {
-            throw new Error('No agent configured for inline AI');
+            throw new Error('No agent configured for inline AI. Please set a default agent in settings.');
+        }
+
+        // Check if agent manager is ready
+        if (!this.plugin.agentManager) {
+            throw new Error('Agent manager not initialized. Please reload the plugin.');
         }
 
         // Call the agent
