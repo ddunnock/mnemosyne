@@ -73,16 +73,24 @@ export class AutoCompletionPlugin {
     private inlineAI: InlineAIController;
     private completionTimeout: NodeJS.Timeout | null = null;
     private lastCursorPos: number = -1;
+    private isInitialized: boolean = false;
 
     constructor(readonly view: EditorView, readonly plugin: RiskManagementPlugin) {
         this.inlineAI = plugin.inlineAIController;
-        this.scheduleCompletion();
+        this.lastCursorPos = view.state.selection.main.head;
+        // Don't schedule completion in constructor - wait for first update
+        this.isInitialized = true;
     }
 
     update(update: ViewUpdate) {
         const settings = this.inlineAI.getSettings();
         if (!settings.enabled || !settings.autoCompletionEnabled) {
-            this.clearCompletion();
+            // Clear completion timeout but don't try to clear the decoration
+            // during disabled state to avoid update cycle issues
+            if (this.completionTimeout) {
+                clearTimeout(this.completionTimeout);
+                this.completionTimeout = null;
+            }
             return;
         }
 
@@ -104,7 +112,7 @@ export class AutoCompletionPlugin {
             clearTimeout(this.completionTimeout);
         }
 
-        // Clear existing completion
+        // Clear existing completion (if any)
         this.clearCompletion();
 
         const settings = this.inlineAI.getSettings();
@@ -170,9 +178,14 @@ export class AutoCompletionPlugin {
     }
 
     private clearCompletion() {
-        this.view.dispatch({
-            effects: setCompletionEffect.of(null),
-        });
+        try {
+            this.view.dispatch({
+                effects: setCompletionEffect.of(null),
+            });
+        } catch (error) {
+            // Silently ignore if we can't dispatch (e.g., during update cycle)
+            console.debug('Could not clear completion:', error);
+        }
     }
 
     acceptCompletion() {
