@@ -41,6 +41,12 @@ export class AITextReviewModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-text-review-modal');
 
+        // Set up flexbox layout on contentEl
+        contentEl.style.display = 'flex';
+        contentEl.style.flexDirection = 'column';
+        contentEl.style.height = '100%';
+        contentEl.style.overflow = 'hidden';
+
         // Calculate dynamic size based on content length
         const charCount = Math.max(this.originalText.length, this.generatedText.length);
         const lineCount = Math.max(
@@ -58,11 +64,15 @@ export class AITextReviewModal extends Modal {
             Math.max(300, 200 + lineCount * 25)
         );
 
-        // Apply dynamic sizing
-        contentEl.style.width = `${width}px`;
-        contentEl.style.maxWidth = '95vw';
-        contentEl.style.height = `${estimatedHeight}px`;
-        contentEl.style.maxHeight = '85vh';
+        // Apply dynamic sizing to modal
+        const modalEl = contentEl.closest('.modal') as HTMLElement;
+        if (modalEl) {
+            modalEl.style.width = `${width}px`;
+            modalEl.style.maxWidth = '95vw';
+            modalEl.style.height = `${estimatedHeight}px`;
+            modalEl.style.maxHeight = '85vh';
+            modalEl.style.minHeight = '300px';
+        }
 
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
@@ -81,6 +91,24 @@ export class AITextReviewModal extends Modal {
         generatedSection.createEl('h3', { text: 'AI Generated' });
         this.resultElement = generatedSection.createDiv({ cls: 'text-box generated' });
         this.resultElement.createEl('pre', { text: this.generatedText });
+
+        // Synchronized scrolling between text boxes
+        let isScrolling = false;
+        originalBox.addEventListener('scroll', () => {
+            if (isScrolling) return;
+            isScrolling = true;
+            this.resultElement.scrollTop = originalBox.scrollTop;
+            this.resultElement.scrollLeft = originalBox.scrollLeft;
+            setTimeout(() => { isScrolling = false; }, 50);
+        });
+
+        this.resultElement.addEventListener('scroll', () => {
+            if (isScrolling) return;
+            isScrolling = true;
+            originalBox.scrollTop = this.resultElement.scrollTop;
+            originalBox.scrollLeft = this.resultElement.scrollLeft;
+            setTimeout(() => { isScrolling = false; }, 50);
+        });
 
         // Word count comparison
         const originalWords = this.originalText.split(/\s+/).length;
@@ -236,6 +264,8 @@ export class AITextReviewModal extends Modal {
                 display: flex;
                 flex-direction: column;
                 min-height: 0;
+                overflow: hidden;
+                height: 100%;
             }
 
             .review-section h3 {
@@ -252,9 +282,10 @@ export class AITextReviewModal extends Modal {
                 border-radius: 8px;
                 border: 1px solid var(--background-modifier-border);
                 background: var(--background-primary-alt);
-                overflow-y: auto;
+                overflow: auto;
                 flex: 1;
                 min-height: 0;
+                box-sizing: border-box;
             }
 
             .text-box pre {
