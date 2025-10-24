@@ -36,6 +36,9 @@ const context = await esbuild.context({
         "@lezer/common",
         "@lezer/highlight",
         "@lezer/lr",
+        "pg",
+        "better-sqlite3",
+        "sqlite-vss",
         ...builtins
     ],
     format: "cjs",
