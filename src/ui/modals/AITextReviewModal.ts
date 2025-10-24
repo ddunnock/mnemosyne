@@ -52,6 +52,8 @@ export class AITextReviewModal extends Modal {
             modalEl.style.height = '60vh';
             modalEl.style.maxHeight = '500px';
             modalEl.style.minHeight = '400px';
+            // Prevent modal itself from scrolling
+            modalEl.style.overflow = 'hidden';
         }
 
         if (modalContainer) {
@@ -59,6 +61,10 @@ export class AITextReviewModal extends Modal {
             modalContainer.style.alignItems = 'center';
             modalContainer.style.justifyContent = 'center';
         }
+
+        // Ensure contentEl uses full height and doesn't scroll
+        contentEl.style.height = '100%';
+        contentEl.style.overflow = 'hidden';
 
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
