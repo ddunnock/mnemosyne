@@ -6,8 +6,10 @@
 
 import { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
+import { Notice } from 'obsidian';
 import type RiskManagementPlugin from '../main';
 import { AITextActionModal } from '../ui/modals/AITextActionModal';
+import { AITextReviewModal } from '../ui/modals/AITextReviewModal';
 import { AI_TEXT_ACTIONS, AITextAction } from './InlineAIController';
 
 export class SelectionToolbar {
@@ -153,18 +155,36 @@ export class SelectionToolbar {
 
         this.hide();
 
+        // Show loading notice
+        const loadingNotice = new Notice(`⏳ ${action.label}: Processing...`, 0);
+
         try {
             const result = await this.plugin.inlineAIController.processText(
                 selectedText,
                 action
             );
 
-            this.replaceSelectedText(result);
+            // Hide loading notice
+            loadingNotice.hide();
 
-            new (this.plugin.app as any).Notice(`✓ ${action.label} completed`);
+            // Show review modal instead of immediately replacing
+            new AITextReviewModal(
+                this.plugin.app,
+                this.plugin,
+                selectedText,
+                result,
+                action,
+                (acceptedText) => {
+                    this.replaceSelectedText(acceptedText);
+                    new Notice(`✓ ${action.label} applied`);
+                }
+            ).open();
         } catch (error: any) {
             console.error('Quick action failed:', error);
-            new (this.plugin.app as any).Notice(`✗ ${action.label} failed: ${error.message}`);
+
+            // Hide loading notice and show error
+            loadingNotice.hide();
+            new Notice(`✗ ${action.label} failed: ${error.message}`);
         }
     }
 

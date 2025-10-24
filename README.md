@@ -17,17 +17,18 @@
 
 ## 🌟 Overview
 
-**Mnemosyne** (named after the Greek goddess of memory) is a professional AI agent platform that transforms your Obsidian vault into an intelligent knowledge assistant. With advanced RAG capabilities, multiple specialized AI agents, and hybrid local/cloud AI support, Mnemosyne represents the next evolution in personal knowledge management.
+**Mnemosyne** (named after the Greek goddess of memory) is a professional AI agent platform that transforms your Obsidian vault into an intelligent knowledge assistant. With inline AI features, advanced RAG capabilities, multiple specialized AI agents, enterprise LLM support, and hybrid local/cloud AI, Mnemosyne represents the next evolution in personal knowledge management.
 
 ### ✨ Key Features
 
-- 🤖 **Multi-Agent Platform** - Multiple specialized AI assistants for different domains and tasks
+- ✍️ **Inline AI** - Auto-completion, text transformations, and smart editing as you write
+- 🤖 **Multi-Agent Platform** - Multiple specialized AI assistants with orchestration support
 - 🧠 **Advanced RAG** - Intelligent chunking, semantic search, and contextual retrieval
+- 🏢 **Enterprise LLM Support** - L3Harris, Azure OpenAI, and corporate API gateways
 - 🔒 **Hybrid AI Support** - Local privacy with Ollama + cloud power with OpenAI/Anthropic/Claude
 - 🛡️ **Enterprise Security** - AES-256 encryption with vault-scoped key management
 - 💎 **Modern UI** - Professional React + Tailwind interface with native Obsidian integration
 - ⚡ **High Performance** - Optimized for speed and memory efficiency
-- 🔧 **Zero Dependencies** - Works completely standalone within Obsidian
 
 ---
 
@@ -71,8 +72,10 @@ ln -s $(pwd) /path/to/your/vault/.obsidian/plugins/mnemosyne
 ### Initial Configuration
 
 1. **Set Master Password**: Open Mnemosyne settings and create a secure master password for API key encryption
-2. **Configure AI Provider**: Add your OpenAI, Anthropic, or local Ollama endpoint
-3. **Choose Vector Backend**: Select the appropriate vector store backend for your vault size (see below)
+2. **Configure AI Provider**: Add your OpenAI, Anthropic, Ollama, L3Harris, or Azure OpenAI endpoint
+3. **Set Default Agent**: Choose which agent to use for inline AI features and chat
+4. **Choose Vector Backend**: Select the appropriate vector store backend for your vault size (see below)
+5. **Enable Inline AI** (Optional): Configure auto-completion and text transformation features in Advanced settings
 
 ---
 
@@ -204,6 +207,43 @@ To migrate existing data:
 
 ---
 
+## ✍️ Inline AI Features
+
+Get AI assistance directly in your writing flow without breaking focus:
+
+### 🔮 Auto-Completion
+- **Ghost text suggestions** appear as you type
+- **Tab to accept**, Escape to dismiss
+- Context-aware completions based on your current note
+- Configurable delay and length
+
+### 🎨 Text Transformations
+- **Selection Toolbar** - Floating toolbar in editor with quick actions
+- **Universal Context Menu** - Right-click AI actions that work **everywhere** (even DataviewJS forms!)
+- **9 Built-in Actions**:
+  - ✨ Rewrite - Improve clarity and flow
+  - 📝 Expand - Add detail and elaboration
+  - 📄 Summarize - Condense to key points
+  - ✅ Fix Grammar - Correct errors
+  - 🎯 Make Concise - Remove unnecessary words
+  - 📖 Make Detailed - Add context and examples
+  - 💡 Simplify - Use simpler language
+  - 👔 Professional Tone - Formal business language
+  - 😊 Casual Tone - Friendly conversational style
+- **Custom Prompts** - Any transformation you can imagine
+
+### ✓ Review Modal
+- **Side-by-side comparison** of original vs AI-generated text
+- **Accept, Reject, or Try Again** - Full control over changes
+- **Word count tracking** - See exactly how much was added/removed
+- **Dynamic sizing** - Adapts from small tweaks to full paragraphs
+
+**Works with**: All LLM providers (OpenAI, Anthropic, Ollama, L3Harris, Azure)
+
+📖 **[Complete Inline AI Guide →](docs/user-guides/inline-ai-features.md)**
+
+---
+
 ## 🎯 Core Capabilities
 
 ### 🤖 Intelligent Agent System
@@ -257,19 +297,70 @@ All backends support seamless migration, so you can start with JSON and upgrade 
 |----------|--------|----------|-------|
 | **OpenAI** | GPT-4, GPT-4 Turbo, GPT-3.5 | ✅ Chat, ✅ Embeddings, ✅ Streaming | ❌ |
 | **Anthropic** | Claude 3 Opus, Sonnet, Haiku | ✅ Chat, ❌ Embeddings, ✅ Streaming | ❌ |
-| **Ollama** | Llama, Mistral, CodeLlama | ✅ Chat, ✅ Embeddings, ✅ Streaming | ✅ |
+| **Ollama** | Llama, Mistral, CodeLlama, etc. | ✅ Chat, ✅ Embeddings, ✅ Streaming | ✅ |
+| **L3Harris AI Platform** | GPT-4, GPT-3.5-Turbo | ✅ Chat, ✅ Embeddings, ✅ Streaming | 🏢 Corporate |
+| **Azure OpenAI** | GPT-4, GPT-3.5, Embeddings | ✅ Chat, ✅ Embeddings, ✅ Streaming | 🏢 Corporate |
+| **Custom OpenAI-Compatible** | Any model | ✅ Chat, ✅ Embeddings, ✅ Streaming | 🔧 Configurable |
+
+### 🏢 Enterprise & Corporate LLMs
+
+Mnemosyne fully supports enterprise LLM deployments with:
+- **Automatic Endpoint Detection** - L3Harris and Azure endpoints automatically detected and adapted
+- **CORS Bypass** - Built-in support for corporate networks using Obsidian's requestUrl
+- **Custom Authentication** - Flexible header and authentication schemes
+- **Air-Gapped Deployments** - 100% offline with local LLMs (Ollama, vLLM, etc.)
+
+**Supported Platforms:**
+- ✅ L3Harris AI Platform (fully tested)
+- ✅ Azure OpenAI (fully tested)
+- ✅ Open WebUI
+- ✅ vLLM servers
+- ✅ Any OpenAI-compatible API
+
+📖 **[Enterprise Deployment Guide →](docs/deployment/enterprise-deployment.md)**
+
+### 🔌 Local Embeddings (Offline)
+
+For 100% privacy and zero API costs:
+- **Transformers.js** - Browser-based ML models (Xenova/all-MiniLM-L6-v2)
+- **Zero setup** - Works completely offline
+- **Fast** - ~50ms per embedding on modern hardware
+- **Privacy** - All processing happens locally in your vault
+
+📖 **[Knowledge Base Setup →](docs/user-guides/knowledge-base.md)**
 
 ---
 
 ## 📖 Documentation
 
-- 📚 **[User Guide](docs/USER_GUIDE.md)** - Complete setup and usage instructions
-- 🐳 **[Docker Setup](DOCKER_SETUP.md)** - PostgreSQL + pgvector with Docker
-- 🗄️ **[Vector Store Implementation](PGVECTOR_IMPLEMENTATION.md)** - Multi-backend architecture details
-- 🔧 **[API Documentation](docs/API.md)** - Public API reference for developers
-- 🏗️ **[Development Guide](docs/CONTRIBUTING.md)** - Contributing to Mnemosyne
-- 🛡️ **[Security Policy](SECURITY.md)** - Security guidelines and reporting
-- 🗺️ **[Roadmap](docs/ROADMAP.md)** - Future development plans
+### 🎯 User Guides
+- 🚀 **[Getting Started](docs/user-guides/getting-started.md)** - Installation and initial setup
+- ✍️ **[Inline AI Features](docs/user-guides/inline-ai-features.md)** - Auto-completion, text actions, review modal
+- 🤖 **[Agent Setup](docs/user-guides/agent-setup.md)** - Installing and configuring AI agents
+- 🔑 **[LLM Providers](docs/user-guides/llm-providers.md)** - OpenAI, Anthropic, Ollama, L3Harris, Azure
+- 📚 **[Knowledge Base](docs/user-guides/knowledge-base.md)** - Vector stores, embeddings, RAG system
+- 📋 **[DataviewJS Integration](docs/user-guides/dataviewjs-integration.md)** - Using AI in forms and queries
+
+### 🚀 Deployment Guides
+- 🏢 **[Enterprise Deployment](docs/deployment/enterprise-deployment.md)** - L3Harris, Azure OpenAI, corporate LLMs
+- 🐳 **[Docker Setup](docs/deployment/docker-setup.md)** - PostgreSQL + pgvector with Docker
+- 🗄️ **[Vector Store Backends](docs/deployment/vector-store-backends.md)** - JSON, SQLite, PostgreSQL comparison
+
+### 📋 Capabilities & Specifications
+- 🏗️ **[Architecture Overview](docs/capabilities/architecture-overview.md)** - System design and components
+- 🎭 **[Agent Orchestration](docs/capabilities/agent-orchestration.md)** - Master Agent (Archon) system
+- 🧠 **[RAG System](docs/capabilities/rag-system.md)** - Retrieval Augmented Generation internals
+- ✍️ **[Inline AI Specification](docs/capabilities/inline-ai.md)** - Technical architecture
+- 🔧 **[MCP Tools](docs/capabilities/mcp-tools.md)** - Model Context Protocol tool system
+- 🛡️ **[Security Architecture](docs/capabilities/security.md)** - Encryption and key management
+
+### 🛠️ Developer Documentation
+- 🤝 **[Contributing Guide](docs/developer/contributing.md)** - How to contribute to the project
+- 🎭 **[Agent Development](docs/developer/agent-development.md)** - Creating custom agents
+- 🗄️ **[Vector Store Implementation](docs/developer/vector-store-implementation.md)** - Backend development
+- 🧪 **[Testing Guide](docs/developer/testing-guide.md)** - Testing strategies and frameworks
+
+📚 **[Complete Documentation Hub →](docs/README.md)**
 
 ---
 

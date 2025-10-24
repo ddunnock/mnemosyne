@@ -36,6 +36,7 @@ import { VaultIngestor } from './rag/VaultIngestor';
 import { InlineAIController, DEFAULT_INLINE_AI_SETTINGS } from './editor/InlineAIController';
 import { createAutoCompletionExtension } from './editor/AutoCompletionExtension';
 import { createSelectionToolbarExtension } from './editor/SelectionToolbarExtension';
+import { UniversalContextMenu } from './editor/UniversalContextMenu';
 import { AITextActionModal } from './ui/modals/AITextActionModal';
 
 export default class RiskManagementPlugin extends Plugin {
@@ -57,6 +58,7 @@ export default class RiskManagementPlugin extends Plugin {
 
     // Inline AI
     inlineAIController: InlineAIController;
+    universalContextMenu: UniversalContextMenu;
 
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
@@ -111,6 +113,11 @@ export default class RiskManagementPlugin extends Plugin {
         this.registerEditorExtension(createSelectionToolbarExtension(this));
         console.log('✓ Selection toolbar extension registered');
 
+        // Register universal context menu for AI text actions (works anywhere on page)
+        this.universalContextMenu = new UniversalContextMenu(this);
+        this.universalContextMenu.register();
+        console.log('✓ Universal context menu registered');
+
         // Phase 5: Expose public API
         exposePublicAPI(this);
 
@@ -133,6 +140,12 @@ export default class RiskManagementPlugin extends Plugin {
      */
     async onunload() {
         console.log(`Unloading ${PLUGIN_NAME}`);
+
+        // Unregister universal context menu
+        if (this.universalContextMenu) {
+            this.universalContextMenu.unregister();
+            console.log('✓ Universal context menu unregistered');
+        }
 
         // Stop auto ingestion
         if (this.autoIngestionManager) {
@@ -427,6 +440,67 @@ export default class RiskManagementPlugin extends Plugin {
                         editor.replaceSelection(result);
                     }
                 ).open();
+            },
+        });
+
+        // ========== Testing & Diagnostics Commands ==========
+
+        // Command: Test Embedding Models (for Azure/L3Harris endpoints)
+        this.addCommand({
+            id: 'test-embedding-models',
+            name: 'Test Embedding Models (Discover Available Deployments)',
+            callback: async () => {
+                // Import the test utility
+                const { discoverEmbeddingModels } = await import('./utils/testEmbeddings');
+
+                // Get L3Harris provider configuration
+                const l3harrisProvider = this.settings.llmConfigs?.find(
+                    (p) => p.baseUrl?.includes('l3harris.com')
+                );
+
+                if (!l3harrisProvider) {
+                    new Notice('No L3Harris provider found. Please configure one first.');
+                    return;
+                }
+
+                if (!l3harrisProvider.encryptedApiKey) {
+                    new Notice('L3Harris provider has no API key configured.');
+                    return;
+                }
+
+                // Decrypt the API key
+                let apiKey: string;
+                try {
+                    const encryptedData = JSON.parse(l3harrisProvider.encryptedApiKey);
+                    apiKey = this.keyManager.decrypt(encryptedData);
+                } catch (error) {
+                    new Notice('Failed to decrypt API key. Please check your master password.');
+                    console.error('Decryption error:', error);
+                    return;
+                }
+
+                new Notice('Testing embedding models... Check console for results.', 5000);
+
+                try {
+                    const results = await discoverEmbeddingModels(
+                        l3harrisProvider.baseUrl!,
+                        apiKey
+                    );
+
+                    // Show summary in UI
+                    const successful = results.filter(r => r.success);
+                    if (successful.length > 0) {
+                        const summary = successful
+                            .map(r => `${r.deploymentName} (${r.dimension}D)`)
+                            .join(', ');
+                        new Notice(`✓ Found ${successful.length} model(s): ${summary}`, 10000);
+                    } else {
+                        new Notice('⚠️ No working embedding models found. Check console for details.', 10000);
+                    }
+                } catch (error) {
+                    console.error('Embedding test failed:', error);
+                    new Notice(`Test failed: ${error.message}`);
+                }
             },
         });
 

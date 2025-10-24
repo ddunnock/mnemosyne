@@ -51,6 +51,13 @@ export class InlineAIController {
         try {
             this.isGenerating = true;
 
+            // Ensure system is initialized (will attempt to initialize if not ready)
+            const ready = await this.ensureSystemReady();
+            if (!ready) {
+                console.debug('[InlineAI] System not ready for auto-completion yet');
+                return null;
+            }
+
             // Get context (current line + previous lines)
             const currentLine = editor.getLine(cursor.line);
             const beforeCursor = currentLine.substring(0, cursor.ch);
@@ -68,13 +75,7 @@ export class InlineAIController {
             // Get the agent to use
             const agentId = this.settings.autoCompletionAgentId || this.plugin.settings.defaultAgentId;
             if (!agentId) {
-                console.warn('No agent configured for auto-completion. Please set a default agent in settings.');
-                return null;
-            }
-
-            // Check if agent manager is ready
-            if (!this.plugin.agentManager) {
-                console.warn('Agent manager not initialized. Auto-completion unavailable.');
+                console.debug('[InlineAI] No agent configured for auto-completion');
                 return null;
             }
 
@@ -117,20 +118,75 @@ ${context}`;
     }
 
     /**
+     * Check if all required systems are initialized
+     */
+    private isSystemReady(): boolean {
+        // Check if agent manager exists
+        if (!this.plugin.agentManager) {
+            return false;
+        }
+
+        // Check if LLM manager exists and is ready
+        if (!this.plugin.llmManager || !this.plugin.llmManager.isReady()) {
+            return false;
+        }
+
+        // Check if key manager has password (needed for API key decryption)
+        if (!this.plugin.keyManager || !this.plugin.keyManager.hasMasterPassword()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Attempt to initialize the LLM system if not already ready
+     */
+    private async ensureSystemReady(): Promise<boolean> {
+        if (this.isSystemReady()) {
+            return true;
+        }
+
+        console.debug('[InlineAI] System not ready, attempting initialization...');
+
+        // Check if we have the key manager with password
+        if (!this.plugin.keyManager || !this.plugin.keyManager.hasMasterPassword()) {
+            console.debug('[InlineAI] No master password available - cannot initialize');
+            return false;
+        }
+
+        // Try to initialize LLM Manager if it exists but isn't ready
+        if (this.plugin.llmManager && !this.plugin.llmManager.isReady()) {
+            try {
+                console.debug('[InlineAI] Initializing LLM Manager...');
+                await this.plugin.llmManager.initialize();
+                console.debug('[InlineAI] LLM Manager initialized successfully');
+                return this.isSystemReady();
+            } catch (error) {
+                console.error('[InlineAI] Failed to initialize LLM Manager:', error);
+                return false;
+            }
+        }
+
+        return this.isSystemReady();
+    }
+
+    /**
      * Process text with AI based on selected action
      */
     async processText(text: string, action: AITextAction): Promise<string> {
+        // Ensure system is initialized (will attempt to initialize if not ready)
+        const ready = await this.ensureSystemReady();
+        if (!ready) {
+            throw new Error('AI system is not initialized yet. Please ensure your master password is set and LLM providers are configured.');
+        }
+
         const prompt = this.buildPrompt(text, action);
 
         // Get the agent to use
         const agentId = this.settings.autoCompletionAgentId || this.plugin.settings.defaultAgentId;
         if (!agentId) {
             throw new Error('No agent configured for inline AI. Please set a default agent in settings.');
-        }
-
-        // Check if agent manager is ready
-        if (!this.plugin.agentManager) {
-            throw new Error('Agent manager not initialized. Please reload the plugin.');
         }
 
         // Call the agent
@@ -147,20 +203,81 @@ ${context}`;
      * Build prompt for specific action
      */
     private buildPrompt(text: string, action: AITextAction): string {
+        // Count approximate word count for length constraints
+        const wordCount = text.split(/\s+/).length;
+
         const prompts: Record<string, string> = {
-            rewrite: `Rewrite the following text to improve clarity and flow while maintaining the original meaning:\n\n${text}`,
-            expand: `Expand on the following text with more details, examples, and elaboration:\n\n${text}`,
-            summarize: `Summarize the following text concisely while keeping the key points:\n\n${text}`,
-            fixGrammar: `Fix any grammar, spelling, and punctuation errors in the following text:\n\n${text}`,
-            makeConcise: `Make the following text more concise and direct:\n\n${text}`,
-            makeDetailed: `Make the following text more detailed and comprehensive:\n\n${text}`,
-            simplify: `Simplify the following text to make it easier to understand:\n\n${text}`,
-            professional: `Rewrite the following text in a professional and formal tone:\n\n${text}`,
-            casual: `Rewrite the following text in a casual and friendly tone:\n\n${text}`,
+            rewrite: `Rewrite the following text to improve clarity and flow while maintaining the original meaning.
+
+IMPORTANT: Return ONLY the rewritten text. Do not include any explanations, preambles, or phrases like "Here is..." or "The revised text is...". Just return the improved text directly.
+
+Text to rewrite:
+${text}`,
+
+            expand: `Expand on the following text with more details and elaboration. Add approximately ${Math.max(20, wordCount * 2)} to ${Math.max(40, wordCount * 3)} words of additional content.
+
+IMPORTANT: Return ONLY the expanded text. Do not include any explanations, preambles, or introductory phrases. Just return the expanded version directly.
+
+Text to expand:
+${text}`,
+
+            summarize: `Summarize the following text concisely while keeping the key points. Aim for approximately ${Math.max(10, Math.floor(wordCount / 3))} words.
+
+IMPORTANT: Return ONLY the summary. Do not include any explanations, preambles, or phrases like "Summary:" or "In summary...". Just return the concise summary directly.
+
+Text to summarize:
+${text}`,
+
+            fixGrammar: `Fix any grammar, spelling, and punctuation errors in the following text. Make minimal changes - only correct errors, do not rephrase or restructure.
+
+IMPORTANT: Return ONLY the corrected text. Do not include any explanations, lists of changes, or phrases like "Here is the corrected text...". Just return the fixed text directly.
+
+Text to fix:
+${text}`,
+
+            makeConcise: `Make the following text more concise and direct. Remove unnecessary words while preserving the core meaning.
+
+IMPORTANT: Return ONLY the concise version. Do not include any explanations or preambles. Just return the shortened text directly.
+
+Text to make concise:
+${text}`,
+
+            makeDetailed: `Make the following text more detailed and comprehensive. Add relevant information and context to enrich the content.
+
+IMPORTANT: Return ONLY the detailed version. Do not include any explanations or preambles. Just return the enhanced text directly.
+
+Text to make detailed:
+${text}`,
+
+            simplify: `Simplify the following text to make it easier to understand. Use simpler words and shorter sentences.
+
+IMPORTANT: Return ONLY the simplified text. Do not include any explanations or preambles. Just return the simpler version directly.
+
+Text to simplify:
+${text}`,
+
+            professional: `Rewrite the following text in a professional and formal tone.
+
+IMPORTANT: Return ONLY the professionally rewritten text. Do not include any explanations or preambles. Just return the formal version directly.
+
+Text to make professional:
+${text}`,
+
+            casual: `Rewrite the following text in a casual and friendly tone.
+
+IMPORTANT: Return ONLY the casually rewritten text. Do not include any explanations or preambles. Just return the friendly version directly.
+
+Text to make casual:
+${text}`,
         };
 
         if (action.type === 'custom' && action.customPrompt) {
-            return `${action.customPrompt}\n\n${text}`;
+            return `${action.customPrompt}
+
+IMPORTANT: Return ONLY the modified text based on the instruction above. Do not include explanations or preambles.
+
+Text:
+${text}`;
         }
 
         return prompts[action.type] || prompts.rewrite;

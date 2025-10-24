@@ -531,7 +531,8 @@ export class ProvidersTab implements BaseTab {
             let testUrl = `${provider.baseUrl}/models`;
             if (provider.baseUrl.includes('l3harris.com')) {
                 // Test the actual chat completions endpoint with deployment
-                testUrl = `${provider.baseUrl}/cgp/openai/deployments/${provider.model}/chat/completions`;
+                // Must include api-version query parameter for Azure-style endpoints
+                testUrl = `${provider.baseUrl}/cgp/openai/deployments/${provider.model}/chat/completions?api-version=2024-06-01`;
                 console.log(`Testing L3Harris endpoint: ${testUrl}`);
 
                 // Make a minimal test request

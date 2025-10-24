@@ -316,6 +316,32 @@ export class VaultIngestor {
                 });
 
                 console.log('✓ VaultIngestor local embeddings initialized');
+            } else if (provider === 'azure') {
+                // Use Azure/L3Harris embeddings
+                const l3harrisConfig = this.plugin.settings.llmConfigs.find(
+                    c => c.baseUrl?.includes('l3harris.com') && c.enabled
+                );
+
+                if (!l3harrisConfig) {
+                    throw new Error(
+                        'No L3Harris/Azure configuration found. Please add an L3Harris provider in settings for embeddings.'
+                    );
+                }
+
+                const encryptedData = JSON.parse(l3harrisConfig.encryptedApiKey);
+                const apiKey = this.plugin.keyManager.decrypt(encryptedData);
+
+                const model = typeof embeddingProvider === 'object'
+                    ? embeddingProvider.model || 'text-embedding-ada-002'
+                    : 'text-embedding-ada-002';
+
+                await this.embeddings.initialize(EmbeddingProviderType.OPENAI, {
+                    apiKey: apiKey,
+                    model: model,
+                    baseUrl: l3harrisConfig.baseUrl
+                });
+
+                console.log('✓ VaultIngestor Azure/L3Harris embeddings initialized');
             } else {
                 // Use OpenAI embeddings
                 const openAIConfig = this.plugin.settings.llmConfigs.find(

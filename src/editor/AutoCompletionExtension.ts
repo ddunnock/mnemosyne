@@ -4,8 +4,8 @@
  * Provides GitHub Copilot-style inline suggestions
  */
 
-import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
-import { StateField, StateEffect } from '@codemirror/state';
+import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType, keymap } from '@codemirror/view';
+import { StateField, StateEffect, Prec } from '@codemirror/state';
 import { InlineAIController } from './InlineAIController';
 import type RiskManagementPlugin from '../main';
 
@@ -13,6 +13,11 @@ import type RiskManagementPlugin from '../main';
  * State effect to set completion suggestion
  */
 const setCompletionEffect = StateEffect.define<string | null>();
+
+/**
+ * State effect to accept completion
+ */
+const acceptCompletionEffect = StateEffect.define<null>();
 
 /**
  * Widget to display ghost text completion
@@ -242,41 +247,54 @@ export function createAutoCompletionExtension(plugin: RiskManagementPlugin) {
             }
         ),
         // Keymap for accepting/rejecting completions
-        EditorView.domEventHandlers({
-            keydown(event: KeyboardEvent, view: EditorView) {
-                // Tab to accept
-                if (event.key === 'Tab') {
-                    const decorations = view.state.field(completionField, false);
-                    if (decorations && !decorations.size) {
-                        return false; // No completion to accept
-                    }
-
+        // Use high precedence to override default Tab behavior
+        Prec.high(keymap.of([
+            {
+                key: 'Tab',
+                run: (view: EditorView) => {
                     // Check if there's an active completion
-                    const cursor = decorations?.iter();
-                    if (cursor?.value) {
-                        event.preventDefault();
-                        // Find the plugin instance and accept completion
-                        // This is a bit hacky but necessary due to CodeMirror's architecture
-                        const plugins = (view as any).plugin;
-                        for (const p of plugins || []) {
-                            if (p instanceof AutoCompletionPlugin) {
-                                p.acceptCompletion();
-                                return true;
-                            }
-                        }
+                    const decorations = view.state.field(completionField, false);
+                    if (!decorations || decorations.size === 0) {
+                        return false; // No completion, allow default Tab behavior
                     }
-                }
 
-                // Escape to dismiss
-                if (event.key === 'Escape') {
+                    const cursor = decorations.iter();
+                    if (cursor.value) {
+                        // Extract completion text
+                        const widget = cursor.value.spec.widget as CompletionWidget;
+                        const completion = widget.completion;
+                        const pos = view.state.selection.main.head;
+
+                        // Insert completion and clear decoration in one transaction
+                        view.dispatch({
+                            changes: { from: pos, insert: completion },
+                            selection: { anchor: pos + completion.length },
+                            effects: setCompletionEffect.of(null),
+                        });
+
+                        return true; // Handled
+                    }
+
+                    return false;
+                },
+            },
+            {
+                key: 'Escape',
+                run: (view: EditorView) => {
+                    // Check if there's an active completion to dismiss
+                    const decorations = view.state.field(completionField, false);
+                    if (!decorations || decorations.size === 0) {
+                        return false; // No completion, allow default Escape behavior
+                    }
+
+                    // Clear the completion
                     view.dispatch({
                         effects: setCompletionEffect.of(null),
                     });
-                    return true;
-                }
 
-                return false;
+                    return true; // Handled
+                },
             },
-        }),
+        ])),
     ];
 }

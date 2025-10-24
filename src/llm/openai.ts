@@ -20,22 +20,51 @@ import { requestUrl } from 'obsidian';
  */
 async function obsidianFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     try {
-        const urlString = url.toString();
+        let urlString = url.toString();
         const method = init?.method || 'GET';
-        let headers = init?.headers as Record<string, string> || {};
         const body = init?.body as string;
+
+        // Convert Headers object to plain object
+        let headers: Record<string, string> = {};
+        if (init?.headers) {
+            if (init.headers instanceof Headers) {
+                init.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+            } else if (Array.isArray(init.headers)) {
+                // Handle [key, value] array format
+                for (const [key, value] of init.headers) {
+                    headers[key] = value;
+                }
+            } else {
+                headers = init.headers as Record<string, string>;
+            }
+        }
 
         // Handle Azure/L3Harris-style endpoints that use "api-key" header
         // instead of "Authorization: Bearer"
-        if (headers['Authorization'] && urlString.includes('l3harris.com')) {
-            const apiKey = headers['Authorization'].replace('Bearer ', '');
-            headers = { ...headers };
-            delete headers['Authorization'];
-            headers['api-key'] = apiKey;
-            console.debug('[ObsidianFetch] Converted Authorization to api-key header for L3Harris endpoint');
+        const isL3Harris = urlString.includes('l3harris.com') ||
+                          urlString.includes('/cgp/openai/') ||
+                          urlString.includes('/deployments/');
+
+        // Add api-version query parameter for L3Harris/Azure-style endpoints
+        if (isL3Harris && !urlString.includes('api-version=')) {
+            const separator = urlString.includes('?') ? '&' : '?';
+            urlString = `${urlString}${separator}api-version=2024-06-01`;
         }
 
-        console.debug(`[ObsidianFetch] ${method} ${urlString}`);
+        // Check for Authorization header (case-insensitive) and convert to api-key for L3Harris
+        const authHeader = headers['Authorization'] || headers['authorization'];
+        if (authHeader && isL3Harris) {
+            const apiKey = authHeader.replace('Bearer ', '').trim();
+
+            // Create new headers object without Authorization
+            const newHeaders = { ...headers };
+            delete newHeaders['Authorization'];
+            delete newHeaders['authorization'];
+            newHeaders['api-key'] = apiKey;
+            headers = newHeaders;
+        }
 
         const response = await requestUrl({
             url: urlString,

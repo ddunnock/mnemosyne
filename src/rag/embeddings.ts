@@ -7,6 +7,7 @@
 
 import OpenAI from 'openai';
 import { RAGError } from '../types';
+import { requestUrl } from 'obsidian';
 
 // Pre-configure the global import_meta for transformers.js
 // This must happen BEFORE the module is loaded
@@ -57,6 +58,77 @@ function getTransformersModule() {
 type FeatureExtractionPipeline = any;
 
 /**
+ * Custom fetch implementation using Obsidian's requestUrl to bypass CORS
+ * Also handles Azure/L3Harris-style endpoints with custom headers
+ */
+async function obsidianFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    try {
+        let urlString = url.toString();
+        const method = init?.method || 'GET';
+        const body = init?.body as string;
+
+        // Convert Headers object to plain object
+        let headers: Record<string, string> = {};
+        if (init?.headers) {
+            if (init.headers instanceof Headers) {
+                init.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+            } else if (Array.isArray(init.headers)) {
+                for (const [key, value] of init.headers) {
+                    headers[key] = value;
+                }
+            } else {
+                headers = init.headers as Record<string, string>;
+            }
+        }
+
+        // Handle Azure/L3Harris-style endpoints
+        const isL3Harris = urlString.includes('l3harris.com') ||
+                          urlString.includes('/cgp/openai/') ||
+                          urlString.includes('/deployments/');
+
+        // Add api-version query parameter for L3Harris/Azure-style endpoints
+        if (isL3Harris && !urlString.includes('api-version=')) {
+            const separator = urlString.includes('?') ? '&' : '?';
+            urlString = `${urlString}${separator}api-version=2024-06-01`;
+        }
+
+        // Check for Authorization header (case-insensitive) and convert to api-key for L3Harris
+        const authHeader = headers['Authorization'] || headers['authorization'];
+        if (authHeader && isL3Harris) {
+            const apiKey = authHeader.replace('Bearer ', '').trim();
+
+            // Create new headers object without Authorization
+            const newHeaders = { ...headers };
+            delete newHeaders['Authorization'];
+            delete newHeaders['authorization'];
+            newHeaders['api-key'] = apiKey;
+            headers = newHeaders;
+        }
+
+        const response = await requestUrl({
+            url: urlString,
+            method: method,
+            headers: headers,
+            body: body,
+            contentType: headers['Content-Type'] || headers['content-type'] || 'application/json',
+            throw: false
+        });
+
+        // Convert Obsidian response to standard Response object
+        return new Response(response.text, {
+            status: response.status,
+            statusText: `${response.status}`,
+            headers: new Headers(response.headers)
+        });
+    } catch (error) {
+        console.error('[ObsidianFetch] Error:', error);
+        throw error;
+    }
+}
+
+/**
  * Embedding Provider Interface
  */
 export interface EmbeddingProvider {
@@ -69,23 +141,49 @@ export interface EmbeddingProvider {
 /**
  * OpenAI Embedding Provider
  * Uses text-embedding-3-small (1536 dimensions, fast and cost-effective)
+ * Supports Azure/L3Harris endpoints with custom base URLs
  */
 export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     private client: OpenAI;
     private model: string;
     private dimension: number;
     private rateLimitDelay: number = 150; // ms between requests
+    private customBaseUrl?: string;
 
-    constructor(apiKey: string, model: string = 'text-embedding-3-small') {
+    constructor(apiKey: string, model: string = 'text-embedding-3-small', baseUrl?: string) {
         if (!apiKey) {
             throw new RAGError('OpenAI API key is required for embeddings');
         }
 
-        this.client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
         this.model = model;
+        this.customBaseUrl = baseUrl;
 
         // Set dimensions based on model
         this.dimension = model === 'text-embedding-3-large' ? 3072 : 1536;
+
+        // Initialize OpenAI client with optional custom base URL
+        const clientConfig: any = {
+            apiKey,
+            dangerouslyAllowBrowser: true,
+            // Use Obsidian's requestUrl to bypass CORS restrictions
+            fetch: obsidianFetch
+        };
+
+        if (baseUrl) {
+            // Handle Azure/L3Harris-style endpoints
+            if (baseUrl.includes('l3harris.com') || baseUrl.includes('/deployments/')) {
+                // Azure-style format: https://api-lhxgpt.ai.l3harris.com/cgp/openai/deployments/{model}
+                const deployment = model;
+                clientConfig.baseURL = `${baseUrl}/cgp/openai/deployments/${deployment}`;
+                console.log(`🔗 Using L3Harris/Azure-style embeddings endpoint: ${clientConfig.baseURL}`);
+            } else {
+                clientConfig.baseURL = baseUrl;
+                console.log(`🔗 Using custom embeddings endpoint: ${baseUrl}`);
+            }
+        }
+
+        this.client = new OpenAI(clientConfig);
+        console.log('✓ OpenAI embeddings client configured with CORS bypass');
     }
 
     /**
@@ -428,19 +526,20 @@ export enum EmbeddingProviderType {
 
 /**
  * Factory function to create embedding provider from plugin settings
- * ✨ ENHANCED: Now supports both OpenAI and Local providers
+ * ✨ ENHANCED: Now supports OpenAI, Azure/L3Harris, and Local providers
  */
 export async function createEmbeddingProvider(
     providerType: EmbeddingProviderType,
     apiKey?: string,
-    model?: string
+    model?: string,
+    baseUrl?: string
 ): Promise<EmbeddingProvider> {
     switch (providerType) {
         case EmbeddingProviderType.OPENAI:
             if (!apiKey) {
                 throw new RAGError('OpenAI API key is required for OpenAI embeddings');
             }
-            return new OpenAIEmbeddingProvider(apiKey, model);
+            return new OpenAIEmbeddingProvider(apiKey, model, baseUrl);
 
         case EmbeddingProviderType.LOCAL:
             // Local embeddings don't need API key
@@ -461,17 +560,18 @@ export class EmbeddingsGenerator {
 
     /**
      * Initialize with provider type and options
-     * ✨ NEW: Supports both OpenAI and Local providers
+     * ✨ ENHANCED: Supports OpenAI, Azure/L3Harris, and Local providers
      */
     async initialize(
         providerType: EmbeddingProviderType,
-        options?: { apiKey?: string; model?: string }
+        options?: { apiKey?: string; model?: string; baseUrl?: string }
     ): Promise<void> {
         this.providerType = providerType;
         this.provider = await createEmbeddingProvider(
             providerType,
             options?.apiKey,
-            options?.model
+            options?.model,
+            options?.baseUrl
         );
     }
 
