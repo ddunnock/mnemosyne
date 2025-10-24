@@ -2583,12 +2583,15 @@ export class MnemosyneSettingsController {
             // Update plugin's internal settings reference
             this.plugin.settings = pluginSettings;
 
-            // IMPORTANT: Sync providers back from plugin settings to ensure consistency
+            // IMPORTANT: Sync providers and agents back from plugin settings to ensure consistency
             this.settings.providers = this.plugin.settings.llmConfigs || [];
+            this.settings.agents = this.plugin.settings.agents || [];
 
             console.log('Settings saved and plugin.settings updated:', {
                 llmConfigs: this.plugin.settings.llmConfigs?.length || 0,
-                providers: this.settings.providers.length
+                providers: this.settings.providers.length,
+                agents: this.plugin.settings.agents?.length || 0,
+                localAgents: this.settings.agents.length
             });
 
             // Try to reinitialize RAG system if embeddings are now available

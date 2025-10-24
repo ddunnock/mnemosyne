@@ -16,13 +16,24 @@ import { requestUrl } from 'obsidian';
 
 /**
  * Custom fetch implementation using Obsidian's requestUrl to bypass CORS
+ * Also handles Azure/L3Harris-style endpoints with custom headers
  */
 async function obsidianFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     try {
         const urlString = url.toString();
         const method = init?.method || 'GET';
-        const headers = init?.headers as Record<string, string> || {};
+        let headers = init?.headers as Record<string, string> || {};
         const body = init?.body as string;
+
+        // Handle Azure/L3Harris-style endpoints that use "api-key" header
+        // instead of "Authorization: Bearer"
+        if (headers['Authorization'] && urlString.includes('l3harris.com')) {
+            const apiKey = headers['Authorization'].replace('Bearer ', '');
+            headers = { ...headers };
+            delete headers['Authorization'];
+            headers['api-key'] = apiKey;
+            console.debug('[ObsidianFetch] Converted Authorization to api-key header for L3Harris endpoint');
+        }
 
         console.debug(`[ObsidianFetch] ${method} ${urlString}`);
 
@@ -31,7 +42,7 @@ async function obsidianFetch(url: RequestInfo | URL, init?: RequestInit): Promis
             method: method,
             headers: headers,
             body: body,
-            contentType: headers['Content-Type'] || 'application/json',
+            contentType: headers['Content-Type'] || headers['content-type'] || 'application/json',
             throw: false // Don't throw on non-200 status codes
         });
 
@@ -72,8 +83,20 @@ export class OpenAIProvider extends BaseLLMProvider {
         };
 
         if (baseUrl) {
-            clientConfig.baseURL = baseUrl;
-            console.log(`🔗 Using custom OpenAI-compatible endpoint: ${baseUrl}`);
+            // Handle Azure/L3Harris-style endpoints
+            // Format: https://api-lhxgpt.ai.l3harris.com/cgp/openai/deployments/{model}/chat/completions
+            if (baseUrl.includes('l3harris.com') || baseUrl.includes('/deployments/')) {
+                // Extract deployment name from model (e.g., "gpt-4o")
+                const deployment = model;
+
+                // Build the full base URL with deployment
+                // The OpenAI SDK will append /chat/completions to this
+                clientConfig.baseURL = `${baseUrl}/cgp/openai/deployments/${deployment}`;
+                console.log(`🔗 Using L3Harris/Azure-style endpoint: ${clientConfig.baseURL}`);
+            } else {
+                clientConfig.baseURL = baseUrl;
+                console.log(`🔗 Using custom OpenAI-compatible endpoint: ${baseUrl}`);
+            }
         }
 
         console.log('✓ OpenAI client configured with Obsidian fetch (CORS bypass enabled)');
