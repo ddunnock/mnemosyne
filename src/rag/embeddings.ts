@@ -30,6 +30,7 @@ function getTransformersModule() {
                 // For CJS bundled output, we need to handle the default export
                 const module = await import('@xenova/transformers');
                 // Handle both ESM default export and CJS module.exports
+                // @ts-ignore - transformers.js types are not fully compatible with default export
                 transformersModule = module.default || module;
 
                 // Configure transformers.js environment for Electron/browser
