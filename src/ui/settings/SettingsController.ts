@@ -3274,7 +3274,7 @@ export class MnemosyneSettingsController {
             // Reinitialize retriever with new config if we're using sqlite backend
             if (this.plugin.settings.vectorStore.backend === 'sqlite') {
                 try {
-                    const newVectorStore = VectorStoreFactory.create(
+                    const newVectorStore = await VectorStoreFactory.create(
                         this.plugin.app,
                         this.plugin.settings.vectorStore
                     );
@@ -3448,7 +3448,7 @@ export class MnemosyneSettingsController {
             // Reinitialize retriever with new config if we're using pgvector backend
             if (this.plugin.settings.vectorStore.backend === 'pgvector') {
                 try {
-                    const newVectorStore = VectorStoreFactory.create(
+                    const newVectorStore = await VectorStoreFactory.create(
                         this.plugin.app,
                         this.plugin.settings.vectorStore
                     );

@@ -8,14 +8,13 @@ import { App } from 'obsidian';
 import { IVectorStore } from './IVectorStore';
 import { JSONVectorStore } from './JSONVectorStore';
 import { SQLiteVectorStore } from './SQLiteVectorStore';
-import { PgVectorStore } from './PgVectorStore';
 import { VectorStoreConfig } from './types';
 
 export class VectorStoreFactory {
     /**
      * Create a vector store instance based on configuration
      */
-    static create(app: App, config: VectorStoreConfig): IVectorStore {
+    static async create(app: App, config: VectorStoreConfig): Promise<IVectorStore> {
         switch (config.backend) {
             case 'json':
                 if (!config.json) {
@@ -48,6 +47,8 @@ export class VectorStoreFactory {
                 if (!config.pgvector) {
                     throw new Error('PgVector backend configuration missing');
                 }
+                // Dynamic import to avoid loading pg module unless needed
+                const { PgVectorStore } = await import('./PgVectorStore');
                 return new PgVectorStore(
                     config.pgvector,
                     config.embeddingModel,
