@@ -114,6 +114,16 @@ export class KnowledgeBaseTab implements BaseTab {
                                 ${embeddingProvider.provider === 'openai' ? '<span style="color: var(--interactive-accent); font-size: 18px;">✓</span>' : ''}
                             </label>
 
+                            <!-- Azure/L3Harris Embeddings -->
+                            <label class="embedding-provider-option" style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--background-primary-alt); border: 2px solid ${embeddingProvider.provider === 'azure' ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                                <input type="radio" name="embedding-provider" value="azure" ${embeddingProvider.provider === 'azure' ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 4px;">Azure/L3Harris Embeddings</div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">Use your corporate LLM provider for embeddings (L3Harris, Azure OpenAI, etc.)</div>
+                                </div>
+                                ${embeddingProvider.provider === 'azure' ? '<span style="color: var(--interactive-accent); font-size: 18px;">✓</span>' : ''}
+                            </label>
+
                             <!-- Local Embeddings -->
                             <label class="embedding-provider-option" style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--background-primary-alt); border: 2px solid ${embeddingProvider.provider === 'local' ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                                 <input type="radio" name="embedding-provider" value="local" ${embeddingProvider.provider === 'local' ? 'checked' : ''} style="width: 18px; height: 18px;">
@@ -124,6 +134,19 @@ export class KnowledgeBaseTab implements BaseTab {
                                 ${embeddingProvider.provider === 'local' ? '<span style="color: var(--interactive-accent); font-size: 18px;">✓</span>' : ''}
                             </label>
                         </div>
+
+                        ${embeddingProvider.provider === 'azure' ? `
+                            <div style="margin-top: 12px; padding: 12px; background: var(--background-modifier-hover); border-radius: 4px;">
+                                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                                    Uses your configured L3Harris/Azure OpenAI provider for embeddings.
+                                </p>
+                                <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Deployment/Model Name:</label>
+                                <input type="text" id="azure-embedding-model" value="${embeddingProvider.model || 'text-embedding-ada-002'}" placeholder="text-embedding-ada-002" style="width: 100%; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal); margin-bottom: 8px;">
+                                <div style="font-size: 11px; color: var(--text-muted);">
+                                    Found via discovery: <strong>text-embedding-ada-002</strong> (1536 dims)
+                                </div>
+                            </div>
+                        ` : ''}
 
                         ${embeddingProvider.provider === 'local' ? `
                             <div style="margin-top: 12px; padding: 12px; background: var(--background-modifier-hover); border-radius: 4px;">
@@ -236,9 +259,18 @@ export class KnowledgeBaseTab implements BaseTab {
         embeddingProviderRadios.forEach(radio => {
             radio.addEventListener('change', async (e) => {
                 const provider = (e.target as HTMLInputElement).value;
-                await this.handleEmbeddingProviderChange(provider as 'openai' | 'local');
+                await this.handleEmbeddingProviderChange(provider as 'openai' | 'azure' | 'local');
             });
         });
+
+        // Azure Embedding Model Input
+        const azureModelInput = container.querySelector('#azure-embedding-model');
+        if (azureModelInput) {
+            azureModelInput.addEventListener('change', async (e) => {
+                const model = (e.target as HTMLInputElement).value;
+                await this.handleAzureEmbeddingModelChange(model);
+            });
+        }
 
         // Local Embedding Model Select
         const localModelSelect = container.querySelector('#local-embedding-model');
@@ -276,7 +308,7 @@ export class KnowledgeBaseTab implements BaseTab {
         modal.open();
     }
 
-    private async handleEmbeddingProviderChange(provider: 'openai' | 'local'): Promise<void> {
+    private async handleEmbeddingProviderChange(provider: 'openai' | 'azure' | 'local'): Promise<void> {
         try {
             // Ensure embeddingProvider is an object (it might be a string from old settings)
             if (!this.plugin.settings.embeddingProvider || typeof this.plugin.settings.embeddingProvider === 'string') {
@@ -294,6 +326,9 @@ export class KnowledgeBaseTab implements BaseTab {
             if (provider === 'local') {
                 this.plugin.settings.embeddingProvider.model = 'Xenova/all-MiniLM-L6-v2';
                 this.plugin.settings.embeddingProvider.dimension = 384;
+            } else if (provider === 'azure') {
+                this.plugin.settings.embeddingProvider.model = 'text-embedding-ada-002';
+                this.plugin.settings.embeddingProvider.dimension = 1536;
             } else {
                 this.plugin.settings.embeddingProvider.model = 'text-embedding-3-small';
                 this.plugin.settings.embeddingProvider.dimension = 1536;
@@ -306,6 +341,29 @@ export class KnowledgeBaseTab implements BaseTab {
         } catch (error: any) {
             console.error('Failed to change embedding provider:', error);
             new Notice(`Failed to change embedding provider: ${error.message}`);
+        }
+    }
+
+    private async handleAzureEmbeddingModelChange(model: string): Promise<void> {
+        try {
+            // Ensure embeddingProvider is an object
+            if (!this.plugin.settings.embeddingProvider || typeof this.plugin.settings.embeddingProvider === 'string') {
+                this.plugin.settings.embeddingProvider = {
+                    provider: 'azure',
+                    model: 'text-embedding-ada-002',
+                    dimension: 1536
+                };
+            }
+
+            // Update model
+            this.plugin.settings.embeddingProvider.model = model;
+
+            await this.plugin.saveSettings();
+
+            new Notice(`Azure embedding model changed to ${model}.`);
+        } catch (error: any) {
+            console.error('Failed to change Azure embedding model:', error);
+            new Notice(`Failed to change Azure embedding model: ${error.message}`);
         }
     }
 

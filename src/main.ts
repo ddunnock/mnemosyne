@@ -31,8 +31,11 @@ import { AutoIngestionManager } from './rag/AutoIngestionManager';
 import { VaultIngestor } from './rag/VaultIngestor';
 
 // Inline AI imports
-import { InlineAIManager } from './ui/inlineAI/InlineAIManager';
-import { InlineAISettings, DEFAULT_INLINE_AI_SETTINGS } from './ui/inlineAI/types';or } from './rag/VaultIngestor';
+import { InlineAIController, DEFAULT_INLINE_AI_SETTINGS } from './editor/InlineAIController';
+import { createAutoCompletionExtension } from './editor/AutoCompletionExtension';
+import { createSelectionToolbarExtension } from './editor/SelectionToolbarExtension';
+import { UniversalContextMenu } from './editor/UniversalContextMenu';
+import { AITextActionModal } from './ui/modals/AITextActionModal';
 
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
@@ -43,23 +46,25 @@ export default class RiskManagementPlugin extends Plugin {
     llmManager: LLMManager;
     agentManager: AgentManager;
     initManager: InitializationManager;
-    
+
     // Auto Ingestion components
     vaultIngestor: VaultIngestor;
-    autoInge    // Conversation Memory
+    autoIngestionManager: AutoIngestionManager;
+
+    // Conversation Memory
     memoryManager: ConversationMemoryManager;
-    
+
     // Inline AI
-    inlineAIManager: InlineAIManager;
-    
+    inlineAIController: InlineAIController;
+    universalContextMenu: UniversalContextMenu;
+
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
-    
+
     // Session cache for password persistence
     private sessionPasswordCache: string | null = null;
-    
+
     // Sidebar chat
-    chatSidebar: AgentChatSidebar | null = null;hat
     chatSidebar: AgentChatSidebar | null = null;
 
     /**
@@ -95,9 +100,21 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Register commands
         this.registerCommands();
-        
+
         // Register views
         this.registerViews();
+
+        // Register editor extensions (auto-completion and selection toolbar)
+        this.registerEditorExtension(createAutoCompletionExtension(this));
+        console.log('✓ Auto-completion extension registered');
+
+        this.registerEditorExtension(createSelectionToolbarExtension(this));
+        console.log('✓ Selection toolbar extension registered');
+
+        // Register universal context menu for AI text actions (works anywhere on page)
+        this.universalContextMenu = new UniversalContextMenu(this);
+        this.universalContextMenu.register();
+        console.log('✓ Universal context menu registered');
 
         // Phase 5: Expose public API
         exposePublicAPI(this);
@@ -122,15 +139,16 @@ export default class RiskManagementPlugin extends Plugin {
     async onunload() {
         console.log(`Unloading ${PLUGIN_NAME}`);
 
+        // Unregister universal context menu
+        if (this.universalContextMenu) {
+            this.universalContextMenu.unregister();
+            console.log('✓ Universal context menu unregistered');
+        }
+
         // Stop auto ingestion
         if (this.autoIngestionManager) {
             this.autoIngestionManager.stop();
             console.log('✓ Auto Ingestion Manager stopped');
-        }
-
-        // Phase         // Cleanup Inline AI
-        if (this.inlineAIManager) {
-            this.inlineAIManager.cleanup();
         }
 
         // Cleanup LLM system
@@ -144,9 +162,6 @@ export default class RiskManagementPlugin extends Plugin {
         }
 
         // Clear master password from memory
-        if (this.keyManager) {
-            this.keyManager.clearMasterPassword();
-        }Clear master password from memory
         if (this.keyManager) {
             this.keyManager.clearMasterPassword();
         }
@@ -248,19 +263,13 @@ export default class RiskManagementPlugin extends Plugin {
             );
             console.log('✓ Conversation Memory Manager initialized');
 
-            // Initialize Inline AI Manager
-            this.inlineAIManager = new InlineAIManager(this, this.settings.inlineAI);
-            if (this.settings.inlineAI.enabled) {
-                this.inlineAIManager.enable();
-            }
-            console.log('✓ Inline AI Manager initialized');') {
-                            (leaf.view as any).updateMemoryStatus();
-                        }
-                    });
-                }
+            // Initialize Inline AI Controller
+            this.inlineAIController = new InlineAIController(
+                this,
+                this.settings.inlineAI || DEFAULT_INLINE_AI_SETTINGS
             );
-            console.log('✓ Conversation Memory Manager initialized');
-            
+            console.log('✓ Inline AI Controller initialized');
+
             // Start auto ingestion if enabled and RAG system is ready
             if (this.settings.autoIngestion.enabled && this.retriever.isReady()) {
                 try {
@@ -390,6 +399,94 @@ export default class RiskManagementPlugin extends Plugin {
 
                 // Show input modal
                 this.showAgentQueryModal(defaultAgent.getConfig().id);
+            },
+        });
+
+        // ========== Inline AI Commands ==========
+
+        // Command: AI Text Actions (for selected text)
+        this.addCommand({
+            id: 'ai-text-actions',
+            name: 'AI Text Actions',
+            editorCallback: (editor) => {
+                const selection = editor.getSelection();
+
+                if (!selection || selection.trim().length === 0) {
+                    new Notice('Please select some text first');
+                    return;
+                }
+
+                // Open AI text action modal
+                new AITextActionModal(
+                    this.app,
+                    this,
+                    selection,
+                    (result) => {
+                        // Replace selection with result
+                        editor.replaceSelection(result);
+                    }
+                ).open();
+            },
+        });
+
+        // ========== Testing & Diagnostics Commands ==========
+
+        // Command: Test Embedding Models (for Azure/L3Harris endpoints)
+        this.addCommand({
+            id: 'test-embedding-models',
+            name: 'Test Embedding Models (Discover Available Deployments)',
+            callback: async () => {
+                // Import the test utility
+                const { discoverEmbeddingModels } = await import('./utils/testEmbeddings');
+
+                // Get L3Harris provider configuration
+                const l3harrisProvider = this.settings.llmConfigs?.find(
+                    (p) => p.baseUrl?.includes('l3harris.com')
+                );
+
+                if (!l3harrisProvider) {
+                    new Notice('No L3Harris provider found. Please configure one first.');
+                    return;
+                }
+
+                if (!l3harrisProvider.encryptedApiKey) {
+                    new Notice('L3Harris provider has no API key configured.');
+                    return;
+                }
+
+                // Decrypt the API key
+                let apiKey: string;
+                try {
+                    const encryptedData = JSON.parse(l3harrisProvider.encryptedApiKey);
+                    apiKey = this.keyManager.decrypt(encryptedData);
+                } catch (error) {
+                    new Notice('Failed to decrypt API key. Please check your master password.');
+                    console.error('Decryption error:', error);
+                    return;
+                }
+
+                new Notice('Testing embedding models... Check console for results.', 5000);
+
+                try {
+                    const results = await discoverEmbeddingModels(
+                        l3harrisProvider.baseUrl!,
+                        apiKey
+                    );
+
+                    // Show summary in UI
+                    const successful = results.filter(r => r.success);
+                    if (successful.length > 0) {
+                        const summary = successful
+                            .map(r => `${r.deploymentName} (${r.dimension}D)`)
+                            .join(', ');
+                        new Notice(`✓ Found ${successful.length} model(s): ${summary}`, 10000);
+                    } else {
+                        new Notice('⚠️ No working embedding models found. Check console for details.', 10000);
+                    }
+                } catch (error) {
+                    console.error('Embedding test failed:', error);
+                    new Notice(`Test failed: ${error.message}`);
+                }
             },
         });
 

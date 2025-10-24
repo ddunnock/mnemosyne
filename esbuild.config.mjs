@@ -21,7 +21,7 @@ const context = await esbuild.context({
     },
     entryPoints: ["src/main.ts"],
     bundle: true,
-    inject: ['/tmp/transformers-shim.js'], // Inject shim for transformers.js
+    // inject: ['/tmp/transformers-shim.js'], // Temporarily disabled to test
     external: [
         "obsidian",
         "electron",
@@ -45,13 +45,8 @@ const context = await esbuild.context({
     treeShaking: true,
     outfile: "dist/main.js",
     minify: prod,
-    platform: "browser", // Use browser platform to avoid Node.js-specific code paths
-    mainFields: ["browser", "module", "main"], // Prefer browser field for browser-compatible builds
-    conditions: ["browser", "import"], // Use browser conditions
     define: {
-        'global': 'globalThis', // Use globalThis for better compatibility
-        'import.meta.url': '"file:///"', // Provide a dummy import.meta.url for bundled ESM
-        'process.env.NODE_ENV': '"production"', // Define NODE_ENV
+        'import.meta.url': '"file:///"', // Required for transformers.js
     },
 });
 

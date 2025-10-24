@@ -190,6 +190,87 @@ export class AdvancedTab implements BaseTab {
                     </div>
                 </div>
 
+                <!-- Inline AI Section -->
+                <div class="settings-section">
+                    <div class="settings-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="margin: 0;">✨ Inline AI Features</h3>
+                            <label class="toggle-label">
+                                <input type="checkbox" id="inline-ai-enabled" ${this.plugin.settings.inlineAI?.enabled ? 'checked' : ''} style="width: 18px; height: 18px;">
+                            </label>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                            AI-powered editor features including auto-completion and text transformations.
+                        </p>
+
+                        ${this.plugin.settings.inlineAI?.enabled ? `
+                            <details>
+                                <summary style="cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-muted); padding: 12px; background: var(--background-modifier-border); border-radius: 4px;">
+                                    Inline AI Configuration
+                                </summary>
+                                <div style="padding: 16px; margin-top: 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border);">
+                                    <!-- Auto-Completion -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                        <div>
+                                            <label style="font-size: 13px; font-weight: 600;">Auto-Completion</label>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">GitHub Copilot-style inline suggestions</p>
+                                        </div>
+                                        <label class="toggle-label">
+                                            <input type="checkbox" id="inline-ai-auto-completion" ${this.plugin.settings.inlineAI?.autoCompletionEnabled ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        </label>
+                                    </div>
+
+                                    <!-- Text Actions Command -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                        <div>
+                                            <label style="font-size: 13px; font-weight: 600;">Text Actions Command</label>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Command palette action for text transformations</p>
+                                        </div>
+                                        <label class="toggle-label">
+                                            <input type="checkbox" id="inline-ai-context-menu" ${this.plugin.settings.inlineAI?.contextMenuEnabled ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        </label>
+                                    </div>
+
+                                    <!-- Selection Toolbar -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                        <div>
+                                            <label style="font-size: 13px; font-weight: 600;">Selection Toolbar</label>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Floating toolbar that appears when you select text</p>
+                                        </div>
+                                        <label class="toggle-label">
+                                            <input type="checkbox" id="inline-ai-show-toolbar" ${this.plugin.settings.inlineAI?.showInlineMenu !== false ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        </label>
+                                    </div>
+
+                                    <!-- Auto-Completion Delay -->
+                                    <div style="margin-bottom: 16px;">
+                                        <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Auto-Completion Delay (ms):</label>
+                                        <input type="number" id="inline-ai-delay" value="${this.plugin.settings.inlineAI?.autoCompletionDelay || 500}" min="100" max="5000" step="100" style="width: 100%; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal);" />
+                                        <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Delay before showing suggestions (default: 500ms)</p>
+                                    </div>
+
+                                    <!-- Max Completion Length -->
+                                    <div style="margin-bottom: 16px;">
+                                        <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Max Completion Length:</label>
+                                        <input type="number" id="inline-ai-max-length" value="${this.plugin.settings.inlineAI?.maxCompletionLength || 200}" min="50" max="500" step="50" style="width: 100%; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal);" />
+                                        <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Maximum characters in auto-completion suggestions</p>
+                                    </div>
+
+                                    <button id="save-inline-ai-settings-btn" class="btn btn-primary" style="width: 100%;">
+                                        Save Inline AI Settings
+                                    </button>
+                                </div>
+                            </details>
+                        ` : `
+                            <div style="padding: 16px; background: var(--background-modifier-hover); border-radius: 6px;">
+                                <p style="margin: 0; font-size: 13px; color: var(--text-muted); font-style: italic;">
+                                    💡 Enable inline AI to get auto-completion suggestions and quick text transformations while editing.
+                                </p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+
                 <!-- Goddess Persona Section -->
                 <div class="settings-section">
                     <div class="settings-card">
@@ -361,6 +442,71 @@ export class AdvancedTab implements BaseTab {
             });
         }
 
+        // Inline AI Enabled Toggle
+        const inlineAIEnabledToggle = container.querySelector('#inline-ai-enabled');
+        if (inlineAIEnabledToggle) {
+            inlineAIEnabledToggle.addEventListener('change', async (e) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                await this.handleInlineAIToggle(enabled);
+            });
+        }
+
+        // Inline AI Auto-Completion Toggle
+        const inlineAIAutoCompletionToggle = container.querySelector('#inline-ai-auto-completion');
+        if (inlineAIAutoCompletionToggle) {
+            inlineAIAutoCompletionToggle.addEventListener('change', async (e) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                if (this.plugin.settings.inlineAI) {
+                    this.plugin.settings.inlineAI.autoCompletionEnabled = enabled;
+                    await this.plugin.saveSettings();
+                    if (this.plugin.inlineAIController) {
+                        this.plugin.inlineAIController.updateSettings({ autoCompletionEnabled: enabled });
+                    }
+                    new Notice(`Auto-completion ${enabled ? 'enabled' : 'disabled'}`);
+                }
+            });
+        }
+
+        // Inline AI Context Menu Toggle
+        const inlineAIContextMenuToggle = container.querySelector('#inline-ai-context-menu');
+        if (inlineAIContextMenuToggle) {
+            inlineAIContextMenuToggle.addEventListener('change', async (e) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                if (this.plugin.settings.inlineAI) {
+                    this.plugin.settings.inlineAI.contextMenuEnabled = enabled;
+                    await this.plugin.saveSettings();
+                    if (this.plugin.inlineAIController) {
+                        this.plugin.inlineAIController.updateSettings({ contextMenuEnabled: enabled });
+                    }
+                    new Notice(`Text actions command ${enabled ? 'enabled' : 'disabled'}`);
+                }
+            });
+        }
+
+        // Inline AI Selection Toolbar Toggle
+        const inlineAIShowToolbarToggle = container.querySelector('#inline-ai-show-toolbar');
+        if (inlineAIShowToolbarToggle) {
+            inlineAIShowToolbarToggle.addEventListener('change', async (e) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                if (this.plugin.settings.inlineAI) {
+                    this.plugin.settings.inlineAI.showInlineMenu = enabled;
+                    await this.plugin.saveSettings();
+                    if (this.plugin.inlineAIController) {
+                        this.plugin.inlineAIController.updateSettings({ showInlineMenu: enabled });
+                    }
+                    new Notice(`Selection toolbar ${enabled ? 'enabled' : 'disabled'}. Select text to see it!`);
+                }
+            });
+        }
+
+        // Save Inline AI Settings Button
+        const saveInlineAIBtn = container.querySelector('#save-inline-ai-settings-btn');
+        if (saveInlineAIBtn) {
+            saveInlineAIBtn.addEventListener('click', async () => {
+                await this.handleSaveInlineAISettings(container);
+            });
+        }
+
         // Debug Toggle
         const debugToggle = container.querySelector('#debug-enabled');
         if (debugToggle) {
@@ -424,6 +570,63 @@ export class AdvancedTab implements BaseTab {
         } catch (error: any) {
             console.error('Failed to save persona settings:', error);
             new Notice(`Failed to save persona settings: ${error.message}`);
+        }
+    }
+
+    private async handleInlineAIToggle(enabled: boolean): Promise<void> {
+        try {
+            if (!this.plugin.settings.inlineAI) {
+                this.plugin.settings.inlineAI = {
+                    enabled: true,
+                    autoCompletionEnabled: true,
+                    contextMenuEnabled: true,
+                    autoCompletionDelay: 500,
+                    maxCompletionLength: 200,
+                    showInlineMenu: true,
+                };
+            }
+
+            this.plugin.settings.inlineAI.enabled = enabled;
+            await this.plugin.saveSettings();
+
+            if (this.plugin.inlineAIController) {
+                this.plugin.inlineAIController.updateSettings({ enabled });
+            }
+
+            this.updateComponents();
+            new Notice(`Inline AI ${enabled ? 'enabled' : 'disabled'}!`);
+        } catch (error: any) {
+            console.error('Failed to toggle inline AI:', error);
+            new Notice(`Failed to toggle inline AI: ${error.message}`);
+        }
+    }
+
+    private async handleSaveInlineAISettings(container: HTMLElement): Promise<void> {
+        try {
+            const delayInput = container.querySelector('#inline-ai-delay') as HTMLInputElement;
+            const maxLengthInput = container.querySelector('#inline-ai-max-length') as HTMLInputElement;
+
+            const delay = parseInt(delayInput?.value || '500', 10);
+            const maxLength = parseInt(maxLengthInput?.value || '200', 10);
+
+            if (this.plugin.settings.inlineAI) {
+                this.plugin.settings.inlineAI.autoCompletionDelay = delay;
+                this.plugin.settings.inlineAI.maxCompletionLength = maxLength;
+
+                await this.plugin.saveSettings();
+
+                if (this.plugin.inlineAIController) {
+                    this.plugin.inlineAIController.updateSettings({
+                        autoCompletionDelay: delay,
+                        maxCompletionLength: maxLength,
+                    });
+                }
+
+                new Notice('Inline AI settings saved successfully!');
+            }
+        } catch (error: any) {
+            console.error('Failed to save inline AI settings:', error);
+            new Notice(`Failed to save inline AI settings: ${error.message}`);
         }
     }
 
