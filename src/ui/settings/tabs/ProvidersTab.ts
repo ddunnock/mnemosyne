@@ -458,15 +458,29 @@ export class ProvidersTab implements BaseTab {
     private async testOpenAIProvider(provider: LLMConfig, apiKey: string): Promise<boolean> {
         try {
             const baseUrl = provider.baseUrl || 'https://api.openai.com/v1';
-            const response = await fetch(`${baseUrl}/models`, {
+
+            // Use Obsidian's requestUrl to bypass CORS
+            const { requestUrl } = require('obsidian');
+
+            let headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+
+            // Handle L3Harris/Azure-style endpoints that use "api-key" header
+            if (baseUrl.includes('l3harris.com')) {
+                headers['api-key'] = apiKey;
+            } else {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            const response = await requestUrl({
+                url: `${baseUrl}/models`,
                 method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
+                headers: headers,
+                throw: false
             });
 
-            return response.ok;
+            return response.status === 200 || response.status === 404; // 404 is OK if /models endpoint doesn't exist
         } catch (error) {
             console.error('OpenAI test failed:', error);
             return false;
@@ -497,16 +511,55 @@ export class ProvidersTab implements BaseTab {
                 throw new Error('Custom provider requires a base URL');
             }
 
-            // Try a simple health check or models endpoint
-            const response = await fetch(`${provider.baseUrl}/models`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            // Use Obsidian's requestUrl to bypass CORS
+            const { requestUrl } = require('obsidian');
 
-            return response.ok;
+            let headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+
+            // Handle L3Harris/Azure-style endpoints that use "api-key" header
+            if (provider.baseUrl.includes('l3harris.com')) {
+                headers['api-key'] = apiKey;
+                console.log('Using api-key header for L3Harris endpoint');
+            } else {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            // For L3Harris/Azure, we need to test the actual chat endpoint
+            // since /models might not exist
+            let testUrl = `${provider.baseUrl}/models`;
+            if (provider.baseUrl.includes('l3harris.com')) {
+                // Test the actual chat completions endpoint with deployment
+                testUrl = `${provider.baseUrl}/cgp/openai/deployments/${provider.model}/chat/completions`;
+                console.log(`Testing L3Harris endpoint: ${testUrl}`);
+
+                // Make a minimal test request
+                const response = await requestUrl({
+                    url: testUrl,
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: 'test' }],
+                        max_tokens: 5
+                    }),
+                    throw: false
+                });
+
+                // Accept any response that's not auth-related error
+                // 200 = success, 400 = bad request (but auth worked)
+                return response.status === 200 || response.status === 400;
+            } else {
+                // Standard /models endpoint test
+                const response = await requestUrl({
+                    url: testUrl,
+                    method: 'GET',
+                    headers: headers,
+                    throw: false
+                });
+
+                return response.status === 200 || response.status === 404;
+            }
         } catch (error) {
             console.error('Custom provider test failed:', error);
             return false;
