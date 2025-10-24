@@ -7,6 +7,7 @@
 import { App, Modal, Notice } from 'obsidian';
 import type RiskManagementPlugin from '../../main';
 import { AI_TEXT_ACTIONS, AITextAction } from '../../editor/InlineAIController';
+import { AITextReviewModal } from './AITextReviewModal';
 
 export class AITextActionModal extends Modal {
     private plugin: RiskManagementPlugin;
@@ -130,13 +131,26 @@ export class AITextActionModal extends Modal {
                 action
             );
 
-            this.onComplete(result);
+            // Close this modal first
             this.close();
 
-            new Notice(`✓ ${action.label} completed`);
+            // Show review modal before applying changes
+            new AITextReviewModal(
+                this.app,
+                this.plugin,
+                this.selectedText,
+                result,
+                action,
+                (acceptedText) => {
+                    // Call the completion callback when user accepts
+                    this.onComplete(acceptedText);
+                    new Notice(`✓ ${action.label} applied`);
+                }
+            ).open();
         } catch (error) {
             console.error('AI action failed:', error);
             new Notice(`✗ ${action.label} failed: ${error.message}`);
+            this.close();
         } finally {
             this.isProcessing = false;
         }
