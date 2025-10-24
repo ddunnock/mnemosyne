@@ -68,19 +68,25 @@ export class AgentExecutor {
             let retrievedChunks: RetrievedChunk[] = [];
 
             if (this.retriever.isReady()) {
-                // Debug: Check vector store stats
-                const stats = await this.retriever.getStats();
-                console.log('Vector store stats:', stats);
+                try {
+                    // Debug: Check vector store stats
+                    const stats = await this.retriever.getStats();
+                    console.log('Vector store stats:', stats);
 
-                retrievedChunks = await this.retrieveContext(query, context);
+                    retrievedChunks = await this.retrieveContext(query, context);
 
-                if (retrievedChunks.length === 0) {
-                    console.warn('No relevant chunks found for query:', query);
-                    console.log('Vector store has', stats?.totalChunks || 0, 'total chunks');
-                    contextText = '[No relevant context found in knowledge base]';
-                } else {
-                    console.log('Found', retrievedChunks.length, 'relevant chunks');
-                    contextText = this.buildContextText(retrievedChunks);
+                    if (retrievedChunks.length === 0) {
+                        console.warn('No relevant chunks found for query:', query);
+                        console.log('Vector store has', stats?.totalChunks || 0, 'total chunks');
+                        contextText = '[No relevant context found in knowledge base]';
+                    } else {
+                        console.log('Found', retrievedChunks.length, 'relevant chunks');
+                        contextText = this.buildContextText(retrievedChunks);
+                    }
+                } catch (ragError) {
+                    // Gracefully handle RAG failures (e.g., invalid API keys, network issues)
+                    console.warn('RAG retrieval failed, continuing without context:', ragError);
+                    contextText = '[RAG retrieval failed - agent will respond without knowledge base context]';
                 }
             } else {
                 console.log('RAG system not available - using agent without knowledge base context');

@@ -54,24 +54,29 @@ export class AITextReviewModal extends Modal {
             this.generatedText.split('\n').length
         );
 
-        // Dynamic width: 500px for short text, up to 1200px for long text
-        const width = Math.min(1200, Math.max(500, 300 + charCount * 0.5));
+        // Dynamic sizing strategy: Maximize height, use current width as max
+        // This minimizes horizontal scrolling by making the modal taller
+        const availableWidth = window.innerWidth * 0.9;
+        const availableHeight = window.innerHeight * 0.9;
 
-        // Dynamic height: based on line count and character density
-        // Min 300px, max 85vh
-        const estimatedHeight = Math.min(
-            window.innerHeight * 0.85,
-            Math.max(300, 200 + lineCount * 25)
-        );
+        // Width: Use available width (90vw) with minimum for two columns
+        const width = Math.max(900, availableWidth);
+
+        // Height: Maximize to 90vh to reduce need for horizontal scroll
+        const height = Math.max(500, availableHeight);
 
         // Apply dynamic sizing to modal
         const modalEl = contentEl.closest('.modal') as HTMLElement;
         if (modalEl) {
+            // Add class to modal element for CSS targeting
+            modalEl.classList.add('ai-text-review-modal');
+
             modalEl.style.width = `${width}px`;
-            modalEl.style.maxWidth = '95vw';
-            modalEl.style.height = `${estimatedHeight}px`;
-            modalEl.style.maxHeight = '85vh';
-            modalEl.style.minHeight = '300px';
+            modalEl.style.maxWidth = '90vw';
+            modalEl.style.minWidth = '900px'; // Ensure both columns fit
+            modalEl.style.height = `${height}px`;
+            modalEl.style.maxHeight = '90vh'; // Increased from 85vh
+            modalEl.style.minHeight = '500px'; // Increased from 300px
         }
 
         // Title
@@ -235,13 +240,25 @@ export class AITextReviewModal extends Modal {
      * Add modal styles
      */
     private addStyles(): void {
-        if (document.getElementById('ai-text-review-modal-styles')) {
-            return;
+        // Remove old styles if they exist to ensure we apply the latest version
+        const oldStyle = document.getElementById('ai-text-review-modal-styles');
+        if (oldStyle) {
+            oldStyle.remove();
         }
 
         const style = document.createElement('style');
         style.id = 'ai-text-review-modal-styles';
         style.textContent = `
+            /* Force modal to respect our sizing */
+            .ai-text-review-modal .modal {
+                width: 90vw !important;
+                max-width: 90vw !important;
+                min-width: 900px !important;
+                height: 90vh !important;
+                max-height: 90vh !important;
+                min-height: 500px !important;
+            }
+
             .ai-text-review-modal .modal-content {
                 padding: 20px;
                 height: 100%;
