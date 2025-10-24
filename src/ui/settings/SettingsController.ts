@@ -2316,6 +2316,11 @@ export class MnemosyneSettingsController {
         this.updateAgentManagement();
         this.updateProviderManagement();
         this.updateGoddessPersonaManagement();
+
+        // Re-render the active tab to reflect state changes
+        if (this.tabManager) {
+            this.tabManager.renderActiveTab();
+        }
     }
 
     private updateToggleState(): void {
@@ -2577,12 +2582,15 @@ export class MnemosyneSettingsController {
 
             // Update plugin's internal settings reference
             this.plugin.settings = pluginSettings;
-            
+
+            // IMPORTANT: Sync providers back from plugin settings to ensure consistency
+            this.settings.providers = this.plugin.settings.llmConfigs || [];
+
             console.log('Settings saved and plugin.settings updated:', {
                 llmConfigs: this.plugin.settings.llmConfigs?.length || 0,
                 providers: this.settings.providers.length
             });
-            
+
             // Try to reinitialize RAG system if embeddings are now available
             await this.tryReinitializeRAG();
         } catch (error) {
