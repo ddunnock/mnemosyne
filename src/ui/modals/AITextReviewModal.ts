@@ -41,6 +41,31 @@ export class AITextReviewModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-text-review-modal');
 
+        // Directly set modal size via inline styles for maximum specificity
+        const modalEl = contentEl.closest('.modal') as HTMLElement;
+        const modalContainer = contentEl.closest('.modal-container') as HTMLElement;
+
+        if (modalEl) {
+            modalEl.style.width = '95vw';
+            modalEl.style.maxWidth = '1600px';
+            modalEl.style.minWidth = '800px';
+            modalEl.style.height = '60vh';
+            modalEl.style.maxHeight = '500px';
+            modalEl.style.minHeight = '400px';
+            // Prevent modal itself from scrolling
+            modalEl.style.overflow = 'hidden';
+        }
+
+        if (modalContainer) {
+            modalContainer.style.display = 'flex';
+            modalContainer.style.alignItems = 'center';
+            modalContainer.style.justifyContent = 'center';
+        }
+
+        // Ensure contentEl uses full height and doesn't scroll
+        contentEl.style.height = '100%';
+        contentEl.style.overflow = 'hidden';
+
         // Title
         contentEl.createEl('h2', { text: `${this.action.icon} ${this.action.label} - Review` });
 
@@ -209,15 +234,28 @@ export class AITextReviewModal extends Modal {
         const style = document.createElement('style');
         style.id = 'ai-text-review-modal-styles';
         style.textContent = `
-            .ai-text-review-modal {
-                padding: 0;
-                width: 95vw !important;
-                max-width: 1600px !important;
-                height: 70vh !important;
-                max-height: 600px !important;
+            /* Target the modal container wrapper with high specificity */
+            body > .modal-container:has(.ai-text-review-modal),
+            .modal-container.mod-dim:has(.ai-text-review-modal) {
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
-            .ai-text-review-modal .modal-content {
+            /* Target the outer modal with full selector chain */
+            body > .modal-container:has(.ai-text-review-modal) > .modal,
+            .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                width: 95vw;
+                max-width: 1600px;
+                min-width: 800px;
+                height: 60vh;
+                max-height: 500px;
+                min-height: 400px;
+            }
+
+            /* The modal content itself with full chain */
+            body > .modal-container > .modal > .modal-content.ai-text-review-modal,
+            .modal-container.mod-dim > .modal > .modal-content.ai-text-review-modal {
                 padding: 20px;
                 height: 100%;
                 width: 100%;
@@ -269,6 +307,8 @@ export class AITextReviewModal extends Modal {
                 flex: 1;
                 min-height: 0;
                 min-width: 0;
+                max-height: 100%;
+                box-sizing: border-box;
             }
 
             .text-box pre {
@@ -280,6 +320,8 @@ export class AITextReviewModal extends Modal {
                 font-size: 13px;
                 line-height: 1.6;
                 min-width: 0;
+                max-width: 100%;
+                display: block;
             }
 
             .text-box.original {
@@ -371,42 +413,46 @@ export class AITextReviewModal extends Modal {
 
             /* Large screens - extra wide for comparison */
             @media (min-width: 1400px) {
-                .ai-text-review-modal {
-                    width: 90vw !important;
-                    max-width: 1800px !important;
+                body > .modal-container:has(.ai-text-review-modal) > .modal,
+                .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                    width: 90vw;
+                    max-width: 1800px;
                 }
             }
 
             /* Medium-large screens */
             @media (min-width: 1025px) and (max-width: 1399px) {
-                .ai-text-review-modal {
-                    width: 92vw !important;
-                    max-width: 1400px !important;
+                body > .modal-container:has(.ai-text-review-modal) > .modal,
+                .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                    width: 92vw;
+                    max-width: 1400px;
                 }
             }
 
             /* Medium screens */
             @media (min-width: 769px) and (max-width: 1024px) {
-                .ai-text-review-modal {
-                    width: 95vw !important;
-                    max-width: none !important;
+                body > .modal-container:has(.ai-text-review-modal) > .modal,
+                .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                    width: 95vw;
+                    max-width: 1200px;
                 }
             }
 
             /* Small screens - stack vertically */
             @media (max-width: 768px) {
-                .ai-text-review-modal {
-                    width: 98vw !important;
-                    height: 85vh !important;
-                    max-width: none !important;
+                body > .modal-container:has(.ai-text-review-modal) > .modal,
+                .modal-container.mod-dim:has(.ai-text-review-modal) > .modal {
+                    width: 98vw;
+                    height: 85vh;
+                    max-width: none;
                 }
 
-                .review-container {
+                .ai-text-review-modal .review-container {
                     grid-template-columns: 1fr;
                     gap: 12px;
                 }
 
-                .text-box {
+                .ai-text-review-modal .text-box {
                     max-height: 250px;
                 }
             }

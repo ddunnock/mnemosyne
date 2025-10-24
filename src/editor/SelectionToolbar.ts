@@ -62,10 +62,14 @@ export class SelectionToolbar {
      * Show toolbar at selection position
      */
     show(view: EditorView, selection: EditorSelection) {
-        if (!this.toolbar) return;
+        if (!this.toolbar) {
+            console.warn('[SelectionToolbar] Toolbar element not initialized');
+            return;
+        }
 
-        const settings = this.plugin.inlineAIController.getSettings();
-        if (!settings.enabled || !settings.showInlineMenu) {
+        const settings = this.plugin.inlineAIController?.getSettings();
+        if (!settings || !settings.enabled || !settings.showInlineMenu) {
+            console.debug('[SelectionToolbar] Toolbar disabled in settings');
             return;
         }
 
@@ -91,13 +95,16 @@ export class SelectionToolbar {
             return;
         }
 
-        // Position toolbar above selection
-        const left = fromCoords.left;
-        const top = fromCoords.top - 50; // 50px above selection
+        // Position toolbar above selection, accounting for scroll
+        const left = fromCoords.left + window.scrollX;
+        const top = fromCoords.top + window.scrollY - 50; // 50px above selection
 
         this.toolbar.style.display = 'flex';
         this.toolbar.style.left = `${left}px`;
         this.toolbar.style.top = `${top}px`;
+        this.toolbar.style.position = 'absolute';
+
+        console.debug('[SelectionToolbar] Showing at', { left, top, fromCoords, scrollX: window.scrollX, scrollY: window.scrollY });
     }
 
     /**
@@ -219,7 +226,7 @@ export class SelectionToolbar {
         style.id = 'mnemosyne-selection-toolbar-styles';
         style.textContent = `
             .mnemosyne-selection-toolbar {
-                position: fixed;
+                position: absolute;
                 display: flex;
                 gap: 4px;
                 padding: 4px;
@@ -230,6 +237,8 @@ export class SelectionToolbar {
                 z-index: 9999;
                 animation: mnemosyne-toolbar-appear 0.15s ease-out;
                 pointer-events: auto;
+                visibility: visible;
+                opacity: 1;
             }
 
             @keyframes mnemosyne-toolbar-appear {
