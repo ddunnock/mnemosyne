@@ -166,7 +166,7 @@ export class QuickStartTab implements BaseTab {
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: var(--text-muted);">
                             <li>Start with <strong>OpenAI (gpt-4)</strong> or <strong>Anthropic (claude-3-5-sonnet)</strong> for best results</li>
                             <li>For privacy, use <strong>Local LLMs</strong> (Ollama, LM Studio) - see LLM Providers tab</li>
-                            <li>The <strong>Master Agent</strong> automatically delegates to specialized agents</li>
+                            <li>The <strong>Archon Agent</strong> automatically delegates to specialized agents</li>
                             <li>Enable <strong>Auto-Ingestion</strong> in Knowledge Base tab to automatically index new notes</li>
                             <li>Visit <strong>Advanced tab</strong> for MCP tools, memory settings, and goddess persona</li>
                         </ul>
