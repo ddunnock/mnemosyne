@@ -35,6 +35,7 @@ import { VaultIngestor } from './rag/VaultIngestor';
 // Inline AI imports
 import { InlineAIController, DEFAULT_INLINE_AI_SETTINGS } from './editor/InlineAIController';
 import { createAutoCompletionExtension } from './editor/AutoCompletionExtension';
+import { createSelectionToolbarExtension } from './editor/SelectionToolbarExtension';
 import { AITextActionModal } from './ui/modals/AITextActionModal';
 
 export default class RiskManagementPlugin extends Plugin {
@@ -103,9 +104,12 @@ export default class RiskManagementPlugin extends Plugin {
         // Register views
         this.registerViews();
 
-        // Register editor extensions (auto-completion)
+        // Register editor extensions (auto-completion and selection toolbar)
         this.registerEditorExtension(createAutoCompletionExtension(this));
         console.log('✓ Auto-completion extension registered');
+
+        this.registerEditorExtension(createSelectionToolbarExtension(this));
+        console.log('✓ Selection toolbar extension registered');
 
         // Phase 5: Expose public API
         exposePublicAPI(this);

@@ -220,14 +220,25 @@ export class AdvancedTab implements BaseTab {
                                         </label>
                                     </div>
 
-                                    <!-- Text Actions -->
+                                    <!-- Text Actions Command -->
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                         <div>
-                                            <label style="font-size: 13px; font-weight: 600;">Text Actions Menu</label>
-                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Context menu for selected text transformations</p>
+                                            <label style="font-size: 13px; font-weight: 600;">Text Actions Command</label>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Command palette action for text transformations</p>
                                         </div>
                                         <label class="toggle-label">
                                             <input type="checkbox" id="inline-ai-context-menu" ${this.plugin.settings.inlineAI?.contextMenuEnabled ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        </label>
+                                    </div>
+
+                                    <!-- Selection Toolbar -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                        <div>
+                                            <label style="font-size: 13px; font-weight: 600;">Selection Toolbar</label>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-faint);">Floating toolbar that appears when you select text</p>
+                                        </div>
+                                        <label class="toggle-label">
+                                            <input type="checkbox" id="inline-ai-show-toolbar" ${this.plugin.settings.inlineAI?.showInlineMenu !== false ? 'checked' : ''} style="width: 18px; height: 18px;">
                                         </label>
                                     </div>
 
@@ -467,7 +478,23 @@ export class AdvancedTab implements BaseTab {
                     if (this.plugin.inlineAIController) {
                         this.plugin.inlineAIController.updateSettings({ contextMenuEnabled: enabled });
                     }
-                    new Notice(`Text actions menu ${enabled ? 'enabled' : 'disabled'}`);
+                    new Notice(`Text actions command ${enabled ? 'enabled' : 'disabled'}`);
+                }
+            });
+        }
+
+        // Inline AI Selection Toolbar Toggle
+        const inlineAIShowToolbarToggle = container.querySelector('#inline-ai-show-toolbar');
+        if (inlineAIShowToolbarToggle) {
+            inlineAIShowToolbarToggle.addEventListener('change', async (e) => {
+                const enabled = (e.target as HTMLInputElement).checked;
+                if (this.plugin.settings.inlineAI) {
+                    this.plugin.settings.inlineAI.showInlineMenu = enabled;
+                    await this.plugin.saveSettings();
+                    if (this.plugin.inlineAIController) {
+                        this.plugin.inlineAIController.updateSettings({ showInlineMenu: enabled });
+                    }
+                    new Notice(`Selection toolbar ${enabled ? 'enabled' : 'disabled'}. Select text to see it!`);
                 }
             });
         }
