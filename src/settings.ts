@@ -108,6 +108,16 @@ export const DEFAULT_SETTINGS: PluginSettings = {
         defaultFolderScope: [] // No folder restrictions by default
     },
 
+    // ✨ NEW: Inline AI Configuration
+    inlineAI: {
+        enabled: true,
+        autoCompletionEnabled: true,
+        contextMenuEnabled: true,
+        autoCompletionDelay: 500,
+        maxCompletionLength: 200,
+        showInlineMenu: true,
+    },
+
     // ✨ NEW: Vector Store Configuration
     vectorStore: {
         backend: 'json', // Default to JSON for simplicity

@@ -32,6 +32,11 @@ import { ConversationMemoryManager } from './memory/conversationMemory';
 import { AutoIngestionManager } from './rag/AutoIngestionManager';
 import { VaultIngestor } from './rag/VaultIngestor';
 
+// Inline AI imports
+import { InlineAIController, DEFAULT_INLINE_AI_SETTINGS } from './editor/InlineAIController';
+import { createAutoCompletionExtension } from './editor/AutoCompletionExtension';
+import { AITextActionModal } from './ui/modals/AITextActionModal';
+
 export default class RiskManagementPlugin extends Plugin {
     settings: PluginSettings;
 
@@ -41,20 +46,23 @@ export default class RiskManagementPlugin extends Plugin {
     llmManager: LLMManager;
     agentManager: AgentManager;
     initManager: InitializationManager;
-    
+
     // Auto Ingestion components
     vaultIngestor: VaultIngestor;
     autoIngestionManager: AutoIngestionManager;
-    
+
     // Conversation Memory
     memoryManager: ConversationMemoryManager;
-    
+
+    // Inline AI
+    inlineAIController: InlineAIController;
+
     // Settings controller (for modern UI)
     settingsController: any; // Will be set by settings tab
-    
+
     // Session cache for password persistence
     private sessionPasswordCache: string | null = null;
-    
+
     // Sidebar chat
     chatSidebar: AgentChatSidebar | null = null;
 
@@ -91,9 +99,13 @@ export default class RiskManagementPlugin extends Plugin {
 
         // Register commands
         this.registerCommands();
-        
+
         // Register views
         this.registerViews();
+
+        // Register editor extensions (auto-completion)
+        this.registerEditorExtension(createAutoCompletionExtension(this));
+        console.log('✓ Auto-completion extension registered');
 
         // Phase 5: Expose public API
         exposePublicAPI(this);
@@ -247,7 +259,14 @@ export default class RiskManagementPlugin extends Plugin {
                 }
             );
             console.log('✓ Conversation Memory Manager initialized');
-            
+
+            // Initialize Inline AI Controller
+            this.inlineAIController = new InlineAIController(
+                this,
+                this.settings.inlineAI || DEFAULT_INLINE_AI_SETTINGS
+            );
+            console.log('✓ Inline AI Controller initialized');
+
             // Start auto ingestion if enabled and RAG system is ready
             if (this.settings.autoIngestion.enabled && this.retriever.isReady()) {
                 try {
@@ -377,6 +396,33 @@ export default class RiskManagementPlugin extends Plugin {
 
                 // Show input modal
                 this.showAgentQueryModal(defaultAgent.getConfig().id);
+            },
+        });
+
+        // ========== Inline AI Commands ==========
+
+        // Command: AI Text Actions (for selected text)
+        this.addCommand({
+            id: 'ai-text-actions',
+            name: 'AI Text Actions',
+            editorCallback: (editor) => {
+                const selection = editor.getSelection();
+
+                if (!selection || selection.trim().length === 0) {
+                    new Notice('Please select some text first');
+                    return;
+                }
+
+                // Open AI text action modal
+                new AITextActionModal(
+                    this.app,
+                    this,
+                    selection,
+                    (result) => {
+                        // Replace selection with result
+                        editor.replaceSelection(result);
+                    }
+                ).open();
             },
         });
 

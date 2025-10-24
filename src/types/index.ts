@@ -193,6 +193,17 @@ export interface PluginSettings {
     // ✨ NEW: Vector Store Configuration
     vectorStore: VectorStoreConfig;
 
+    // ✨ NEW: Inline AI Configuration
+    inlineAI?: {
+        enabled: boolean;
+        autoCompletionEnabled: boolean;
+        contextMenuEnabled: boolean;
+        autoCompletionDelay: number;
+        autoCompletionAgentId?: string;
+        maxCompletionLength: number;
+        showInlineMenu: boolean;
+    };
+
     // Feature flags
     enableLogging: boolean;
     enableCaching: boolean;
